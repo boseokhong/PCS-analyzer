@@ -13,8 +13,10 @@ v.1.2 updates
 
 ...
 
-v.3.2 updates
+v.2.7 updates
 -XYZ file import and plot, coordinate rotation, atom coordinate table added, geometrical parameter analysis plot
 
+v.2.7.1 updates
+-clicking on an atom point on the PCS plot to highlight the corresponding table entry, enhancing data visualization and interaction.
 
 2024.08. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
