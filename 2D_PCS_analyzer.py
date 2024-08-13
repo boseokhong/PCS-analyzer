@@ -14,11 +14,13 @@ v.1.2 updates
 
 ...
 
-v.3.2 updates
+v.2.7 updates
 -XYZ file import and plot, coordinate rotation, atom coordinate table added, geometrical parameter analysis plot
 
+v.2.7.1 updates
+-clicking on a atom point on the PCS plot to highlight the corresponding table entry, enhancing data visualization and interaction.
 
-2024.08. Boseok Hong [Institute of Resource Ecology, HZDR]
+2024.08. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 '''
 
 import numpy as np
@@ -155,9 +157,11 @@ def plot_graph(pcs_values, theta_values, tensor, canvas, figure, polar_data=None
     ax.set_position([0.1, 0.1, 0.6, 0.8])
     
     ax.tick_params(axis='both', which='major', labelsize=8)
-
     pcs_min = min(pcs_values)
     pcs_max = max(pcs_values)
+    
+    scatter_points = []
+    
     for pcs_value in pcs_values:
         r_values = calculate_r(pcs_value, theta_values, tensor)
         if np.isclose(pcs_value, 0):
@@ -172,9 +176,21 @@ def plot_graph(pcs_values, theta_values, tensor, canvas, figure, polar_data=None
         ax.plot(theta_values, r_values, label=f'PCS={pcs_value}', color=color)
     
     if polar_data:
-        for atom, r, theta in polar_data:
-            ax.scatter(theta, r, color=get_cpk_color(atom), zorder=5, s=15)
-
+        for i, (atom, r, theta) in enumerate(polar_data):
+            point = ax.scatter(theta, r, color=get_cpk_color(atom), zorder=5, s=15)
+            scatter_points.append((point, i + 1))  # 점과 테이블의 인덱스(i+1)을 연결
+    
+    def on_click(event):
+        for point, idx in scatter_points:
+            contains, _ = point.contains(event)
+            if contains:
+                # 테이블의 해당 행을 하이라이트
+                tree.selection_set(tree.get_children()[idx - 1])
+                tree.see(tree.get_children()[idx - 1])
+                break
+    
+    canvas.mpl_connect('button_press_event', on_click)
+    
     ax.set_theta_zero_location('N')
     ax.set_theta_direction(-1)
     ax.set_ylim(0, 10)
@@ -473,6 +489,29 @@ def create_checklist():
 
     update_graph()
 
+def on_table_select(event):
+    selected_item = tree.selection()
+    if selected_item:
+        item = selected_item[0]
+        values = tree.item(item, 'values')
+        atom = values[1]
+        dx = float(values[2])
+        dy = float(values[3])
+        dz = float(values[4])
+
+        for atom_idx, (a, r, theta) in enumerate(polar_data):
+            if a == atom and np.isclose([dx, dy, dz], [r * np.sin(theta), r * np.cos(theta), dz]).all():
+                plot_highlighted_point(atom_idx)
+                break
+
+def plot_highlighted_point(atom_idx):
+    plot_graph(pcs_values, theta_values, float(tensor_entry.get()), canvas, pcs_figure, polar_data)
+    ax = pcs_figure.gca(projection='polar')
+    atom, r, theta = polar_data[atom_idx]
+    ax.scatter(theta, r, color='yellow', zorder=10, s=50, edgecolor='black')  # hightlight effect
+    canvas.draw()
+
+
 def filter_atoms():
     global atom_data, check_vars, x0, y0, z0
     selected_atoms = [atom for atom, var in check_vars.items() if var.get()]
@@ -498,7 +537,7 @@ def save_graph():
         canvas.print_figure(file_path, dpi=600)
 
 root = tk.Tk()
-root.title("2D PCS Analyzer v2.7")
+root.title("2D PCS Analyzer v2.7.1")
 root.geometry("1500x800")
 
 main_frame = tk.Frame(root)
@@ -543,6 +582,8 @@ scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 tree.bind("<Double-1>", on_delta_entry_change)
+# 테이블 항목 클릭 시 이벤트 연결
+tree.bind("<<TreeviewSelect>>", on_table_select)
 
 # Cartesian Plot
 cartesian_frame = tk.Frame(center_frame)
