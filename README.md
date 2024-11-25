@@ -1,4 +1,4 @@
-2D PCS plot analyzer v3.2
+PCS plot analyzer v3.2
 
 The following code requires the numpy, matplotlib, pandas, and openpyxl module packages to run.
 It is designed for 2d PCS plot visualization (using only axiality of magnetic susceptibility tensor).
