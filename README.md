@@ -8,7 +8,11 @@ The file extension `.xlsx` should be included when exporting to an Excel file. e
 
 
 ----------------------------------------------------------------------------------------------------
+ ## Version and Changelog
+Current Version: `0.5`
+
 v.0.1 updates
+- Initial release
 -`.xlsx` export: x, y cartesian coordinates are calculated, and each column is separated by PCS values.
 
 v.0.2 updates
@@ -23,13 +27,17 @@ v.0.3.1 updates
 
 v.0.4 updates
 -Added 3d molecule scatter plot
- ## Acknowledgements
- This project includes code or concepts derived from the work of Sebastian Dechert, licensed under the BSD 3-Clause License. The original code can be found [here](https://github.com/radi0sus/xyz2tab).
  
 v.0.5 updates
 -Reorganized GUI
 -Added Mollweide projection plot
 
+----------------------------------------------------------------------------------------------------
+## About
+This project was created by **Boseok Hong**, affiliated with **Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR**.  
+For inquiries, please contact [bshong66@gmail.com](bshong66@gmail.com) or [b.hong@hzdr.de](b.hong@hzdr.de).
+2024.11. Boseok Hong
 
-2024.11. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
-<bshong66@gmail.com> / <b.hong@hzdr.de>
+----------------------------------------------------------------------------------------------------
+ ## Acknowledgements
+ This project includes code or concepts derived from the work of Sebastian Dechert, licensed under the BSD 3-Clause License. The original code can be found [here](https://github.com/radi0sus/xyz2tab).
