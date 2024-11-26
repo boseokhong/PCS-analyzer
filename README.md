@@ -40,4 +40,4 @@ For inquiries, please contact [bshong66@gmail.com](bshong66@gmail.com) or [b.hon
 
 
  ## Acknowledgements
- This project includes code or concepts derived from the work of Sebastian Dechert, licensed under the BSD 3-Clause License. The original code can be found [here](https://github.com/radi0sus/xyz2tab).
+ This project includes code or concepts from the work of Sebastian Dechert for implementing a 3D molecular scatter plot, licensed under the BSD 3-Clause License. The original code is available [here](https://github.com/radi0sus/xyz2tab).
