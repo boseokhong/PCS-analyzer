@@ -1,0 +1,22 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: PCS analyzer
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Boseok
+    family-names: Hong
+    email: bshong66@gmail.com
+    affiliation: Helmholtz-Zentrum Dresden-Rossendorf (HZDR)
+    orcid: 'https://orcid.org/0009-0005-5866-682X'
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.14219440
+repository-code: 'https://github.com/boseokhong/PCS-analyzer'
+license: BSD-3-Clause
+version: '0.5'
+date-released: '2024-11-26'
