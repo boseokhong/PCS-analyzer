@@ -12,24 +12,24 @@ Current Version: `0.5`
 
 v.0.1 updates
 - Initial release
--`.xlsx` export: x, y cartesian coordinates are calculated, and each column is separated by PCS values.
+- `.xlsx` export: x, y cartesian coordinates are calculated, and each column is separated by PCS values.
 
 v.0.2 updates
--Tensor values, PCS range, and intervals can now be inputted for calculations.
--molar susceptibility tensor calculation
+- Tensor values, PCS range, and intervals can now be inputted for calculations.
+- molar susceptibility tensor calculation
 
 v.0.3 updates
--XYZ file import and plot, coordinate rotation, atom coordinate table added, geometrical parameter analysis plot
+- XYZ file import and plot, coordinate rotation, atom coordinate table added, geometrical parameter analysis plot
 
 v.0.3.1 updates
--Clicking on an atom point on the PCS plot to highlight the corresponding table entry, enhancing data visualization and interaction.
+- Clicking on an atom point on the PCS plot to highlight the corresponding table entry, enhancing data visualization and interaction.
 
 v.0.4 updates
--Added 3d molecule scatter plot
+- Added 3d molecule scatter plot
  
 v.0.5 updates
--Reorganized GUI
--Added Mollweide projection plot
+- Reorganized GUI
+- Added Mollweide projection plot
 
 
 ## About
