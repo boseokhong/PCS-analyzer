@@ -1,4 +1,4 @@
- # PCS analyzer
+ # Pseudocontact chemical shifts (PCSs) analyzer
 
 ![figure_1a](https://github.com/user-attachments/assets/c9656b87-5b0e-4f2c-b010-bd238f86ab23)
 
