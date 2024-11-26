@@ -7,7 +7,7 @@ When exporting to an Excel file, the file extension ".xlsx" should be included. 
 
 
 v.0.1 updates
-Excel export: x, y cartesian coordinates are calculated, and each column are separated by PCS values.
+-Excel export: x, y cartesian coordinates are calculated, and each column are separated by PCS values.
 
 v.0.2 updates
 -tensor values, PCS range, and intervals can now be input for calculations.
