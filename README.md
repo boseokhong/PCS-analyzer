@@ -35,6 +35,7 @@ v.0.5 updates
 ## About
 This project was created by **Boseok Hong**, affiliated with **Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR**.  
 For inquiries, please contact [bshong66@gmail.com](bshong66@gmail.com) or [b.hong@hzdr.de](b.hong@hzdr.de).
+
 2024.11. Boseok Hong
 
 
