@@ -1,5 +1,4 @@
 '''
-
 PCS plot analyzer
 
 The following code requires the numpy, matplotlib, pandas, and openpyxl module packages to run.
@@ -23,7 +22,9 @@ v.0.3.1 updates
 v.0.4 updates
 -Added 3d molecule scatter plot
 -The code from the following project was referred to for implementing the 3D scatter plot.
- https://github.com/radi0sus/xyz2tab
+ This file includes portions of code derived from work by Sebastian Dechert, 
+ licensed under the BSD 3-Clause License. See LICENSE or the project's README.md for full license details. The original code can be found at:
+ <https://github.com/radi0sus/xyz2tab>
 
 v.0.5 updates
 -Reorganized GUI
@@ -34,7 +35,6 @@ v.0.5 updates
 2024.11. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com> / <b.hong@hzdr.de>
 <https://github.com/boseokhong/PCS-analyzer>
-
 '''
 
 import numpy as np
