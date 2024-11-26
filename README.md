@@ -1,10 +1,13 @@
 PCS plot analyzer
 
+![figure_1a](https://github.com/user-attachments/assets/c9656b87-5b0e-4f2c-b010-bd238f86ab23)
+
 The following code requires the numpy, matplotlib, pandas, and openpyxl module packages to run.
 It is designed for PCS analysis and visualization of 2D polar contour plots (using only the axiality of the magnetic susceptibility tensor).
 The file extension ".xlsx" should be included when exporting to an Excel file. e.g.[filename.xlsx]
 
 
+----------------------------------------------------------------------------------------------------
 v.0.1 updates
 Excel export: x, y cartesian coordinates are calculated, and each column is separated by PCS values.
 
