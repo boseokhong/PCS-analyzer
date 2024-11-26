@@ -7,7 +7,6 @@ It is designed for PCS analysis and visualization of 2D polar contour plots (usi
 The file extension `.xlsx` should be included when exporting to an Excel file. e.g.[filename.xlsx]
 
 
-----------------------------------------------------------------------------------------------------
  ## Version and Changelog
 Current Version: `0.5`
 
@@ -32,12 +31,12 @@ v.0.5 updates
 -Reorganized GUI
 -Added Mollweide projection plot
 
-----------------------------------------------------------------------------------------------------
+
 ## About
 This project was created by **Boseok Hong**, affiliated with **Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR**.  
 For inquiries, please contact [bshong66@gmail.com](bshong66@gmail.com) or [b.hong@hzdr.de](b.hong@hzdr.de).
 2024.11. Boseok Hong
 
-----------------------------------------------------------------------------------------------------
+
  ## Acknowledgements
  This project includes code or concepts derived from the work of Sebastian Dechert, licensed under the BSD 3-Clause License. The original code can be found [here](https://github.com/radi0sus/xyz2tab).
