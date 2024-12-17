@@ -8,7 +8,7 @@ The file extension `.xlsx` should be included when exporting to an Excel file. e
 
 
  ## Version and Changelog
-Current Version: `0.5`
+Current Version: `0.6`
 
 v.0.1 updates
 - Initial release
@@ -30,6 +30,9 @@ v.0.4 updates
 v.0.5 updates
 - Reorganized GUI
 - Added Mollweide projection plot
+
+v.0.6 updates
+- PCS polar plot: Half/Quarter view toggle function added
 
 
 ## About
