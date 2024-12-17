@@ -30,9 +30,11 @@ v.0.5 updates
 -Reorganized GUI
 -Added Mollweide projection plot
 
+v.0.6 updates
+-PCS plot: Half/Quarter view toggle function
 
 
-2024.11. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
+2024.12. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com> / <b.hong@hzdr.de>
 <https://github.com/boseokhong/PCS-analyzer>
 '''
@@ -54,6 +56,7 @@ from scipy.spatial.distance import pdist, squareform
 # Constants and initial settings
 AVOGADRO_CONSTANT = 6.0221408e23
 delta_values = {}
+
 
 # CPK Colors dictionary
 CPK_COLORS = {
@@ -214,23 +217,46 @@ def on_angle_y_entry_change(*args):
     except ValueError:
         pass
 
-def plot_graph(pcs_values, theta_values, tensor, canvas, figure, polar_data=None):
-    figure.clear()
-    ax = figure.add_subplot(1, 1, 1, projection='polar')
-    ax.set_position([0, 0.1, 0.8, 0.8])
-    
-    # polar plot range. Change thatamax to 360 to change full polar plot
-    ax.set_thetamin(0)   # min angle
-    ax.set_thetamax(180) # max angle
+def toggle_plot_range():
+    """
+    Function to toggle between 0-180 degrees and 0-90 degrees plot range.
+    """
+    update_graph()
 
-    ax.tick_params(axis='both', which='major', labelsize=8)
+def plot_graph(pcs_values, theta_values, tensor, canvas, figure, polar_data=None):
+    """
+    Function to create the PCS polar plot with toggle for 0-180 or 0-90 degrees.
+    """
+    figure.clear()  # Clear the previous figure to avoid overlay
+    ax = figure.add_subplot(1, 1, 1, projection='polar')
+    #ax.set_position([0, 0.1, 0.8, 0.8])
+
     pcs_min = min(pcs_values)
     pcs_max = max(pcs_values)
-    
-    scatter_points = []
-    
+
+    # Initialize theta range based on toggle
+    if plot_90_degrees.get():
+        theta_range = theta_values[theta_values <= np.pi / 2]  # 0~90 degree
+        ax.set_position([0.2, 0.1, 0.4, 0.8])  # x, y, width, height
+        ax.set_thetamax(90)  # limit 0~90 degree
+        ax.set_xticks([0, np.pi / 12, np.pi / 6, np.pi / 4, np.pi / 3, 5 * np.pi / 12, np.pi / 2])  # 0, 15, 30, 45, 60, 75, 90° label
+        ax.set_xticklabels(["0°", "15°", "30°", "45°", "60°", "75°", "90°"], fontsize=8)  # label font size
+        bbox = (1.3, 0.5)  
+ 
+    else:
+        theta_range = theta_values  # 0~180 degree
+        ax.set_position([0.0, 0.1, 0.8, 0.8])
+        ax.set_thetamax(180)  # limit 0~180 degree
+        ax.set_xticks([0, np.pi / 6, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 5 * np.pi / 6, np.pi])
+        ax.set_xticklabels(["0°", "30°", "60°", "90°", "120°", "150°", "180°"], fontsize=8)
+        bbox = (0.9, 0.5)
+
+    scatter_points = []  # For handling polar_data
+
     for pcs_value in pcs_values:
-        r_values = calculate_r(pcs_value, theta_values, tensor)
+        r_values = calculate_r(pcs_value, theta_range, tensor)
+
+        # Handle colors
         if np.isclose(pcs_value, 0):
             color = 'white'
         elif pcs_value > 0:
@@ -240,17 +266,30 @@ def plot_graph(pcs_values, theta_values, tensor, canvas, figure, polar_data=None
             intensity = max(0, 1 + pcs_value / abs(pcs_min))
             color = (intensity, intensity, 1)
 
-        ax.plot(theta_values, r_values, label=f'{pcs_value: .1f}', color=color)
-    
+        # Mirror data for 0~90 degrees if enabled
+        if plot_90_degrees.get():
+            mirrored_theta = np.pi - theta_range  # Reflect theta to 90~180 mirrored as 0~90
+            combined_theta = np.concatenate((theta_range, mirrored_theta))
+            combined_r = np.concatenate((r_values, r_values))
+            ax.plot(combined_theta, combined_r, label=f'{pcs_value: .1f}', color=color)
+        else:
+            ax.plot(theta_range, r_values, label=f'{pcs_value: .1f}', color=color)
+
+    # Plot polar_data
     if polar_data:
         for i, (atom, r, theta) in enumerate(polar_data):
+            # Reflect data if 0~90 toggle is on
+            if plot_90_degrees.get() and theta > np.pi / 2:
+                theta = np.pi - theta  # Reflect to 0~90
             point = ax.scatter(theta, r, color=get_cpk_color(atom), zorder=5, s=15)
-            scatter_points.append((point, i + 1))  # Connect point with table index (i+1)
+            scatter_points.append((point, i + 1))
 
+    # Set radius ticks and labels
     r_ticks = [0, 2, 4, 6, 8, 10]  # r ticks in angstrom
-    r_labels = [f"{r} Å" for r in r_ticks]  # r label
+    r_labels = [f"{r} Å" for r in r_ticks]
     ax.set_yticks(r_ticks)
     ax.set_yticklabels(r_labels)
+    ax.tick_params(axis='y', labelsize=8)
 
     def on_click(event):
         for point, idx in scatter_points:
@@ -263,27 +302,55 @@ def plot_graph(pcs_values, theta_values, tensor, canvas, figure, polar_data=None
     
     canvas.mpl_connect('button_press_event', on_click)
     
+    # Set angle limits
     ax.set_theta_zero_location('N')
     ax.set_theta_direction(-1)
-    ax.set_ylim(0, 10) # 
-    ax.grid(True)
+    ax.set_ylim(0, 10)  # r limit
+    if plot_90_degrees.get():
+        ax.set_thetamax(90)  # 0~90 degree
+    else:
+        ax.set_thetamax(180)  # 0~180 degree
+    
+    # Plot PCS legend (두 줄로 고정)
     legend = ax.legend(
         fontsize=6,
-        bbox_to_anchor=(0.9, 0.5),
+        bbox_to_anchor=bbox,
         loc="center left",
-        ncol=2,
+        ncol=2,  # 두 줄로 고정
         frameon=False,
-        handletextpad=0.8,  # interval between handle and text
-        labelspacing=0.5,  # label spacing
-        columnspacing=1.0, # column spacing
-        borderpad=0,     # legend border box distance
-        borderaxespad=0.5,  # legend box distance
-        handlelength=1.0,   # handle length
-        handleheight=1.0,  # handle height
+        handletextpad=0.8,
+        labelspacing=0.5,
+        columnspacing=1.0,
+        borderpad=0,
+        borderaxespad=0.5,
+        handlelength=1.0,
+        handleheight=1.0,
     )
-    legend.set_title("PCS legend (ppm)", prop={'size': 6, 'weight': 'bold'}) # PCS legend display options
-    
+    legend.set_title("PCS legend (ppm)", prop={'size': 6, 'weight': 'bold'})  # Legend 타이틀 설정
     canvas.draw()
+
+def update_figsize():
+    """
+    Dynamically recreate the canvas to ensure proper resizing.
+    """
+    global canvas, pcs_figure  # Ensure we refer to the global variables
+
+    # Remove the existing canvas
+    canvas.get_tk_widget().destroy()
+
+    # Adjust figure size based on the toggle state
+    if plot_90_degrees.get():  # 0~90 degree display option
+        pcs_figure.set_size_inches(4, 2, forward=True)
+    else:  # 0~180 degree display option
+        pcs_figure.set_size_inches(4, 4, forward=True)
+
+    # Recreate the canvas
+    canvas = FigureCanvasTkAgg(pcs_figure, master=left_frame)
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    # Redraw the plot
+    update_graph()
+
 
 # Generate data to export in xlsx file
 def save_to_excel(pcs_values, theta_values, tensor, file_name, polar_data):
@@ -912,6 +979,8 @@ root = tk.Tk()
 root.title("PCS Analyzer")
 root.geometry("1280x800")
 
+# New global variable to manage the toggle state
+plot_90_degrees = tk.BooleanVar(value=False)
 
 '''
 ----------------------↓↓↓↓↓↓↓↓Working in progress for the next update↓↓↓↓↓↓↓↓-------------------------------------
@@ -1252,6 +1321,21 @@ pcs_max_entry.pack(side=tk.LEFT, padx=5)
 # Frame for PCS plot interval input
 pcs_interval_frame = tk.Frame(input_frame)
 pcs_interval_frame.pack(fill=tk.X, pady=3)
+
+# Toggle PCS plot range
+plot_range_frame = tk.Frame(input_frame)
+plot_range_frame.pack(fill=tk.X, pady=0)
+
+plot_range_label = tk.Label(plot_range_frame, text="Half/Quarter plot toggle", font=("default", 9, "bold"))
+plot_range_label.pack(side=tk.LEFT)
+
+toggle_plot_range_button = tk.Checkbutton(
+    plot_range_frame,
+    variable=plot_90_degrees,
+    command=lambda: [update_figsize(), update_graph()]
+)
+toggle_plot_range_button.pack(side=tk.LEFT)
+
 
 pcs_interval_label = tk.Label(pcs_interval_frame, text="PCS plot interval (ppm):", font=("default", 9, "bold"))
 pcs_interval_label.pack(side=tk.LEFT)
