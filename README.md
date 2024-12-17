@@ -1,6 +1,6 @@
  # Pseudocontact chemical shift (PCS) analyzer
 
-![figure_1a](https://github.com/user-attachments/assets/c9656b87-5b0e-4f2c-b010-bd238f86ab23)
+<img width="961" alt="PCS-analyzer v0 6 capture" src="https://github.com/user-attachments/assets/56e82957-0522-4cc8-86f4-34582192512e" />
 
 The following code requires the `numpy`, `matplotlib`, `pandas`, and `openpyxl` module packages to run.
 It is designed for PCS analysis and visualization of 2D polar contour plots (using only the axiality of the magnetic susceptibility tensor).
@@ -33,13 +33,14 @@ v.0.5 updates
 
 v.0.6 updates
 - PCS polar plot: Half/Quarter view toggle function added
+<img width="961" alt="PCS-analyzer v0 6 capture_2" src="https://github.com/user-attachments/assets/a5a9b0a9-de3c-4cec-821d-45a30d6ef685" />
 
 
 ## About
 This project was created by **Boseok Hong**, affiliated with **Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR**.  
 For inquiries, please contact [bshong66@gmail.com](bshong66@gmail.com) or [b.hong@hzdr.de](b.hong@hzdr.de).
 
-2024.11. Boseok Hong
+2024.12. Boseok Hong
 
 
  ## Acknowledgements
