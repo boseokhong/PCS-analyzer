@@ -16,7 +16,7 @@ v.0.1 updates
 
 v.0.2 updates
 - Tensor values, PCS range, and intervals can now be inputted for calculations.
-- molar susceptibility tensor calculation
+- molar susceptibility tensor calculation (∆χax = χzz - ((χxx + χyy))/2 and ∆χrh = χxx - χyy)
 
 v.0.3 updates
 - XYZ file import and plot, coordinate rotation, atom coordinate table added, geometrical parameter analysis plot
