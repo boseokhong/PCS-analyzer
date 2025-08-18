@@ -48,6 +48,8 @@ Latest update: **v.1.0.0** – Code refactoring and PCS fitting
 **v.1.0.0 updates**
 - Code refactoring
 - PCS fitting
+<img width="1402" height="885" alt="image" src="https://github.com/user-attachments/assets/2b492d4b-30c4-4f1c-b139-36fee20cd024" />
+
 
 </details>
 
