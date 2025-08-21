@@ -15,7 +15,10 @@ from logic.plot_pcs import plot_graph, update_figsize
 from logic.plot_cartesian import plot_cartesian_graph
 from logic.plot_3d import open_3d_plot_window
 from logic.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
-from logic.table_utils import update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui
+from logic.table_utils import (
+    update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui,
+    export_delta_exp_template, import_delta_exp_file, import_delta_exp_from_clipboard, undo_last_delta_import, clear_delta_exp
+)
 from logic.rotate_align import rotate_coordinates, rotate_euler
 from logic.chem_constants import CPK_COLORS
 from logic.fitting import (
@@ -38,7 +41,7 @@ def build_app():
     state['filedialog'] = filedialog; state['simpledialog'] = simpledialog; state['messagebox'] = messagebox
     state['FigureCanvas'] = FigureCanvasTkAgg; state['NavigationToolbar2Tk'] = NavigationToolbar2Tk
 
-    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1400x860"); state['root'] = root
+    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1400x890"); state['root'] = root
     apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
 
     # Frames
@@ -64,6 +67,27 @@ def build_app():
     scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
     tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     state['tree']=tree
+
+    table_btns = ttk.Frame(center_frame)
+    table_btns.pack(side=tk.TOP, fill=tk.X, padx=3, pady=(4, 6))
+    ttk.Button(
+        table_btns, text="Export δ_Exp Template",
+        command=lambda: export_delta_exp_template(state)
+    ).pack(side=tk.LEFT, padx=(0, 6))
+    ttk.Button(
+        table_btns, text="Import δ_Exp",
+        command=lambda: import_delta_exp_file(state, plot_cartesian_graph)
+    ).pack(side=tk.LEFT)
+    ttk.Button(
+        table_btns, text="Paste δ_Exp",
+               command=lambda: import_delta_exp_from_clipboard(state, plot_cartesian_graph)).pack(side=tk.LEFT, padx=6)
+    ttk.Button(
+        table_btns, text="Undo",
+               command=lambda: undo_last_delta_import(state, plot_cartesian_graph)).pack(side=tk.LEFT)
+    ttk.Button(
+        table_btns, text="Clear δ_Exp",
+        command=lambda: clear_delta_exp(state, plot_cartesian_graph)
+    ).pack(side=tk.LEFT, padx=6)
 
     _sep(center_frame, orient='horizontal', pady=6, fill='x')
 
