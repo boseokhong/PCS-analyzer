@@ -1,5 +1,5 @@
 # Pseudocontact chemical shift (PCS) analyzer
-![version](https://img.shields.io/badge/version-1.0.0-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green)
+![version](https://img.shields.io/badge/version-1.0.1-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green)
 
 <img width="961" alt="PCS-analyzer v0 6 capture" src="https://github.com/user-attachments/assets/56e82957-0522-4cc8-86f4-34582192512e" />
 
@@ -10,7 +10,7 @@
 ---
 
 ## Version and Changelog 
-Latest update: **v.1.0.0** – Code refactoring and PCS fitting  
+Latest update: **v.1.0.1** – Added table δ<sub>exp</sub> data export/import
 
 <details>
 <summary><b>Click to expand version history</b></summary>
@@ -50,6 +50,8 @@ Latest update: **v.1.0.0** – Code refactoring and PCS fitting
 - PCS fitting
 <img width="1402" height="885" alt="image" src="https://github.com/user-attachments/assets/2b492d4b-30c4-4f1c-b139-36fee20cd024" />
 
+**v.1.0.1 updates**
+- Added table δ<sub>exp</sub> data export/import
 
 </details>
 

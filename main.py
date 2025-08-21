@@ -39,6 +39,9 @@ v.1.0.0 updates
 -Code refactoring
 -PCS fitting
 
+v.1.0.1 updates
+-Added table δ_exp data export/import
+
 2025.08. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com> / <b.hong@hzdr.de>
 <https://github.com/boseokhong/PCS-analyzer>
