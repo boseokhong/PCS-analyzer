@@ -44,7 +44,7 @@ def build_rh_table_rows(state, filter_atoms_fn):
     """
     dv = state.get("delta_values", {})
 
-    # Δχ_ax(tensor) 읽기: state["tensor"]가 아니라 Entry에서 읽어야 함
+    # Δχ_ax(tensor) Entry에서
     tensor = 0.0
     try:
         if "tensor_entry" in state and state["tensor_entry"] is not None:
@@ -92,7 +92,6 @@ def build_rh_table_rows(state, filter_atoms_fn):
             resid_ax = f"{(dexp - d_ax): .2f}"
             resid_rh = f"{(dexp - d_axrh): .2f}"
 
-        # ✅ 컬럼 추가: r, theta, phi
         rows.append((
             ref_id,
             atom,

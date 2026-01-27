@@ -42,7 +42,13 @@ v.1.0.0 updates
 v.1.0.1 updates
 -Added table δ_exp data export/import
 
-2025.08. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
+v.1.0.2 updates
+-CSV export encoding fixed
+
+v.1.1.0 updates
+-Rhombicity utilities
+
+2026.01. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com> / <b.hong@hzdr.de>
 <https://github.com/boseokhong/PCS-analyzer>
 '''

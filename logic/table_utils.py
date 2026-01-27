@@ -1,4 +1,34 @@
 # logic/table_utils.py
+'''
+# Susceptibility tensor definitions
+
+# χ_iso (isotropic magnetic susceptibility):
+χ_iso = (χ_xx + χ_yy + χ_zz) / 3
+→ equal to the experimentally measured molar susceptibility χ_mol.
+
+# Δχ_ax (axial anisotropy):
+Δχ_ax = χ_zz − (χ_xx + χ_yy) / 2
+→ describes the axial (uniaxial) deviation from isotropy.
+
+# Δχ_rh (rhombic anisotropy):
+Δχ_rh = χ_xx − χ_yy
+→ quantifies the in-plane anisotropy (rhombicity).
+
+# Inversion (used in this program):
+χ_xx = χ_iso − Δχ_ax/3 + Δχ_rh/2
+χ_yy = χ_iso − Δχ_ax/3 − Δχ_rh/2
+χ_zz = χ_iso + 2Δχ_ax/3
+
+# Special case (Δχ_rh = 0):
+→ χ_xx = χ_yy = χ_perp  (axially symmetric tensor)
+'''
+
+'''
+# Units:
+Δχ_ax, Δχ_rh are handled internally in units of 10^−32 m^3 (per molecule),
+while χ_iso, χ_xx, χ_yy, χ_zz are reported in m^3/mol.
+'''
+
 
 import numpy as np
 from logic.chem_constants import AVOGADRO_CONSTANT
@@ -485,3 +515,49 @@ def calculate_tensor_components_ui(chi_mol_entry, molar_value_label, tensor_xx_l
         tensor_zz_label.config(text=f"χ_zz: {chi_parallel:.2e} m³/mol")
     except Exception:
         messagebox.showerror("Input Error", "Please enter valid numerical values for χ_mol.")
+
+def calculate_tensor_components_ui_ax_rh(
+    chi_mol_entry,
+    molar_value_label,      # Δχ_mol_ax 라벨(기존 그대로 재사용)
+    rh_dchi_entry,          # Rhombicity 탭 Δχ_rh entry (StringVar/Entry에서 get)
+    tensor_xx_label,
+    tensor_yy_label,
+    tensor_zz_label,
+    messagebox,
+):
+    """
+    χ_iso = χ_mol
+    Δχ_ax = 라벨(Δχ_mol_ax)에서 읽음
+    Δχ_rh = rh_dchi_entry에서 읽음 (E-32 m^3 scale)
+
+    χ_xx = χ_iso - Δχ_ax/3 + Δχ_rh/2
+    χ_yy = χ_iso - Δχ_ax/3 - Δχ_rh/2
+    χ_zz = χ_iso + 2Δχ_ax/3
+    """
+    # PCS calculations use Δχ_ax and Δχ_rh together with the corresponding
+    # geometry factors G_ax and G_rh derived from atomic coordinates.
+
+    try:
+        chi_mol = float(chi_mol_entry.get())
+
+        txt = molar_value_label['text']  # "Δχ_mol_ax: 1.23e-28 m³/mol"
+        delta_chi_ax = float(txt.split(':')[1].strip().split()[0])
+
+        s = rh_dchi_entry.get().strip()
+        dchi_rh = float(s) if s else 0.0
+
+        # Δχ_rh 입력이 "E-32 m^3" 스케일,
+        # 따라서 dchi_rh(E-32 m^3) -> m^3/mol 변환:
+        from logic.chem_constants import AVOGADRO_CONSTANT
+        delta_chi_rh_mol = dchi_rh * AVOGADRO_CONSTANT * 1e-32
+
+        chi_xx = chi_mol - delta_chi_ax/3 + delta_chi_rh_mol/2
+        chi_yy = chi_mol - delta_chi_ax/3 - delta_chi_rh_mol/2
+        chi_zz = chi_mol + (2/3)*delta_chi_ax
+
+        tensor_xx_label.config(text=f"χ_xx: {chi_xx:.2e} m³/mol")
+        tensor_yy_label.config(text=f"χ_yy: {chi_yy:.2e} m³/mol")
+        tensor_zz_label.config(text=f"χ_zz: {chi_zz:.2e} m³/mol")
+
+    except Exception:
+        messagebox.showerror("Input Error", "Please enter valid numerical values for χ_mol / Δχ values.")

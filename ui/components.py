@@ -16,7 +16,7 @@ from logic.plot_cartesian import plot_cartesian_graph
 from logic.plot_3d import open_3d_plot_window
 from logic.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
 from logic.table_utils import (
-    update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui,
+    update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui, calculate_tensor_components_ui_ax_rh,
     export_delta_exp_template, import_delta_exp_file, import_delta_exp_from_clipboard, undo_last_delta_import, clear_delta_exp
 )
 from logic.rotate_align import rotate_coordinates, rotate_euler
@@ -26,7 +26,6 @@ from logic.fitting import (
     fit_theta_alpha_multi, fit_euler_global, _angles_to_rotation_multi
 )
 from logic.include_rhombic import build_rh_table_rows
-
 
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
@@ -118,7 +117,8 @@ def build_app():
 
     # rhtab 내부는 grid로만 배치
     rhtab.rowconfigure(0, weight=0)  # top bar
-    rhtab.rowconfigure(1, weight=1)  # table area
+    rhtab.rowconfigure(1, weight=0)  # z-rotation bar (NEW)
+    rhtab.rowconfigure(2, weight=1)  # table area (CHANGED: was row 1)
     rhtab.columnconfigure(0, weight=1)
 
     # 상단 버튼 영역
@@ -140,9 +140,47 @@ def build_app():
     cols = ("Ref", "Atom", "r", "theta(deg)", "phi(deg)",
             "Gi_ax", "Gi_rh", "δ_PCS(ax)", "δ_PCS(ax+rh)", "δ_Exp", "res(ax)", "res(ax+rh)")
 
-    # table frame도 grid로
+    # ---------------------------
+    # NEW: Z-rotation row (between top and table)
+    # ---------------------------
+    rh_zrow = ttk.Frame(rhtab)
+    rh_zrow.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 6))
+
+    ttk.Label(rh_zrow, text="Rotate around Z-axis (degrees):").pack(side="left", padx=(0, 6))
+
+    # z state vars
+    state.setdefault("angle_z_var", tk.DoubleVar(value=0.0))
+    # NOTE: on_angle_slider / on_angle_entry_commit must support axis 'z'
+    azf = ttk.Frame(rh_zrow)
+    azf.pack(side="left", fill="x", expand=True)
+
+    angle_z_slider = tk.Scale(
+        azf,
+        from_=-180, to=180,
+        orient=tk.HORIZONTAL,
+        variable=state["angle_z_var"],
+        resolution=0.1,
+        command=lambda v: on_angle_slider(state, 'z', v),
+        bg="#F5F6FA",
+        activebackground="#F5F6FA",
+        highlightthickness=0
+    )
+    angle_z_slider.pack(side="left", fill="x", expand=True)
+
+    angle_z_entry = tk.Entry(azf, width=6)
+    angle_z_entry.pack(side="left", padx=(6, 0))
+    angle_z_entry.delete(0, tk.END)
+    angle_z_entry.insert(0, f"{float(state['angle_z_var'].get()):.1f}")
+
+    state["angle_z_entry"] = angle_z_entry
+    angle_z_entry.bind('<Return>', lambda e: on_angle_entry_commit(state, 'z'))
+    angle_z_entry.bind('<FocusOut>', lambda e: on_angle_entry_commit(state, 'z'))
+
+    # ---------------------------
+    # table frame도 grid로 (CHANGED row: 1 -> 2)
+    # ---------------------------
     rh_table_frame = ttk.Frame(rhtab)
-    rh_table_frame.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+    rh_table_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
 
     rh_tree = ttk.Treeview(rh_table_frame, columns=cols, show="headings", height=18)
 
@@ -190,7 +228,7 @@ def build_app():
             state["messagebox"].showerror("Rhombicity", "Invalid Δχ_rh value.")
             return
 
-        # Δχ_rh 저장 (입력값은 '×1e-32 m^3' 스케일)
+        # Δχ_rh 저장 (입력값은 '1e-32 m^3' 스케일)
         state["rh_dchi_rh"] = v
 
         # Apply = Refresh
@@ -199,8 +237,50 @@ def build_app():
     # Enter로 Apply
     rh_dchi_entry.bind("<Return>", lambda e: _apply_dchi_rh())
 
-    # Apply 버튼 (Refresh 버튼은 없음)
+    # Apply 버튼
     ttk.Button(rh_top, text="Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
+
+    # Rhombicity ON/OFF toggle checkbox
+    state.setdefault("rh_calc_enabled", False)
+    state["rh_calc_enabled_var"] = tk.BooleanVar(value=state["rh_calc_enabled"])
+
+    def _on_toggle_rh_calc():
+        state["rh_calc_enabled"] = bool(state["rh_calc_enabled_var"].get())
+        try:
+            _apply_dchi_rh()
+        except Exception:
+            pass
+
+    ttk.Checkbutton(
+        rh_top,
+        text="Enable Δχ_rh",
+        variable=state["rh_calc_enabled_var"],
+        command=_on_toggle_rh_calc
+    ).pack(side="left", padx=(10, 0))
+
+    def _calc_chi_tensor_from_ui():
+        if state.get("rh_calc_enabled", False):
+            calculate_tensor_components_ui_ax_rh(
+                chi_mol_entry=state["chi_mol_entry"],  # entry
+                molar_value_label=state["molar_value_label"],
+                rh_dchi_entry=rh_dchi_entry,  # Rh tab entry
+                tensor_xx_label=state["tensor_xx_label"],
+                tensor_yy_label=state["tensor_yy_label"],
+                tensor_zz_label=state["tensor_zz_label"],
+                messagebox=state["messagebox"],
+            )
+        else:
+            calculate_tensor_components_ui(
+                state["chi_mol_entry"],
+                state["molar_value_label"],
+                state["tensor_xx_label"],
+                state["tensor_yy_label"],
+                state["tensor_zz_label"],
+                state["messagebox"],
+            )
+
+    ttk.Button(rh_top, text="Calc χ(xx,yy,zz)", command=_calc_chi_tensor_from_ui) \
+        .pack(side="left", padx=(4, 0))
 
     # --- Fitting tab UI ---
     fittab = ttk.Frame(plots_nb)
@@ -390,27 +470,40 @@ def build_app():
     _sep(input_frame)
 
     # Molar labels and chi_mol
-    state['molar_value_label'] = ttk.Label(input_frame, text="Δχ_mol_ax : N/A m³/mol"); state['molar_value_label'].pack(pady=0)
-    ttk.Label(input_frame, text="χ_mol from Exp. (m³/mol):").pack(); chi_mol_entry = tk.Entry(input_frame); chi_mol_entry.pack(); state['chi_mol_entry']=chi_mol_entry
-    state['tensor_xx_label']=ttk.Label(input_frame, text="χ_xx: N/A m³/mol"); state['tensor_xx_label'].pack()
-    state['tensor_yy_label']=ttk.Label(input_frame, text="χ_yy: N/A m³/mol"); state['tensor_yy_label'].pack()
-    state['tensor_zz_label']=ttk.Label(input_frame, text="χ_zz: N/A m³/mol"); state['tensor_zz_label'].pack()
-    chi_mol_entry.bind(
-        '<Return>',
-        lambda e: calculate_tensor_components_ui(
-            state['chi_mol_entry'],
-            state['molar_value_label'],
-            state['tensor_xx_label'],
-            state['tensor_yy_label'],
-            state['tensor_zz_label'],
-            state['messagebox'],
-        )
-    )
+    state['molar_value_label'] = ttk.Label(input_frame, text="Δχ_mol_ax : N/A m³/mol")
+    state['molar_value_label'].pack(pady=0)
 
-    # Keep calculation when focus out
-    chi_mol_entry.bind(
-        '<FocusOut>',
-        lambda e: calculate_tensor_components_ui(
+    ttk.Label(input_frame, text="χ_mol from Exp. (m³/mol):").pack()
+    chi_mol_entry = tk.Entry(input_frame)
+    chi_mol_entry.pack()
+    state['chi_mol_entry'] = chi_mol_entry
+
+    state['tensor_xx_label'] = ttk.Label(input_frame, text="χ_xx: N/A m³/mol")
+    state['tensor_xx_label'].pack()
+    state['tensor_yy_label'] = ttk.Label(input_frame, text="χ_yy: N/A m³/mol")
+    state['tensor_yy_label'].pack()
+    state['tensor_zz_label'] = ttk.Label(input_frame, text="χ_zz: N/A m³/mol")
+    state['tensor_zz_label'].pack()
+
+    # ---- Auto-calc on/off ----
+    # 기본값: 자동 계산 ON
+    state.setdefault("chi_auto_calc_var", tk.BooleanVar(value=True))
+
+    tk.Checkbutton(
+        input_frame,
+        text="Auto-calc (default: ON)",
+        variable=state["chi_auto_calc_var"],
+        bg="#F5F6FA",
+        activebackground="#F5F6FA",
+        highlightthickness=0,
+        relief="flat"
+    ).pack(pady=(2, 0))
+
+    def _maybe_calc_chi(_event=None):
+        """Auto-calc가 켜져 있을 때만 χ_xx/yy/zz 계산."""
+        if not state["chi_auto_calc_var"].get():
+            return
+        calculate_tensor_components_ui(
             state['chi_mol_entry'],
             state['molar_value_label'],
             state['tensor_xx_label'],
@@ -418,7 +511,10 @@ def build_app():
             state['tensor_zz_label'],
             state['messagebox'],
         )
-    )
+
+    # Enter / FocusOut 에서 자동 계산 (토글로 on/off)
+    chi_mol_entry.bind('<Return>', _maybe_calc_chi)
+    chi_mol_entry.bind('<FocusOut>', _maybe_calc_chi)
 
     _sep(input_frame)
 
@@ -750,11 +846,16 @@ def reset_values(state):
     update_graph(state)
 
 def on_angle_slider(state, axis, value):
-    # Sync entry and replot
-    if axis=='x':
-        state['angle_x_entry'].delete(0, tk.END); state['angle_x_entry'].insert(0, f"{float(value):.1f}")
-    else:
-        state['angle_y_entry'].delete(0, tk.END); state['angle_y_entry'].insert(0, f"{float(value):.1f}")
+    if axis == 'x':
+        state['angle_x_entry'].delete(0, tk.END)
+        state['angle_x_entry'].insert(0, f"{float(value):.1f}")
+    elif axis == 'y':
+        state['angle_y_entry'].delete(0, tk.END)
+        state['angle_y_entry'].insert(0, f"{float(value):.1f}")
+    elif axis == 'z':
+        if 'angle_z_entry' in state:
+            state['angle_z_entry'].delete(0, tk.END)
+            state['angle_z_entry'].insert(0, f"{float(value):.1f}")
     update_graph(state)
 
 def on_angle_entry_commit(state, axis):
@@ -762,9 +863,12 @@ def on_angle_entry_commit(state, axis):
         if axis == 'x':
             val = float(state['angle_x_entry'].get())
             state['angle_x_var'].set(val)
-        else:
+        elif axis == 'y':
             val = float(state['angle_y_entry'].get())
             state['angle_y_var'].set(val)
+        elif axis == 'z':
+            val = float(state['angle_z_entry'].get())
+            state['angle_z_var'].set(val)
     except ValueError:
         return
     state['update_graph']()
@@ -857,7 +961,8 @@ def filter_atoms(state):
     # 슬라이더 회전(원점 기준 Euler)
     ax = float(state['angle_x_var'].get())
     ay = float(state['angle_y_var'].get())
-    rotated = rotate_coordinates(coords0, ax, ay, 0.0, (0, 0, 0))
+    az = float(state['angle_z_var'].get())
+    rotated = rotate_coordinates(coords0, ax, ay, az, (0, 0, 0))
 
     polar = []
     rotated_sel = []
