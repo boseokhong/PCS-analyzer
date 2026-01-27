@@ -48,7 +48,7 @@ def export_delta_exp_template(state):
             df.to_excel(fd, index=False)
         else:
             # 기본 CSV
-            df.to_csv(fd, index=False)
+            df.to_csv(fd, index=False, encoding="utf-8-sig")
         state['messagebox'].showinfo("Export δ_Exp template", f"저장 완료:\n{fd}")
     except Exception as e:
         state['messagebox'].showerror("Export δ_Exp template", f"Save failed:\n{e}")
@@ -81,7 +81,10 @@ def import_delta_exp_file(state, plot_cartesian_graph_fn):
         if fd.lower().endswith((".xlsx", ".xls")):
             df = pd.read_excel(fd)
         else:
-            df = pd.read_csv(fd)
+            try:
+                df = pd.read_csv(fd, encoding="utf-8-sig")
+            except Exception:
+                df = pd.read_csv(fd, encoding="cp1252")
     except Exception as e:
         state['messagebox'].showerror("Import δ_Exp", f"Cannot read the file:\n{e}")
         return

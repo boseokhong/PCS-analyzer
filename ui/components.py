@@ -25,6 +25,8 @@ from logic.fitting import (
     populate_fitting_controls, apply_fit_to_views,
     fit_theta_alpha_multi, fit_euler_global, _angles_to_rotation_multi
 )
+from logic.include_rhombic import build_rh_table_rows
+
 
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
@@ -106,6 +108,99 @@ def build_app():
     cartesian_canvas = FigureCanvasTkAgg(cartesian_figure, master=cartesian_tab)
     cartesian_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
     state['cartesian_canvas'] = cartesian_canvas
+
+    # --- Rhombicity tab UI ---
+    rhtab = ttk.Frame(plots_nb, width=560)  # Fixed width
+    plots_nb.add(rhtab, text="Rhombicity")
+
+    # 탭 프레임이 자식의 reqsize에 끌려가지 않게
+    rhtab.grid_propagate(False)
+
+    # rhtab 내부는 grid로만 배치
+    rhtab.rowconfigure(0, weight=0)  # top bar
+    rhtab.rowconfigure(1, weight=1)  # table area
+    rhtab.columnconfigure(0, weight=1)
+
+    # 상단 버튼 영역
+    rh_top = ttk.Frame(rhtab)
+    rh_top.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
+
+    # Δχ_rh 입력 (단위: 1e-32 m^3)
+    ttk.Label(rh_top, text="Δχ_rh values (E-32 m³):").pack(side="left", padx=(0, 6))
+
+    # state 기본값
+    state.setdefault("rh_dchi_rh", 0.0)
+
+    # Entry 변수
+    state["rh_dchi_rh_var"] = tk.StringVar(value=f"{state.get('rh_dchi_rh', 0.0):g}")
+    rh_dchi_entry = ttk.Entry(rh_top, textvariable=state["rh_dchi_rh_var"], width=10)
+    rh_dchi_entry.pack(side="left")
+
+    # Rhombicity 탭 table
+    cols = ("Ref", "Atom", "r", "theta(deg)", "phi(deg)",
+            "Gi_ax", "Gi_rh", "δ_PCS(ax)", "δ_PCS(ax+rh)", "δ_Exp", "res(ax)", "res(ax+rh)")
+
+    # table frame도 grid로
+    rh_table_frame = ttk.Frame(rhtab)
+    rh_table_frame.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+
+    rh_tree = ttk.Treeview(rh_table_frame, columns=cols, show="headings", height=18)
+
+    # 스크롤바 (세로/가로)
+    rh_ys = ttk.Scrollbar(rh_table_frame, orient="vertical", command=rh_tree.yview)
+    rh_xs = ttk.Scrollbar(rh_table_frame, orient="horizontal", command=rh_tree.xview)
+    rh_tree.configure(yscrollcommand=rh_ys.set, xscrollcommand=rh_xs.set)
+
+    # 컬럼 widths (전부 stretch=False)
+    widths = (40, 50, 50, 80, 80, 80, 80, 80, 105, 60, 60, 80)
+    for c, w in zip(cols, widths):
+        rh_tree.heading(c, text=c)
+        rh_tree.column(c, width=w, minwidth=40, anchor="center", stretch=False)
+
+    # grid 배치(테이블 프레임 내부)
+    rh_table_frame.rowconfigure(0, weight=1)
+    rh_table_frame.rowconfigure(1, weight=0)
+    rh_table_frame.columnconfigure(0, weight=1)
+    rh_table_frame.columnconfigure(1, weight=0)
+
+    rh_tree.grid(row=0, column=0, sticky="nsew")
+    rh_ys.grid(row=0, column=1, sticky="ns")
+    rh_xs.grid(row=1, column=0, sticky="ew")
+
+    state["rh_tree"] = rh_tree
+
+    def _rh_refresh_table():
+        for it in rh_tree.get_children():
+            rh_tree.delete(it)
+        try:
+            rows = build_rh_table_rows(state, filter_atoms)  # filter_atoms는 기존 components.py 함수
+        except Exception as e:
+            state["messagebox"].showerror("Rhombicity", str(e))
+            return
+        for row in rows:
+            rh_tree.insert("", "end", values=row)
+        if hasattr(state["root"], "_stripe_treeview"):
+            state["root"]._stripe_treeview(rh_tree)
+
+    def _apply_dchi_rh():
+        s = state["rh_dchi_rh_var"].get().strip()
+        try:
+            v = float(s) if s else 0.0
+        except Exception:
+            state["messagebox"].showerror("Rhombicity", "Invalid Δχ_rh value.")
+            return
+
+        # Δχ_rh 저장 (입력값은 '×1e-32 m^3' 스케일)
+        state["rh_dchi_rh"] = v
+
+        # Apply = Refresh
+        _rh_refresh_table()
+
+    # Enter로 Apply
+    rh_dchi_entry.bind("<Return>", lambda e: _apply_dchi_rh())
+
+    # Apply 버튼 (Refresh 버튼은 없음)
+    ttk.Button(rh_top, text="Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
 
     # --- Fitting tab UI ---
     fittab = ttk.Frame(plots_nb)
@@ -565,20 +660,29 @@ def on_save_table_any(state):
     base, ext = os.path.splitext(fd)
     ext = ext.lower()
 
+    # rh_tree는 없을 수도 있음 (Rhombicity 탭을 아직 생성 안 했거나)
+    rh_tree = state.get("rh_tree", None)
+
     if ext == ".xlsx":
-        from logic.export_utils import export_table_to_excel
-        export_table_to_excel(state['tree'], fd)
+        # 메인 + Rhombicity(있으면)를 같은 xlsx에 시트로 저장
+        from logic.export_utils import export_tables_to_excel
+        export_tables_to_excel(state['tree'], fd, rh_tree=rh_tree)
         state['messagebox'].showinfo("Export", f"Saved Excel table:\n{fd}")
 
     elif ext == ".csv":
-        from logic.export_utils import export_table_to_csv
-        export_table_to_csv(state['tree'], fd)
-        state['messagebox'].showinfo("Export", f"Saved CSV table:\n{fd}")
+        # CSV는 파일 2개로 저장: *_table.csv (+ 있으면 *_rhombicity.csv)
+        from logic.export_utils import export_tables_to_csv
+        table_path, rh_path = export_tables_to_csv(state['tree'], fd, rh_tree=rh_tree)
+
+        if rh_path:
+            state['messagebox'].showinfo("Export", f"Saved CSV tables:\n{table_path}\n{rh_path}")
+        else:
+            state['messagebox'].showinfo("Export", f"Saved CSV table:\n{table_path}")
 
     else:
         fd_x = base + ".xlsx"
-        from logic.export_utils import export_table_to_excel
-        export_table_to_excel(state['tree'], fd_x)
+        from logic.export_utils import export_tables_to_excel
+        export_tables_to_excel(state['tree'], fd_x, rh_tree=rh_tree)
         state['messagebox'].showinfo("Export", f"No/unknown extension. Saved as Excel:\n{fd_x}")
 
 def recompute_plot_inputs(state):

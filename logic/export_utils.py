@@ -62,8 +62,8 @@ def save_to_csv(pcs_values, theta_values, tensor, base_path, polar_data):
     base, _ = os.path.splitext(base_path)
     pcs_path = base + "_pcs.csv"
     atoms_path = base + "_atoms.csv"
-    pcs_df.to_csv(pcs_path, index=False)
-    polar_df.to_csv(atoms_path, index=False)
+    pcs_df.to_csv(pcs_path, index=False, encoding="utf-8-sig")
+    polar_df.to_csv(atoms_path, index=False, encoding="utf-8-sig")
     return pcs_path, atoms_path
 
 def export_table_to_excel(tree, file_path):
@@ -74,4 +74,52 @@ def export_table_to_excel(tree, file_path):
 def export_table_to_csv(tree, file_path):
     cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_i', 'δ_PCS', 'δ_Exp')
     data = [tree.item(i)["values"] for i in tree.get_children()]
-    pd.DataFrame(data, columns=cols).to_csv(file_path, index=False)
+    pd.DataFrame(data, columns=cols).to_csv(file_path, index=False, encoding="utf-8-sig")
+
+def _tree_to_df(tree, cols):
+    """Treeview -> DataFrame (values 그대로)."""
+    data = [tree.item(i)["values"] for i in tree.get_children()]
+    return pd.DataFrame(data, columns=cols)
+
+# Rhombicity 탭 테이블 컬럼 (Important! components.py의 cols names)
+_RH_COLS = ("Ref", "Atom", "r", "theta(deg)", "phi(deg)",
+            "Gi_ax", "Gi_rh", "δ_PCS(ax)", "δ_PCS(ax+rh)", "δ_Exp", "res(ax)", "res(ax+rh)")
+
+def export_tables_to_excel(main_tree, file_path, rh_tree=None):
+    """
+    Save table 버튼용:
+    - 메인 테이블은 항상 저장 (sheet: 'Table')
+    - rh_tree가 있고 데이터가 있으면 Rhombicity 시트를 추가 저장
+    """
+    main_cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_i', 'δ_PCS', 'δ_Exp')
+    main_df = _tree_to_df(main_tree, main_cols)
+
+    with pd.ExcelWriter(file_path) as writer:
+        main_df.to_excel(writer, sheet_name='Table', index=False)
+
+        if rh_tree is not None and len(rh_tree.get_children()) > 0:
+            rh_df = _tree_to_df(rh_tree, _RH_COLS)
+            rh_df.to_excel(writer, sheet_name='Rhombicity', index=False)
+
+def export_tables_to_csv(main_tree, file_path, rh_tree=None):
+    """
+    Save table 버튼용 (CSV):
+    - <base>_table.csv 는 항상 저장
+    - rh_tree가 있고 데이터가 있으면 <base>_rhombicity.csv 도 추가 저장
+    반환: (table_path, rh_path_or_None)
+    """
+    import os
+    base, _ = os.path.splitext(file_path)
+
+    main_cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_i', 'δ_PCS', 'δ_Exp')
+    main_df = _tree_to_df(main_tree, main_cols)
+    table_path = base + "_table.csv"
+    main_df.to_csv(table_path, index=False, encoding="utf-8-sig")
+
+    rh_path = None
+    if rh_tree is not None and len(rh_tree.get_children()) > 0:
+        rh_df = _tree_to_df(rh_tree, _RH_COLS)
+        rh_path = base + "_rhombicity.csv"
+        rh_df.to_csv(rh_path, index=False, encoding="utf-8-sig")
+
+    return table_path, rh_path
