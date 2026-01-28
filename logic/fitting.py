@@ -172,7 +172,6 @@ def pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh):
     """axial + rhombic PCS (ppm)"""
     return ((float(dchi_ax) * Gax + float(dchi_rh) * Grh) * 1e4) / (12.0 * np.pi)
 
-
 # ---------- Mode A: θ, α (multi-donor) ----------
 def fit_theta_alpha_multi(state, donor_ids, proton_ids,
                           axis_mode='bisector',

@@ -26,6 +26,7 @@ from logic.fitting import (
     fit_theta_alpha_multi, fit_euler_global, _angles_to_rotation_multi
 )
 from logic.include_rhombic import build_rh_table_rows
+from logic.diagnostic import update_diagnostic_panel
 
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
@@ -98,7 +99,9 @@ def build_app():
     plots_nb.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=3, pady=0)
     state['plots_nb'] = plots_nb
 
+    # -------------------------
     # --- Cartesian tab UI ---
+    # -------------------------
     cartesian_tab = ttk.Frame(plots_nb)
     plots_nb.add(cartesian_tab, text="Plot")
 
@@ -108,7 +111,59 @@ def build_app():
     cartesian_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
     state['cartesian_canvas'] = cartesian_canvas
 
-    # --- Rhombicity tab UI ---
+    # --------------------------
+    # --- Diagnostic tab UI ---
+    # --------------------------
+    diagtab = ttk.Frame(plots_nb)
+    plots_nb.add(diagtab, text="Diagnostic")
+    state["diagtab"] = diagtab
+
+    # 1) button row (TOP)
+    diag_btnrow = ttk.Frame(diagtab)
+    diag_btnrow.pack(fill=tk.X, padx=6, pady=(6, 4))
+
+    ttk.Button(
+        diag_btnrow,
+        text="Update Diagnostic",
+        command=lambda: update_diagnostic_panel(state)
+    ).pack(side=tk.LEFT)
+
+    state["diag_fit_intercept_var"] = tk.BooleanVar(value=False)
+    tk.Checkbutton(
+        diag_btnrow,
+        variable=state["diag_fit_intercept_var"],
+        text="Force b = 0 (through origin)",
+        bg="#F5F6FA",
+        activebackground="#F5F6FA",
+        highlightthickness=0,
+        relief="flat"
+    ).pack(side=tk.LEFT, padx=10)
+
+    # 2) summary box (TOP)
+    state["diag_result_box"] = tk.Text(diagtab, height=6)
+    state["diag_result_box"].pack(fill=tk.X, padx=6, pady=(0, 6))
+
+    # 3) figures container (BOTTOM)
+    diag_top = ttk.Frame(diagtab)
+    diag_top.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
+
+    ## Figure 1: δexp vs Gax (left)
+    #fig1 = plt.Figure(figsize=(4, 3), dpi=100)
+    #state["diag_fig_linearity"] = fig1
+    #cv1 = FigureCanvasTkAgg(fig1, master=diag_top)
+    #cv1.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    #state["diag_canvas_linearity"] = cv1
+
+    # Figure 2: residual vs phi / Grh (right)
+    fig2 = plt.Figure(figsize=(4, 3), dpi=100)
+    state["diag_fig_resphi"] = fig2
+    cv2 = FigureCanvasTkAgg(fig2, master=diag_top)
+    cv2.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    state["diag_canvas_resphi"] = cv2
+
+    # --------------------------
+    # --- Rhombicity tab UI ----
+    # --------------------------
     rhtab = ttk.Frame(plots_nb, width=560)  # Fixed width
     plots_nb.add(rhtab, text="Rhombicity")
 
@@ -282,7 +337,9 @@ def build_app():
     ttk.Button(rh_top, text="Calc χ(xx,yy,zz)", command=_calc_chi_tensor_from_ui) \
         .pack(side="left", padx=(4, 0))
 
-    # --- Fitting tab UI ---
+    # --------------------------
+    # --- Fitting tab UI -------
+    # --------------------------
     fittab = ttk.Frame(plots_nb)
     plots_nb.add(fittab, text="Fitting")
 
@@ -730,7 +787,6 @@ def _show_fit_result(state, res):
     box.insert("end", "Ref\tδ_exp\tδ_pred\tresid\n")
     for rid, exp, pred, r in res['per_point']:
         box.insert("end", f"{rid}\t{exp:.3f}\t{pred:.3f}\t{r:+.3f}\n")
-
 
 def on_save_plot_any(state):
     fd = state['filedialog'].asksaveasfilename(

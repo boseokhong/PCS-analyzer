@@ -46,7 +46,7 @@ v.1.0.2 updates
 -CSV export encoding fixed
 
 v.1.1.0 updates
--Rhombicity utilities
+-Diagnostics, Rhombicity utilities, fitting functions update
 
 2026.01. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com> / <b.hong@hzdr.de>
