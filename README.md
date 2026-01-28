@@ -53,7 +53,7 @@ Latest update: **v.1.1.0** – Diagnostics, Rhombicity utilities, fitting functi
 **v.1.0.1 updates**
 - Added table δ<sub>exp</sub> data export/import
 
-**v.1.0.1 updates**
+**v.1.0.2 updates**
 - CSV export - encoding fixed
 
 **v.1.1.0 updates**
