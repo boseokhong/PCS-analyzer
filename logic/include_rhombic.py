@@ -1,3 +1,5 @@
+# logic/include_rhombic.py
+
 import numpy as np
 
 def geom_factors_ax_rh(coords, metal):
@@ -26,16 +28,13 @@ def geom_factors_ax_rh(coords, metal):
 
     return r, theta, phi, Gax, Grh
 
-
 def pcs_ax_only(Gax, dchi_ax):
     """axial-only PCS"""
     return (dchi_ax * Gax * 1e4) / (12.0 * np.pi)
 
-
 def pcs_ax_rh(Gax, Grh, dchi_ax, dchi_rh):
     """axial + rhombic PCS"""
     return ((dchi_ax * Gax + dchi_rh * Grh) * 1e4) / (12.0 * np.pi)
-
 
 def build_rh_table_rows(state, filter_atoms_fn):
     """
