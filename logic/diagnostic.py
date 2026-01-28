@@ -270,7 +270,7 @@ def update_diagnostic_panel(state):
         )
         box.insert("end", f"k = {res['k_slope']:.6g} ; b = {res['intercept']:.6g}\n")
         box.insert("end", f"Δχ_ax (from slope) ≈ {res['dchi_ax_est']:.3e} (E-32 m³)\n\n")
-        box.insert("end", "Ref\tδ_exp\tδ_pred\tresid\tphi(deg)-tensor frame\tG_rh\n")
+        box.insert("end", "Ref\tδ_exp\tδ_pred\tresid\tphi(deg)\tG_rh\n")
         for rid, de, dp, rr, ph, grh in zip(
                 res["obs_ids"], res["delta_exp"], res["delta_pred"],
                 res["resid"], np.degrees(res["phi"]), res["Grh"]
