@@ -679,8 +679,10 @@ def _show_fit_result(state, res):
     box = state['fit_result_box']
     box.delete("1.0", "end")
 
-    mode = res.get('mode')
+    # ratio threshold warning
+    state.setdefault("rh_ratio_warn_threshold", 0.5)  # ratio threshold 0.5
 
+    mode = res.get('mode')
     if mode == 'theta_alpha_multi':
         box.insert("end", f"[Mode A] axis={res.get('axis_mode')}\n")
         box.insert("end", f"Donors: {res['donor_ids']}\n")
@@ -700,6 +702,13 @@ def _show_fit_result(state, res):
         if abs(dchi_ax) > 0:
             ratio = abs(dchi_rh / dchi_ax)
             box.insert("end", f"|Δχ_rh / Δχ_ax| = {ratio:.3f}\n")
+            thr = float(state.get("rh_ratio_warn_threshold", 0.5))
+            if ratio > thr:
+                box.insert(
+                    "end",
+                    f"⚠ Warning: |Δχ_rh/Δχ_ax| exceeds {thr:.2f}. "
+                    "Rhombic fit may be unstable or φ-reference/convention may be ill-defined.\n"
+                )
         else:
             box.insert("end", "|Δχ_rh / Δχ_ax| = undefined (Δχ_ax = 0)\n")
 
@@ -713,7 +722,7 @@ def _show_fit_result(state, res):
             pass
     else:
         # Mode B: az is part of fitted Euler angles; angle_z_var is irrelevant here
-        box.insert("end", f"φ reference: included in fitted Euler az ({res['az']:.2f}°)\n")
+        box.insert("end", f"Euler z-angle (az) = {res['az']:.2f}°  (φ reference is defined by Euler convention)\n")
 
     # --- fit quality ---
     box.insert("end", f"RMSD = {res['rmsd']:.3f} ppm  (N = {res['n']})\n\n")
