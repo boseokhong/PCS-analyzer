@@ -1,5 +1,5 @@
 # Pseudocontact chemical shift (PCS) analyzer
-![version](https://img.shields.io/badge/version-1.0.1-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green)
+![version](https://img.shields.io/badge/version-1.1.0-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green)
 
 <img width="961" alt="PCS-analyzer v0 6 capture" src="https://github.com/user-attachments/assets/56e82957-0522-4cc8-86f4-34582192512e" />
 
@@ -10,7 +10,7 @@
 ---
 
 ## Version and Changelog 
-Latest update: **v.1.0.1** – Added table δ<sub>exp</sub> data export/import
+Latest update: **v.1.1.0** – Diagnostics, Rhombicity utilities, fitting functions update
 
 <details>
 <summary><b>Click to expand version history</b></summary>
@@ -52,6 +52,12 @@ Latest update: **v.1.0.1** – Added table δ<sub>exp</sub> data export/import
 
 **v.1.0.1 updates**
 - Added table δ<sub>exp</sub> data export/import
+
+**v.1.0.1 updates**
+- CSV export - encoding fixed
+
+**v.1.1.0 updates**
+- Diagnostics, Rhombicity utilities, fitting functions update
 
 </details>
 
