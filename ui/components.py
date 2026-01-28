@@ -400,19 +400,29 @@ def build_app():
     state['fit_use_visible_var'] = tk.BooleanVar(value=False)
     tk.Checkbutton(opts, text="Use visible atoms as rigid group",
                    variable=state['fit_use_visible_var'],
+                   state="disabled",  # WIP!!!!
                    bg="#F5F6FA",
                    activebackground="#F5F6FA",
                    highlightthickness=0,
                    relief="flat"
                    ).pack(side=tk.LEFT)
     state['fit_dchi_var'] = tk.BooleanVar(value=True)
-    tk.Checkbutton(opts, text="Fit Δχ_ax together",
+    tk.Checkbutton(opts, text="Fit Δχ_ax",
                    variable=state['fit_dchi_var'],
                    bg="#F5F6FA",
                    activebackground="#F5F6FA",
                    highlightthickness=0,
                    relief="flat"
                    ).pack(side=tk.LEFT, padx=12)
+
+    state['fit_dchi_rh_var'] = tk.BooleanVar(value=False)
+    tk.Checkbutton(opts, text="Fit Δχ_rh",
+                    variable=state['fit_dchi_rh_var'],
+                    bg="#F5F6FA",
+                    activebackground="#F5F6FA",
+                    highlightthickness=0,
+                    relief="flat"
+                ).pack(side=tk.LEFT, padx=12)
 
     btns = ttk.Frame(fittab);
     btns.pack(fill=tk.X, pady=4)
@@ -647,14 +657,16 @@ def run_fit_from_ui(state):
                 proton_ids=proton_ids,
                 axis_mode=state['axis_mode_var'].get(),
                 fit_visible_as_group=state['fit_use_visible_var'].get(),
-                fit_delta_chi=state['fit_dchi_var'].get()
+                fit_delta_chi=state['fit_dchi_var'].get(),
+                fit_delta_chi_rh=state['fit_dchi_rh_var'].get(),
             )
         else:
             res = fit_euler_global(
                 state,
                 proton_ids=proton_ids,
                 fit_visible_as_group=state['fit_use_visible_var'].get(),
-                fit_delta_chi=state['fit_dchi_var'].get()
+                fit_delta_chi=state['fit_dchi_var'].get(),
+                fit_delta_chi_rh=state['fit_dchi_rh_var'].get(),
             )
 
         state['last_fit_result'] = res
@@ -664,19 +676,52 @@ def run_fit_from_ui(state):
         state['messagebox'].showerror("Fitting", str(e))
 
 def _show_fit_result(state, res):
-    box = state['fit_result_box']; box.delete("1.0", "end")
-    if res.get('mode') == 'theta_alpha_multi':
+    box = state['fit_result_box']
+    box.delete("1.0", "end")
+
+    mode = res.get('mode')
+
+    if mode == 'theta_alpha_multi':
         box.insert("end", f"[Mode A] axis={res.get('axis_mode')}\n")
         box.insert("end", f"Donors: {res['donor_ids']}\n")
         box.insert("end", f"θ*={res['theta']:.2f}°, α*={res['alpha']:.2f}°\n")
+
     else:
         box.insert("end", "[Mode B] Euler global\n")
         box.insert("end", f"ax={res['ax']:.2f}°, ay={res['ay']:.2f}°, az={res['az']:.2f}°\n")
-    box.insert("end", f"Δχ_ax={res['delta_chi_ax']:.3e} (E-32 m³)\n")
-    box.insert("end", f"RMSD={res['rmsd']:.3f} ppm  (N={res['n']})\n\n")
+
+    # --- χ tensor parameters ---
+    box.insert("end", f"Δχ_ax = {res['delta_chi_ax']:.3e} (E-32 m³)\n")
+
+    if 'delta_chi_rh' in res:
+        dchi_ax = res['delta_chi_ax']
+        dchi_rh = res['delta_chi_rh']
+        box.insert("end", f"Δχ_rh = {dchi_rh:.3e} (E-32 m³)\n")
+        if abs(dchi_ax) > 0:
+            ratio = abs(dchi_rh / dchi_ax)
+            box.insert("end", f"|Δχ_rh / Δχ_ax| = {ratio:.3f}\n")
+        else:
+            box.insert("end", "|Δχ_rh / Δχ_ax| = undefined (Δχ_ax = 0)\n")
+
+    # --- φ reference / z-rotation meaning (MODE-DEPENDENT) ---
+    if mode == 'theta_alpha_multi':
+        # Mode A: φ reference is user-defined z-rotation (angle_z_var)
+        try:
+            az_ref = float(state.get('angle_z_var', 0.0).get())
+            box.insert("end", f"φ reference (user z-rotation) = {az_ref:.1f}°\n")
+        except Exception:
+            pass
+    else:
+        # Mode B: az is part of fitted Euler angles; angle_z_var is irrelevant here
+        box.insert("end", f"φ reference: included in fitted Euler az ({res['az']:.2f}°)\n")
+
+    # --- fit quality ---
+    box.insert("end", f"RMSD = {res['rmsd']:.3f} ppm  (N = {res['n']})\n\n")
+
     box.insert("end", "Ref\tδ_exp\tδ_pred\tresid\n")
     for rid, exp, pred, r in res['per_point']:
         box.insert("end", f"{rid}\t{exp:.3f}\t{pred:.3f}\t{r:+.3f}\n")
+
 
 def on_save_plot_any(state):
     fd = state['filedialog'].asksaveasfilename(
@@ -832,18 +877,56 @@ def reset_values(state):
     state['pcs_min_entry'].delete(0, tk.END); state['pcs_min_entry'].insert(0, '-10')
     state['pcs_max_entry'].delete(0, tk.END); state['pcs_max_entry'].insert(0, '10')
     state['pcs_interval_entry'].delete(0, tk.END); state['pcs_interval_entry'].insert(0, '0.5')
-    state['angle_x_var'].set(0); state['angle_y_var'].set(0)
+    state['angle_x_var'].set(0); state['angle_y_var'].set(0);
 
     state.get('delta_values', {}).clear()
     state.pop('last_rotated_coords', None)
 
-    state['atom_data']=[]; state['check_vars']={}
-    state['pcs_values']=__import__('numpy').arange(-10,10.5,0.5)
+    if 'angle_z_var' in state:
+        state['angle_z_var'].set(0)
+    if 'angle_z_entry' in state:
+        state['angle_z_entry'].delete(0, tk.END)
+        state['angle_z_entry'].insert(0, "0.0")
+
+    state.get('delta_values', {}).clear()
+    state.pop('last_rotated_coords', None)
+
+    # fit override도 reset (이게 남아있으면 Rh/PCS가 계속 override됨)
+    state.pop('fit_override', None)
+    state.pop('last_fit_result', None)
+
+    state['atom_data'] = [];
+    state['check_vars'] = {}
+    state['pcs_values'] = __import__('numpy').arange(-10, 10.5, 0.5)
     for w in state['checklist_frame'].winfo_children(): w.destroy()
     for r in state['tree'].get_children(): state['tree'].delete(r)
+
     if 'theta_values' not in state:
-        state['theta_values']=__import__('numpy').linspace(0, 2*__import__("numpy").pi, 500)
+        state['theta_values'] = __import__('numpy').linspace(0, 2 * __import__("numpy").pi, 500)
+
+    # Rhombicity tab reset
+    state['rh_dchi_rh'] = 0.0
+    if 'rh_dchi_rh_var' in state:
+        state['rh_dchi_rh_var'].set("0")
+
+    state['rh_calc_enabled'] = False
+    if 'rh_calc_enabled_var' in state:
+        state['rh_calc_enabled_var'].set(False)
+
+    rh_tree = state.get('rh_tree')
+    if rh_tree is not None:
+        for it in rh_tree.get_children():
+            rh_tree.delete(it)
+
     update_graph(state)
+
+    # (4) 가능하면 Rh 테이블도 "현재 상태"로 다시 채우기 (원하면 주석 해제)
+    # try:
+    #     state['plots_nb'].update_idletasks()
+    #     # Rh table은 atom_data가 비면 rows가 없을 거라 결과도 비어있음(정상)
+    #     # 나중에 xyz 로드 후엔 update_graph/populate가 다시 채움
+    # except Exception:
+    #     pass
 
 def on_angle_slider(state, axis, value):
     if axis == 'x':
@@ -934,31 +1017,40 @@ def create_checklist(state):
 def filter_atoms(state):
     sel = {a for a, v in state['check_vars'].items() if v.get()}
 
-    # original coord
     abs_coords = np.array([[x, y, z] for a, x, y, z in state['atom_data']])
     metal = np.array([state['x0'], state['y0'], state['z0']])
 
-    # Fit override 있으면 donor 축 기준 회전 먼저 적용
     fo = state.get('fit_override')
     if fo:
-        ids = state.get('atom_ids', [])
-        id2idx = {rid: i for i, rid in enumerate(ids)}
-        donor_ids = fo.get('donor_ids') or []
-        if donor_ids:
-            donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids]
-            abs_coords = _angles_to_rotation_multi(
-                points=abs_coords,
-                metal=metal,
-                donor_points=donor_pts,
-                theta_deg=fo.get('theta', 0.0),
-                alpha_deg=fo.get('alpha', 0.0),
-                axis_mode=fo.get('axis_mode', 'bisector')
-            )
+        mode = (fo.get('mode') or '').lower()
 
-    # 중심 기준으로 이동
+        # --- Mode A: donor-axis (theta/alpha) ---
+        if mode == 'theta_alpha_multi':
+            ids = state.get('atom_ids', [])
+            id2idx = {rid: i for i, rid in enumerate(ids)}
+            donor_ids = fo.get('donor_ids') or []
+            if donor_ids:
+                donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids]
+                abs_coords = _angles_to_rotation_multi(
+                    points=abs_coords,
+                    metal=metal,
+                    donor_points=donor_pts,
+                    theta_deg=fo.get('theta', 0.0),
+                    alpha_deg=fo.get('alpha', 0.0),
+                    axis_mode=fo.get('axis_mode', 'bisector')
+                )
+
+        # --- Mode B: global Euler (ax/ay/az) ---
+        elif mode == 'euler_global':
+            ax = float(fo.get('ax', 0.0))
+            ay = float(fo.get('ay', 0.0))
+            az = float(fo.get('az', 0.0))
+            coords0 = abs_coords - metal
+            rot0 = rotate_euler(coords0, ax, ay, az)
+            abs_coords = rot0 + metal
+
     coords0 = abs_coords - metal
 
-    # 슬라이더 회전(원점 기준 Euler)
     ax = float(state['angle_x_var'].get())
     ay = float(state['angle_y_var'].get())
     az = float(state['angle_z_var'].get())

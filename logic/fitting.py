@@ -129,7 +129,7 @@ def _angles_to_rotation_multi(points, metal, donor_points, theta_deg, alpha_deg,
     pts2 = rodrigues(pts1, v1, alpha_deg, origin=metal)
     return pts2
 
-# ---------- PCS calc ----------
+# ---------- PCS calc (ax only) ----------
 def geom_factor_and_pcs(coords, metal, delta_chi_ax):
     """
     coords: (N,3), metal: (3,)
@@ -147,11 +147,38 @@ def geom_factor_and_pcs(coords, metal, delta_chi_ax):
     dpcs = K * Gi
     return r, theta, Gi, dpcs
 
+# ---------- PCS calc (ax + rh) ----------
+def geom_factors_ax_rh(coords, metal):
+    """
+    coords: (N,3) rotated into tensor frame (z is principal axis)
+    returns: r, theta, phi, Gax, Grh
+    """
+    metal = np.asarray(metal, float)
+    vecs = np.asarray(coords, float) - metal
+    x, y, z = vecs[:, 0], vecs[:, 1], vecs[:, 2]
+
+    r = np.linalg.norm(vecs, axis=1)
+    r_safe = np.where(r == 0.0, np.inf, r)
+
+    cos_th = np.clip(z / r_safe, -1.0, 1.0)
+    theta = np.arccos(cos_th)
+    phi = np.arctan2(y, x)
+
+    Gax = (3.0 * np.cos(theta)**2 - 1.0) / (r_safe**3)
+    Grh = (1.5 * (np.sin(theta)**2) * np.cos(2.0 * phi)) / (r_safe**3)
+    return r, theta, phi, Gax, Grh
+
+def pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh):
+    """axial + rhombic PCS (ppm)"""
+    return ((float(dchi_ax) * Gax + float(dchi_rh) * Grh) * 1e4) / (12.0 * np.pi)
+
+
 # ---------- Mode A: θ, α (multi-donor) ----------
 def fit_theta_alpha_multi(state, donor_ids, proton_ids,
                           axis_mode='bisector',
                           fit_visible_as_group=True,
-                          fit_delta_chi=False):
+                          fit_delta_chi=False,
+                          fit_delta_chi_rh=False):
     """
     donor_ids: Ref ID 리스트(1..N)
     proton_ids: δ_Exp가 들어있는 Ref ID 목록 (보통 H들)
@@ -182,23 +209,59 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         pass  # 경고 없이 진행
 
     theta0, alpha0 = 0.0, 0.0
-    if fit_delta_chi:
-        dchi0 = float(state['tensor_entry'].get() or 1.0)
-        x0 = np.array([theta0, alpha0, dchi0])
+    dchi_ax0 = float(state['tensor_entry'].get() or 1.0)
+    dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+
+    if fit_delta_chi and fit_delta_chi_rh:
+        x0 = np.array([theta0, alpha0, dchi_ax0, dchi_rh0])
+    elif fit_delta_chi:
+        x0 = np.array([theta0, alpha0, dchi_ax0])
+    elif fit_delta_chi_rh:
+        x0 = np.array([theta0, alpha0, dchi_rh0])  # Δχ_ax는 고정, Δχ_rh만 fit
     else:
-        dchi = float(state['tensor_entry'].get() or 1.0)
         x0 = np.array([theta0, alpha0])
 
     def coords_for_ids(points, ids_subset):
         return np.array([points[id2idx[rid]] for rid in ids_subset])
 
     def residuals(x):
-        if fit_delta_chi:
-            theta, alpha, dchi = x
-        else:
-            theta, alpha = x
-            dchi = float(state['tensor_entry'].get() or 1.0)
+        # --------------------------------------------
+        # 0) UI/상태에서 "고정값"으로 쓸 Δχ 파라미터를 먼저 읽어둔다
+        #    - fit 옵션에 따라 일부는 x에서 오고, 일부는 UI entry/state에서 고정값으로 온다.
+        # --------------------------------------------
+        dchi_ax_fixed = float(state['tensor_entry'].get() or 1.0)  # Δχ_ax 기본값(고정용)
+        dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)  # Δχ_rh 기본값(고정용, Rh tab 입력)
 
+        # --------------------------------------------
+        # 1) least_squares가 최적화하는 파라미터 벡터 x 해석
+        #    - 체크박스 조합에 따라 x의 길이가 달라진다.
+        #    - (theta, alpha)는 항상 fit 대상
+        #    - dchi_ax / dchi_rh는 체크된 것만 fit, 나머지는 고정값 사용
+        # --------------------------------------------
+        if fit_delta_chi and fit_delta_chi_rh:
+            # 둘 다 fit: x = [theta, alpha, dchi_ax, dchi_rh]
+            theta, alpha, dchi_ax, dchi_rh = x
+        elif fit_delta_chi:
+            # Δχ_ax만 fit: x = [theta, alpha, dchi_ax], Δχ_rh는 고정
+            theta, alpha, dchi_ax = x
+            dchi_rh = dchi_rh_fixed
+        elif fit_delta_chi_rh:
+            # Δχ_rh만 fit: x = [theta, alpha, dchi_rh], Δχ_ax는 고정
+            theta, alpha, dchi_rh = x
+            dchi_ax = dchi_ax_fixed
+        else:
+            # 둘 다 고정: x = [theta, alpha]
+            theta, alpha = x
+            dchi_ax = dchi_ax_fixed
+            dchi_rh = dchi_rh_fixed
+
+        # --------------------------------------------
+        # 2) 좌표 회전(Mode A: multi-donor axis)
+        #    - donor들로부터 축(v)을 만들고,
+        #    - 그 축이 z축과 이루는 각을 theta로 맞추도록 회전,
+        #    - 이후 새 축(v')을 기준으로 alpha 회전 (리간드 axial twist)
+        #    => 이 단계까지는 "z축(주축)" 방향을 정렬하는 작업에 해당
+        # --------------------------------------------
         rot_all = _angles_to_rotation_multi(
             points=abs_coords,
             metal=metal,
@@ -206,27 +269,124 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
             theta_deg=theta, alpha_deg=alpha,
             axis_mode=axis_mode
         )
+
+        # --------------------------------------------
+        # 3) φ(azimuth) 기준 고정: z축 주위 회전(az) 추가 적용
+        #    왜 필요한가?
+        #    - axial PCS(Δχ_ax)는 θ만 보므로, z축이 맞으면 충분하다. (φ에 무관)
+        #    - rhombic PCS(Δχ_rh)는 cos(2φ) 항을 포함한다. 즉 φ가 바뀌면 예측값이 변한다.
+        #
+        #    그런데 φ는 "z축을 기준으로 xy평면에서의 각도"라서,
+        #    같은 z축 정렬 상태에서도 xy축이 어디를 향하느냐(= z축 주위 회전)에 따라
+        #    φ가 통째로 이동(φ -> φ + const)한다.
+        #
+        #    => Δχ_rh을 의미 있게 fit하려면,
+        #       'φ=0의 기준(=x축 방향)'을 어떤 방식으로든 "고정"해야 한다.
+        #
+        #    여기서는:
+        #    - Rhombicity 탭에서 사용자가 조절하는 angle_z_var(az)를
+        #      fitting에서도 동일하게 적용해서,
+        #      "사용자가 정의한 tensor frame의 xy기준"과
+        #      "fitting이 사용하는 φ 기준"을 일치시키는 전략을 택한다.
+        # --------------------------------------------
+        try:
+            az = float(state.get('angle_z_var', 0.0).get())  # Rhombicity 탭의 z-rotation 슬라이더 값
+        except Exception:
+            az = 0.0
+
+        if abs(az) > 1e-12:
+            # rotate_euler는 원점 기준 회전이므로, metal을 원점으로 이동했다가 회전 후 복귀
+            coords0 = rot_all - metal
+
+            # z축(=tensor 주축) 주위로 az 만큼 회전
+            # -> z축은 유지되지만, xy 기준이 회전하면서 φ 기준이 함께 이동한다.
+            rot0 = rotate_euler(coords0, 0.0, 0.0, az)
+
+            # 다시 metal 기준 절대좌표로 복귀
+            rot_all = rot0 + metal
+
         pts_obs = coords_for_ids(rot_all, [rid for rid, _ in obs_pairs])
-        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi)
         delta_exp = np.array([v for _, v in obs_pairs])
+
+        # --------------------------------------------
+        # 4) PCS 모델 선택
+        #    - Δχ_rh를 fit하거나(체크박스 ON),
+        #    - 혹은 고정 Δχ_rh가 0이 아닌 경우엔(ax+rh 모델 활성),
+        #      반드시 φ가 들어가는 Grh를 계산해야 한다.
+        # --------------------------------------------
+        if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
+            # r,theta,phi 및 Gax/Grh 계산 (Grh에 cos(2φ) 포함)
+            _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
+
+            # δ_pred = (Δχ_ax*Gax + Δχ_rh*Grh) * 1e4 / (12π)
+            dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+        else:
+            # axial-only: φ가 필요 없으므로 기존 함수 사용
+            _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+
+        # --------------------------------------------
+        # 6) residual = (예측 PCS) - (실험 δ_Exp)
+        #    least_squares는 residual 벡터의 제곱합을 최소화한다.
+        # --------------------------------------------
         return dpcs - delta_exp
 
-    lb = [-180, -180, -np.inf] if fit_delta_chi else [-180, -180]
-    ub = [ 180,  180,  np.inf] if fit_delta_chi else [ 180,  180]
+    if fit_delta_chi and fit_delta_chi_rh:
+        # x = [theta, alpha, dchi_ax, dchi_rh]
+        lb = [-180, -180, -np.inf, -np.inf]
+        ub = [180, 180, np.inf, np.inf]
+    elif fit_delta_chi:
+        # x = [theta, alpha, dchi_ax]
+        lb = [-180, -180, -np.inf]
+        ub = [180, 180, np.inf]
+    elif fit_delta_chi_rh:
+        # x = [theta, alpha, dchi_rh]  (Δχ_ax는 고정)
+        lb = [-180, -180, -np.inf]
+        ub = [180, 180, np.inf]
+    else:
+        # x = [theta, alpha]
+        lb = [-180, -180]
+        ub = [180, 180]
     res = least_squares(residuals, x0, bounds=(lb, ub))
-    if fit_delta_chi:
-        theta, alpha, dchi = res.x
+
+    if fit_delta_chi and fit_delta_chi_rh:
+        theta, alpha, dchi_ax, dchi_rh = res.x
+    elif fit_delta_chi:
+        theta, alpha, dchi_ax = res.x
+        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+    elif fit_delta_chi_rh:
+        theta, alpha, dchi_rh = res.x
+        dchi_ax = float(state['tensor_entry'].get() or 1.0)
     else:
         theta, alpha = res.x
-        dchi = float(state['tensor_entry'].get() or 1.0)
+        dchi_ax = float(state['tensor_entry'].get() or 1.0)
+        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
 
     # 결과 요약
     rot_all = _angles_to_rotation_multi(abs_coords, metal, donor_pts, theta, alpha, axis_mode)
+
+    # φ 기준 고정: UI의 z-rotation(angle_z_var)을 동일 적용
+    try:
+        az = float(state.get('angle_z_var', 0.0).get())
+    except Exception:
+        az = 0.0
+
+    if abs(az) > 1e-12:
+        coords0 = rot_all - metal
+        rot0 = rotate_euler(coords0, 0.0, 0.0, az)
+        rot_all = rot0 + metal
+
     pts_obs = np.array([rot_all[id2idx[rid]] for rid, _ in obs_pairs])
-    _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi)
+
+    # axial-only vs ax+rh 모델을 residuals()와 동일 조건으로 선택
+    if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
+        _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
+        dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+    else:
+        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+
     delta_exp = np.array([v for _, v in obs_pairs])
     resid = dpcs - delta_exp
-    rmsd = float(np.sqrt(np.mean(resid**2))) if len(resid) else np.nan
+    rmsd = float(np.sqrt(np.mean(resid ** 2))) if len(resid) else np.nan
     per_point = [(rid, float(exp), float(pred), float(r))
                  for (rid, exp), pred, r in zip(obs_pairs, dpcs, resid)]
 
@@ -234,13 +394,15 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
                 donor_ids=list(donor_ids),
                 axis_mode=axis_mode,
                 theta=float(theta), alpha=float(alpha),
-                delta_chi_ax=float(dchi),
+                delta_chi_ax=float(dchi_ax),
+                delta_chi_rh=float(dchi_rh),
                 rmsd=rmsd, n=len(per_point), per_point=per_point)
 
 # ---------- Mode B: 3D Euler rotation (ax, ay, az) ----------
 def fit_euler_global(state, proton_ids,
                      fit_visible_as_group=True,
-                     fit_delta_chi=False):
+                     fit_delta_chi=False,
+                     fit_delta_chi_rh=False):
     atom_data = state.get('atom_data', [])
     ids = state.get('atom_ids', [])
     if not atom_data or not ids:
@@ -264,48 +426,94 @@ def fit_euler_global(state, proton_ids,
 
     # 초기값
     ax0, ay0, az0 = 0.0, 0.0, 0.0
-    if fit_delta_chi:
-        dchi0 = float(state['tensor_entry'].get() or 1.0)
-        x0 = np.array([ax0, ay0, az0, dchi0])
+    dchi_ax0 = float(state['tensor_entry'].get() or 1.0)
+    dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+
+    if fit_delta_chi and fit_delta_chi_rh:
+        x0 = np.array([ax0, ay0, az0, dchi_ax0, dchi_rh0])
+    elif fit_delta_chi:
+        x0 = np.array([ax0, ay0, az0, dchi_ax0])
+    elif fit_delta_chi_rh:
+        # Δχ_ax 고정, Δχ_rh만 fit
+        x0 = np.array([ax0, ay0, az0, dchi_rh0])
     else:
-        dchi = float(state['tensor_entry'].get() or 1.0)
         x0 = np.array([ax0, ay0, az0])
 
     def coords_for_ids(points, ids_subset):
         return np.array([points[id2idx[rid]] for rid in ids_subset])
 
     def residuals(x):
-        if fit_delta_chi:
-            ax, ay, az, dchi = x
+        dchi_ax_fixed = float(state['tensor_entry'].get() or 1.0)
+        dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+
+        if fit_delta_chi and fit_delta_chi_rh:
+            ax, ay, az, dchi_ax, dchi_rh = x
+        elif fit_delta_chi:
+            ax, ay, az, dchi_ax = x
+            dchi_rh = dchi_rh_fixed
+        elif fit_delta_chi_rh:
+            ax, ay, az, dchi_rh = x
+            dchi_ax = dchi_ax_fixed
         else:
             ax, ay, az = x
-            dchi = float(state['tensor_entry'].get() or 1.0)
+            dchi_ax = dchi_ax_fixed
+            dchi_rh = dchi_rh_fixed
 
-        # 중심 기준으로 이동 → 오일러 회전 → 복귀
+        # 중심 기준 이동 → 오일러 회전 → 복귀
         coords0 = abs_coords - metal
         rot0 = rotate_euler(coords0, ax, ay, az)
         rot_all = rot0 + metal
 
         pts_obs = coords_for_ids(rot_all, [rid for rid, _ in obs_pairs])
-        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi)
         delta_exp = np.array([v for _, v in obs_pairs])
+
+        # axial-only vs ax+rh
+        if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
+            _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
+            dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+        else:
+            _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+
         return dpcs - delta_exp
 
-    lb = [-180, -180, -180, -np.inf] if fit_delta_chi else [-180, -180, -180]
-    ub = [ 180,  180,  180,  np.inf] if fit_delta_chi else [ 180,  180,  180]
+    if fit_delta_chi and fit_delta_chi_rh:
+        lb = [-180, -180, -180, -np.inf, -np.inf]
+        ub = [180, 180, 180, np.inf, np.inf]
+    elif fit_delta_chi:
+        lb = [-180, -180, -180, -np.inf]
+        ub = [180, 180, 180, np.inf]
+    elif fit_delta_chi_rh:
+        lb = [-180, -180, -180, -np.inf]  # ax,ay,az,dchi_rh
+        ub = [180, 180, 180, np.inf]
+    else:
+        lb = [-180, -180, -180]
+        ub = [180, 180, 180]
     res = least_squares(residuals, x0, bounds=(lb, ub))
-    if fit_delta_chi:
-        ax, ay, az, dchi = res.x
+    if fit_delta_chi and fit_delta_chi_rh:
+        ax, ay, az, dchi_ax, dchi_rh = res.x
+    elif fit_delta_chi:
+        ax, ay, az, dchi_ax = res.x
+        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+    elif fit_delta_chi_rh:
+        ax, ay, az, dchi_rh = res.x
+        dchi_ax = float(state['tensor_entry'].get() or 1.0)
     else:
         ax, ay, az = res.x
-        dchi = float(state['tensor_entry'].get() or 1.0)
+        dchi_ax = float(state['tensor_entry'].get() or 1.0)
+        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
 
     # 결과 요약
     coords0 = abs_coords - metal
     rot0 = rotate_euler(coords0, ax, ay, az)
     rot_all = rot0 + metal
     pts_obs = np.array([rot_all[id2idx[rid]] for rid, _ in obs_pairs])
-    _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi)
+
+    if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
+        _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
+        dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+    else:
+        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+
     delta_exp = np.array([v for _, v in obs_pairs])
     resid = dpcs - delta_exp
     rmsd = float(np.sqrt(np.mean(resid**2))) if len(resid) else np.nan
@@ -314,8 +522,10 @@ def fit_euler_global(state, proton_ids,
 
     return dict(mode='euler_global',
                 ax=float(ax), ay=float(ay), az=float(az),
-                delta_chi_ax=float(dchi),
+                delta_chi_ax=float(dchi_ax),
+                delta_chi_rh=float(dchi_rh),
                 rmsd=rmsd, n=len(per_point), per_point=per_point)
+
 
 # ---------- UI wiring helpers ----------
 def populate_fitting_controls(state):
@@ -367,6 +577,7 @@ def apply_fit_to_views(state):
             # 슬라이더에 반영하고 override는 지움 (중복 회전 방지)
             state['angle_x_var'].set(res['ax'])
             state['angle_y_var'].set(res['ay'])
+            state['angle_z_var'].set(res['az'])
             state.pop('fit_override', None)
             state['messagebox'].showinfo("Fitting", "Applied (Option B → sliders). Click 'Update' to redraw.")
         else:
