@@ -18,5 +18,5 @@ identifiers:
     value: 10.5281/zenodo.14219440
 repository-code: 'https://github.com/boseokhong/PCS-analyzer'
 license: BSD-3-Clause
-version: '1.0.0'
-date-released: '2025-08-18'
+version: '1.1.0'
+date-released: '2026-02-24'
