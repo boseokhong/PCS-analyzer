@@ -1,7 +1,7 @@
 # Pseudocontact chemical shift (PCS) analyzer
 ![version](https://img.shields.io/badge/version-1.1.0-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
-<img width="961" alt="PCS-analyzer v0 6 capture" src="https://github.com/user-attachments/assets/56e82957-0522-4cc8-86f4-34582192512e" />
+<img width="1409" height="919" alt="image" src="https://github.com/user-attachments/assets/e4a0b469-4a98-4552-803d-6cb8a3fbfdab" />
 
 **A tool for PCS analysis and 2D polar contour visualization, particularly suited for small paramagnetic complexes with rotational symmetry.**
  > [!NOTE]
