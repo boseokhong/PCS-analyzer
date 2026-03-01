@@ -451,7 +451,7 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_values):
             delta_exp_str = f"{v:g}"
 
         item = tree.insert("", state['tk'].END, values=(
-            ref_id, atom, f"{dx:.3f}", f"{dy:.3f}", f"{dz:.3f}",
+            ref_id, atom, f"{dx:.6f}", f"{dy:.6f}", f"{dz:.6f}",
             f"{geom_param:.5f}", f"{delta_pcs: .2f}", delta_exp_str
         ))
         state['row_by_id'][ref_id] = item
