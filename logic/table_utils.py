@@ -408,7 +408,6 @@ def _build_preview_rows_from_df(state, df):
                     file_delta_raw=str(raw) if raw is not None else "",
                     mapped_id=rid, parsed_delta=val, action=act
                 ))
-        # 남은 값(소비 못한 것)은 미적용 → 굳이 preview에 안 올려도 됨
 
     else:
         # 인식 실패
@@ -439,12 +438,21 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_values):
     ids = state.get('current_selected_ids', [])
     state['row_by_id'] = {}  # 클릭/하이라이트 용 역방향 매핑
 
+    pcs_by_id = state.setdefault('pcs_by_id', {})
+    pcs_by_id.clear()
+
+    atom_by_id = state.setdefault('atom_by_id', {})
+    atom_by_id.clear()
+
     for i, ((atom, r, theta), (dx, dy, dz)) in enumerate(zip(polar_data, rotated_coords)):
-        ref_id = ids[i] if i < len(ids) else (i + 1)  # 안전장치
+        ref_id = ids[i] if i < len(ids) else (i + 1)  # for safety
         geom_param = (3 * (np.cos(theta))**2 - 1) / (r**3) if r != 0 else 0.0
         geom_value = geom_param
         delta_pcs = (tensor * (geom_value * 1e4)) / (12 * np.pi)
-        # Ref ID 로 읽고/쓴다
+        atom_by_id[ref_id] = str(atom)
+        pcs_by_id[ref_id] = float(delta_pcs)
+
+        # Read/Write with Ref ID
         delta_exp_str = ""
         if ref_id in delta_values:
             v = delta_values[ref_id]
@@ -455,6 +463,54 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_values):
             f"{geom_param:.5f}", f"{delta_pcs: .2f}", delta_exp_str
         ))
         state['row_by_id'][ref_id] = item
+
+    # push delta_pcs to NMR spectrum window if it exists
+    _push_pcs_to_nmr_if_open(state)
+
+def _push_pcs_to_nmr_if_open(state):
+    """
+    Push current PCS values to the NMR spectrum window (if open).
+    Labels are formatted as "Ref Atom" for quick identification.
+    """
+    import numpy as np
+    win = state.get('nmr_win', None)
+    if win is None:
+        return
+    try:
+        if hasattr(win, "winfo_exists") and not win.winfo_exists():
+            state['nmr_win'] = None
+            return
+    except Exception:
+        return
+
+    pcs_by_id = state.get('pcs_by_id', {})
+    atom_by_id = state.get('atom_by_id', {})
+    if not pcs_by_id:
+        return
+
+    ids = state.get('current_selected_ids', [])
+    if ids:
+        ordered_ids = [i for i in ids if i in pcs_by_id]
+    else:
+        ordered_ids = sorted(pcs_by_id.keys())
+
+    if not ordered_ids:
+        return
+
+    shifts = np.asarray([pcs_by_id[i] for i in ordered_ids], dtype=float)
+    intensities = np.ones_like(shifts, dtype=float)
+    # labels like "12 H" or "12 H16"
+    labels = [f"{i}, {atom_by_id.get(i, '')}".strip(", ") for i in ordered_ids]
+
+    # Debounce if available, else direct
+    sched = state.get('schedule_nmr_update', None)
+    if callable(sched):
+        sched()
+    else:
+        try:
+            win.set_data(shifts, intensities, labels=labels)
+        except TypeError:
+            win.set_data(shifts, intensities, labels=labels)
 
 def on_delta_entry_change(state, event, delta_values, plot_cartesian_graph_fn):
     tree = state['tree']

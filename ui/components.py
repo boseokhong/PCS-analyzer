@@ -13,8 +13,6 @@ from logic.command_processor import process_command as _pc
 from logic.xyz_loader import parse_xyz
 from logic.plot_pcs import plot_graph, update_figsize
 from logic.plot_cartesian import plot_cartesian_graph
-from logic.plot_3d import open_3d_plot_window
-from logic.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
 from logic.table_utils import (
     update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui, calculate_tensor_components_ui_ax_rh,
     export_delta_exp_template, import_delta_exp_file, import_delta_exp_from_clipboard, undo_last_delta_import, clear_delta_exp
@@ -28,6 +26,12 @@ from logic.fitting import (
 from logic.include_rhombic import build_rh_table_rows
 from logic.diagnostic import update_diagnostic_panel
 
+from ui.plot_3d import open_3d_plot_window
+from ui.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
+from ui.nmr_spectrum_window import NMRSpectrumWindow
+from logic.table_utils import _push_pcs_to_nmr_if_open
+
+
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
 
@@ -36,14 +40,45 @@ def _sep(parent, orient='horizontal', pady=8, fill='x'):
     s.pack(fill=fill, pady=pady)
     return s
 
+def open_nmr_window(state):
+    """Open (or focus) the NMR spectrum window and store the handle in state."""
+    root = state['root']
+    win = state.get('nmr_win')
+
+    if win is not None:
+        try:
+            if win.winfo_exists():
+                win.lift()
+                win.focus_force()
+                return
+        except Exception:
+            pass
+
+    win = NMRSpectrumWindow(root)
+    state['nmr_win'] = win
+
+    def _on_close():
+        try:
+            win.destroy()
+        finally:
+            state['nmr_win'] = None
+
+    win.protocol("WM_DELETE_WINDOW", _on_close)
+
+    # push current PCS once immediately
+    _push_pcs_to_nmr_if_open(state)
+
 def build_app():
     state = {}
     # Tk and common modules
     state['tk'] = tk; state['ttk'] = ttk
     state['filedialog'] = filedialog; state['simpledialog'] = simpledialog; state['messagebox'] = messagebox
     state['FigureCanvas'] = FigureCanvasTkAgg; state['NavigationToolbar2Tk'] = NavigationToolbar2Tk
+    # handle for the NMR spectrum window
+    state['pcs_by_id'] = {}
+    state['nmr_win'] = None
 
-    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1400x890"); state['root'] = root
+    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1400x910"); state['root'] = root
     apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
 
     # Frames
@@ -624,13 +659,15 @@ def build_app():
 
     _sep(input_frame)
 
-    # 3D / projection buttons
-    opf = ttk.Frame(input_frame); opf.pack(fill=tk.X, padx=0, pady=3)
-    ttk.Label(opf, text="Open 3d structure/projection", font=("default",9,"bold")).pack(pady=3)
-    ttk.Button(opf, text="mol structure", command=lambda: open_3d_plot_window(state)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
-    ttk.Button(
-        opf, text="Projection",
-        command=lambda: open_mollweide_plot(
+    # 3D / projection / NMR buttons
+    opf = ttk.Frame(input_frame);
+    opf.pack(fill=tk.X, padx=0, pady=3)
+    ttk.Label(opf, text="Open viewers", font=("default", 9, "bold")).pack(pady=3)
+
+    opf_row1 = ttk.Frame(opf)
+    opf_row1.pack(fill=tk.X)
+    ttk.Button(opf_row1, text="mol structure", command=lambda: open_3d_plot_window(state)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+    ttk.Button(opf_row1, text="Projection", command=lambda: open_mollweide_plot(
             state['atom_data'],
             (state['x0'], state['y0'], state['z0']),
             float(state['angle_x_var'].get()),
@@ -640,6 +677,10 @@ def build_app():
             state['FigureCanvas']
         )
     ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+
+    opf_row2 = ttk.Frame(opf)
+    opf_row2.pack(fill=tk.X, pady=(4, 0))
+    ttk.Button(opf_row2, text="NMR Spectrum", command=lambda: open_nmr_window(state)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
 
     _sep(input_frame)
 
