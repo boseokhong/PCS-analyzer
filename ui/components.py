@@ -57,6 +57,25 @@ def open_nmr_window(state):
     win = NMRSpectrumWindow(root)
     state['nmr_win'] = win
 
+    def _on_pick_refs(ref_ids: list[int]):
+        """Select one or multiple refs in the main Treeview."""
+        tree = state.get("tree")
+        row_by_id = state.get("row_by_id", {})
+
+        if tree is None or not row_by_id:
+            return
+
+        items = [row_by_id[r] for r in ref_ids if r in row_by_id]
+        if not items:
+            return
+
+        tree.selection_set(items)
+        tree.focus(items[0])
+        tree.see(items[0])
+
+    # attach callback to NMR window
+    win.set_pick_callback(_on_pick_refs)
+
     def _on_close():
         try:
             win.destroy()
@@ -67,6 +86,34 @@ def open_nmr_window(state):
 
     # push current PCS once immediately
     _push_pcs_to_nmr_if_open(state)
+
+def _on_tree_select_update_spectrum(state):
+    """Highlight selected Ref in the NMR spectrum window (if open)."""
+    win = state.get("nmr_win")
+    if win is None:
+        return
+    try:
+        if not win.winfo_exists():
+            state["nmr_win"] = None
+            return
+    except Exception:
+        return
+
+    tree = state.get("tree")
+    sel = tree.selection() if tree is not None else ()
+    if not sel:
+        return
+
+    try:
+        ref_id = int(tree.item(sel[0], "values")[0])
+    except Exception:
+        return
+
+    # This method will be added to NMRSpectrumWindow
+    try:
+        win.highlight_ref(ref_id)
+    except Exception:
+        pass
 
 def build_app():
     state = {}
@@ -207,15 +254,15 @@ def build_app():
 
     # rhtab 내부는 grid로만 배치
     rhtab.rowconfigure(0, weight=0)  # top bar
-    rhtab.rowconfigure(1, weight=0)  # z-rotation bar (NEW)
-    rhtab.rowconfigure(2, weight=1)  # table area (CHANGED: was row 1)
+    rhtab.rowconfigure(1, weight=0)  # z-rotation bar
+    rhtab.rowconfigure(2, weight=1)  # table area
     rhtab.columnconfigure(0, weight=1)
 
     # 상단 버튼 영역
     rh_top = ttk.Frame(rhtab)
     rh_top.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
 
-    # Δχ_rh 입력 (단위: 1e-32 m^3)
+    # Δχ_rh input (unit: 1e-32 m^3)
     ttk.Label(rh_top, text="Δχ_rh values (E-32 m³):").pack(side="left", padx=(0, 6))
 
     # state 기본값
@@ -226,7 +273,7 @@ def build_app():
     rh_dchi_entry = ttk.Entry(rh_top, textvariable=state["rh_dchi_rh_var"], width=10)
     rh_dchi_entry.pack(side="left")
 
-    # Rhombicity 탭 table
+    # Rhombicity tab table
     cols = ("Ref", "Atom", "r", "theta(deg)", "phi(deg)",
             "Gi_ax", "Gi_rh", "δ_PCS(ax)", "δ_PCS(ax+rh)", "δ_Exp", "res(ax)", "res(ax+rh)")
 
@@ -240,7 +287,7 @@ def build_app():
 
     # z state vars
     state.setdefault("angle_z_var", tk.DoubleVar(value=0.0))
-    # NOTE: on_angle_slider / on_angle_entry_commit must support axis 'z'
+    # on_angle_slider / on_angle_entry_commit must support axis 'z'
     azf = ttk.Frame(rh_zrow)
     azf.pack(side="left", fill="x", expand=True)
 
@@ -713,6 +760,7 @@ def build_app():
     # Bindings
     tree.bind("<Double-1>", lambda e: on_delta_entry_change(state, e, state['delta_values'], plot_cartesian_graph))
     tree.bind("<<TreeviewSelect>>", lambda e: None)  # placeholder; selection highlight could be added
+    tree.bind("<<TreeviewSelect>>", lambda e: _on_tree_select_update_spectrum(state))
 
     return state
 

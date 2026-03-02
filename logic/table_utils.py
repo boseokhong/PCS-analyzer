@@ -499,8 +499,9 @@ def _push_pcs_to_nmr_if_open(state):
 
     shifts = np.asarray([pcs_by_id[i] for i in ordered_ids], dtype=float)
     intensities = np.ones_like(shifts, dtype=float)
-    # labels like "12 H" or "12 H16"
+    # labels like "12, H" or "12, H16"
     labels = [f"{i}, {atom_by_id.get(i, '')}".strip(", ") for i in ordered_ids]
+    ref_ids = ordered_ids
 
     # Debounce if available, else direct
     sched = state.get('schedule_nmr_update', None)
@@ -508,9 +509,9 @@ def _push_pcs_to_nmr_if_open(state):
         sched()
     else:
         try:
-            win.set_data(shifts, intensities, labels=labels)
+            win.set_data(shifts, intensities, labels=labels, ref_ids=ref_ids)
         except TypeError:
-            win.set_data(shifts, intensities, labels=labels)
+            win.set_data(shifts, intensities, labels=labels, ref_ids=ref_ids)
 
 def on_delta_entry_change(state, event, delta_values, plot_cartesian_graph_fn):
     tree = state['tree']
