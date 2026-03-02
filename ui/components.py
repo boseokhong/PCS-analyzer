@@ -399,15 +399,18 @@ def build_app():
     ).pack(side="left", padx=(10, 0))
 
     def _calc_chi_tensor_from_ui():
+        ph = state.get("chi_placeholder_text")
         if state.get("rh_calc_enabled", False):
             calculate_tensor_components_ui_ax_rh(
-                chi_mol_entry=state["chi_mol_entry"],  # entry
+                chi_mol_entry=state["chi_mol_entry"],
                 molar_value_label=state["molar_value_label"],
-                rh_dchi_entry=rh_dchi_entry,  # Rh tab entry
+                rh_dchi_entry=rh_dchi_entry,
                 tensor_xx_label=state["tensor_xx_label"],
                 tensor_yy_label=state["tensor_yy_label"],
                 tensor_zz_label=state["tensor_zz_label"],
                 messagebox=state["messagebox"],
+                quiet=False,
+                placeholder_text=ph,
             )
         else:
             calculate_tensor_components_ui(
@@ -417,6 +420,8 @@ def build_app():
                 state["tensor_yy_label"],
                 state["tensor_zz_label"],
                 state["messagebox"],
+                quiet=False,
+                placeholder_text=ph,
             )
 
     ttk.Button(rh_top, text="Calc χ(xx,yy,zz)", command=_calc_chi_tensor_from_ui) \
@@ -626,6 +631,7 @@ def build_app():
     state['molar_value_label'].pack(pady=0)
 
     ttk.Label(input_frame, text="χ_mol from Exp. (m³/mol):").pack()
+
     chi_mol_entry = tk.Entry(input_frame)
     chi_mol_entry.pack()
     state['chi_mol_entry'] = chi_mol_entry
@@ -638,7 +644,6 @@ def build_app():
     state['tensor_zz_label'].pack()
 
     # ---- Auto-calc on/off ----
-    # 기본값: 자동 계산 ON
     state.setdefault("chi_auto_calc_var", tk.BooleanVar(value=True))
 
     tk.Checkbutton(
@@ -651,42 +656,103 @@ def build_app():
         relief="flat"
     ).pack(pady=(2, 0))
 
-    def _maybe_calc_chi(_event=None):
-        """Auto-calc가 켜져 있을 때만 χ_xx/yy/zz 계산."""
+    # ---- Placeholder (blank -> traceless) ----
+    CHI_PLACEHOLDER = "blank → χ_iso=0"
+    state["chi_placeholder_text"] = CHI_PLACEHOLDER
+    state["chi_placeholder_active"] = False
+
+    def _set_placeholder():
+        # 빈칸이면 placeholder를 넣고 회색으로 표시
+        if (chi_mol_entry.get() or "").strip() == "":
+            chi_mol_entry.delete(0, tk.END)
+            chi_mol_entry.insert(0, CHI_PLACEHOLDER)
+            try:
+                chi_mol_entry.config(fg="#888888")
+            except Exception:
+                pass
+            state["chi_placeholder_active"] = True
+
+    def _clear_placeholder():
+        # placeholder 상태면 지우고 검정 글씨로
+        if state.get("chi_placeholder_active", False):
+            chi_mol_entry.delete(0, tk.END)
+            try:
+                chi_mol_entry.config(fg="#000000")
+            except Exception:
+                pass
+            state["chi_placeholder_active"] = False
+
+    # 최초에 placeholder 표시
+    _set_placeholder()
+
+    chi_mol_entry.bind("<FocusIn>", lambda e: _clear_placeholder())
+    chi_mol_entry.bind("<FocusOut>", lambda e: (_set_placeholder(), state.get("schedule_chi_autocalc", lambda: None)()))
+
+    # ---- Auto-calc core (NO popup on typing) ----
+    state["_chi_autocalc_after_id"] = None
+
+    def _maybe_calc_chi(_event=None, *, quiet=True):
+        """Auto-calc가 켜져 있을 때만 χ_xx/yy/zz 계산.
+        quiet=True: 입력 중간/placeholder일 땐 에러팝업 띄우지 않음
+        """
         if not state["chi_auto_calc_var"].get():
             return
 
-        # Use rh tensor formula if enabled
-        if state.get("rh_calc_enabled", False):
-            rh_ent = state.get("rh_dchi_entry")
-            if rh_ent is None:
-                return  # No input at Rh tab entry
+        # placeholder면 '빈칸' 취급
+        if state.get("chi_placeholder_active", False):
+            # 빈칸(traceless)로 계산하도록 그냥 entry를 빈 것으로 간주해야 함
+            # -> table_utils 쪽에서 entry.get()을 읽으므로, 여기서는 임시로 ""로 두고 호출
+            # 가장 안전하게는 entry 내용을 건드리지 말고, table_utils가 placeholder를 모르게 하는 것
+            # 따라서 placeholder 상태에서는 아예 계산 호출만 해도 되고(=traceless),
+            # calculate_tensor...가 entry.get()==""일 때 traceless로 가므로 아래처럼 "임시로" 처리.
+            pass
 
-            calculate_tensor_components_ui_ax_rh(
-                chi_mol_entry=state["chi_mol_entry"],
-                molar_value_label=state["molar_value_label"],
-                rh_dchi_entry=rh_ent,
-                tensor_xx_label=state["tensor_xx_label"],
-                tensor_yy_label=state["tensor_yy_label"],
-                tensor_zz_label=state["tensor_zz_label"],
-                messagebox=state["messagebox"],
-            )
-        else:
-            calculate_tensor_components_ui(
-                state["chi_mol_entry"],
-                state["molar_value_label"],
-                state["tensor_xx_label"],
-                state["tensor_yy_label"],
-                state["tensor_zz_label"],
-                state["messagebox"],
-            )
+        try:
+            if state.get("rh_calc_enabled", False):
+                rh_ent = state.get("rh_dchi_entry")
+                if rh_ent is None:
+                    return
+                calculate_tensor_components_ui_ax_rh(
+                    chi_mol_entry=state["chi_mol_entry"],
+                    molar_value_label=state["molar_value_label"],
+                    rh_dchi_entry=rh_ent,
+                    tensor_xx_label=state["tensor_xx_label"],
+                    tensor_yy_label=state["tensor_yy_label"],
+                    tensor_zz_label=state["tensor_zz_label"],
+                    messagebox=state["messagebox"],
+                    # 아래 quiet 인자는 table_utils 수정(2번) 후에만 사용
+                    quiet=quiet,
+                    placeholder_text=CHI_PLACEHOLDER,
+                )
+            else:
+                calculate_tensor_components_ui(
+                    state["chi_mol_entry"],
+                    state["molar_value_label"],
+                    state["tensor_xx_label"],
+                    state["tensor_yy_label"],
+                    state["tensor_zz_label"],
+                    state["messagebox"],
+                    quiet=quiet,
+                    placeholder_text=CHI_PLACEHOLDER,
+                )
+        except Exception:
+            return
 
     state["maybe_calc_chi"] = _maybe_calc_chi
 
-    # Enter / FocusOut 에서 자동 계산 (토글로 on/off)
-    chi_mol_entry.bind('<Return>', _maybe_calc_chi)
-    chi_mol_entry.bind('<FocusOut>', _maybe_calc_chi)
-    chi_mol_entry.bind('<KeyRelease>', _maybe_calc_chi)
+    def _schedule_chi_autocalc():
+        """KeyRelease에서 바로 계산하지 말고 200ms 뒤에 1번만 실행(디바운스)."""
+        try:
+            if state["_chi_autocalc_after_id"] is not None:
+                state["root"].after_cancel(state["_chi_autocalc_after_id"])
+        except Exception:
+            pass
+        state["_chi_autocalc_after_id"] = state["root"].after(200, lambda: _maybe_calc_chi(None, quiet=True))
+
+    state["schedule_chi_autocalc"] = _schedule_chi_autocalc
+
+    chi_mol_entry.bind("<Return>", lambda e: _maybe_calc_chi(e, quiet=True))
+    chi_mol_entry.bind("<KeyRelease>", lambda e: _schedule_chi_autocalc())
 
     _sep(input_frame)
 

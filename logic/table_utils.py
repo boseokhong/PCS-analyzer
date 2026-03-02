@@ -798,6 +798,8 @@ def calculate_tensor_components_ui(
     messagebox,
     *,
     assume_traceless_when_empty: bool = True,
+    quiet: bool = False,
+    placeholder_text: str | None = None,
 ):
     """
     Normal mode (χ_mol provided):
@@ -814,17 +816,19 @@ def calculate_tensor_components_ui(
         delta_chi_ax = _parse_delta_chi_ax_from_label(molar_value_label)
 
         s_iso = (chi_mol_entry.get() or "").strip()
+        if placeholder_text and s_iso == placeholder_text:
+            s_iso = ""  # placeholder는 빈칸 처리
 
         if s_iso == "":
             if not assume_traceless_when_empty:
-                messagebox.showerror("Input Error", "Please enter χ_mol (or enable traceless mode).")
+                if not quiet:
+                    messagebox.showerror("Input Error", "Please enter χ_mol (or enable traceless mode).")
                 return
 
-            # traceless + axial symmetry
             chi_xx = chi_yy = -(1.0 / 3.0) * delta_chi_ax
             chi_zz = (2.0 / 3.0) * delta_chi_ax
         else:
-            chi_mol = float(s_iso)
+            chi_mol = float(s_iso)  # 5e-09 OK
             chi_xx = chi_yy = chi_mol - delta_chi_ax / 3.0
             chi_zz = chi_mol + (2.0 / 3.0) * delta_chi_ax
 
@@ -832,7 +836,6 @@ def calculate_tensor_components_ui(
         tensor_yy_label.config(text=f"χ_yy: {chi_yy:.2e} m³/mol")
         tensor_zz_label.config(text=f"χ_zz: {chi_zz:.2e} m³/mol")
 
-        # Optional: force UI refresh if you call this during heavy callbacks
         try:
             tensor_xx_label.update_idletasks()
             tensor_yy_label.update_idletasks()
@@ -841,7 +844,8 @@ def calculate_tensor_components_ui(
             pass
 
     except Exception as e:
-        messagebox.showerror("Input Error", f"Please enter valid numerical values.\n\n{e}")
+        if not quiet:
+            messagebox.showerror("Input Error", f"Please enter valid numerical values.\n\n{e}")
 
 def calculate_tensor_components_ui_ax_rh(
     chi_mol_entry,
@@ -853,6 +857,8 @@ def calculate_tensor_components_ui_ax_rh(
     messagebox,
     *,
     assume_traceless_when_empty: bool = True,
+    quiet: bool = False,
+    placeholder_text: str | None = None,
 ):
     """
     χ_iso = χ_mol
@@ -876,26 +882,44 @@ def calculate_tensor_components_ui_ax_rh(
     try:
         delta_chi_ax = _parse_delta_chi_ax_from_label(molar_value_label)
 
+        # Δχ_rh (entry is in "E-32 m³" scale)
         s_rh = (rh_dchi_entry.get() or "").strip()
-        dchi_rh = float(s_rh) if s_rh else 0.0
-
-        # per-molecule (E-32 m^3) -> m^3/mol
+        try:
+            dchi_rh = float(s_rh) if s_rh else 0.0
+        except Exception:
+            if not quiet:
+                messagebox.showerror("Input Error", "Invalid Δχ_rh value.")
+            return
         delta_chi_rh_mol = dchi_rh * AVOGADRO_CONSTANT * 1e-32
 
+        # χ_mol input
         s_iso = (chi_mol_entry.get() or "").strip()
+        if placeholder_text and s_iso == placeholder_text:
+            s_iso = ""  # placeholder는 빈칸 처리
 
+        # ---- Traceless mode (blank) ----
         if s_iso == "":
             if not assume_traceless_when_empty:
-                messagebox.showerror("Input Error", "Please enter χ_mol (or enable traceless mode).")
+                if not quiet:
+                    messagebox.showerror("Input Error", "Please enter χ_mol (or enable traceless mode).")
                 return
 
             chi_zz = (2.0 / 3.0) * delta_chi_ax
-            S = -chi_zz  # χ_xx + χ_yy
-            R = delta_chi_rh_mol  # χ_xx - χ_yy
+            S = -chi_zz
+            R = delta_chi_rh_mol
             chi_xx = 0.5 * (S + R)
             chi_yy = 0.5 * (S - R)
+
+        # ---- Normal mode (χ_mol provided) ----
         else:
-            chi_mol = float(s_iso)
+            try:
+                chi_mol = float(s_iso)
+            except Exception:
+                if quiet:
+                    return
+                messagebox.showerror("Input Error", "Please enter a valid χ_mol value.")
+                return
+
             chi_xx = chi_mol - delta_chi_ax / 3.0 + delta_chi_rh_mol / 2.0
             chi_yy = chi_mol - delta_chi_ax / 3.0 - delta_chi_rh_mol / 2.0
             chi_zz = chi_mol + (2.0 / 3.0) * delta_chi_ax
@@ -912,4 +936,5 @@ def calculate_tensor_components_ui_ax_rh(
             pass
 
     except Exception as e:
-        messagebox.showerror("Input Error", f"Please enter valid numerical values.\n\n{e}")
+        if not quiet:
+            messagebox.showerror("Input Error", f"Please enter valid numerical values.\n\n{e}")

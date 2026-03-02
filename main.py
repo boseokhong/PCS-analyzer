@@ -48,6 +48,11 @@ v.1.0.2 updates
 v.1.1.0 updates
 -Diagnostics, Rhombicity utilities, fitting functions update
 
+v.1.2.0 updates
+-NMR spectrum
+-bug fix, code refactoring
+
+
 2026.01. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com> / <b.hong@hzdr.de>
 <https://github.com/boseokhong/PCS-analyzer>
