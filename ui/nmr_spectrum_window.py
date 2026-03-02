@@ -273,16 +273,32 @@ class NMRSpectrumWindow(tk.Toplevel):
         if env is not None and "y" in env and len(env["y"]) > 0:
             ytop = max(ytop, float(np.max(env["y"])))
 
+        # cluster (group) mode
         if self.var_cluster.get():
             if self._clusters is None:
                 self._clusters = self._build_clusters(self._stick_x, float(self.var_binwidth.get()))
 
             centers = np.array([c["center"] for c in self._clusters], dtype=float)
             counts = np.array([c["n"] for c in self._clusters], dtype=float)
+
             if counts.size:
                 counts = counts / np.max(counts)
 
-            self.ax.vlines(centers, 0.0, counts, linewidth=2.0)
+            # Positive and negative regions
+            pos = centers >= 0.0
+            neg = ~pos
+
+            # + ppm → red
+            if np.any(pos):
+                self.ax.vlines(
+                    centers[pos], 0.0, counts[pos], linewidth=2.0, color="red"
+                )
+
+            # - ppm → blue
+            if np.any(neg):
+                self.ax.vlines(
+                    centers[neg], 0.0, counts[neg], linewidth=2.0, color="blue"
+                )
 
             # Put n-label above each cluster stick
             if self.var_show_labels.get():
@@ -303,11 +319,21 @@ class NMRSpectrumWindow(tk.Toplevel):
             self.ax.set_ylim(0.0, 1.15)
 
         else:
+            # stick mode
             if self.var_show_sticks.get():
-                self.ax.vlines(self._stick_x, 0.0, self._stick_h, linewidth=1.0)
+                x = self._stick_x
+                h = self._stick_h
+                pos = x >= 0.0
+                neg = ~pos
+                # + : red, - : blue
+                if np.any(pos):
+                    self.ax.vlines(x[pos], 0.0, h[pos], linewidth=1.0, color="red")
+                if np.any(neg):
+                    self.ax.vlines(x[neg], 0.0, h[neg], linewidth=1.0, color="blue")
 
+            # broadened mode
             if env is not None:
-                self.ax.plot(env["x"], env["y"])
+                self.ax.plot(env["x"], env["y"], color="#800000", linewidth=1.3)
 
             # Highlight ref as thick stick
             hi = self._index_of_ref(self._highlight_ref)
