@@ -202,8 +202,8 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         group_indices = list(range(len(atom_data)))
     # 현재는 group_indices를 직접 쓰지는 않지만, 원하면 points=abs_coords[group_indices]로 바꿔 확장 가능
 
-    delta_values = state.get('delta_values', {})
-    obs_pairs = [(rid, delta_values[rid]) for rid in proton_ids if rid in delta_values]
+    delta_exp_values = state.get('delta_exp_values', {})
+    obs_pairs = [(rid, delta_exp_values[rid]) for rid in proton_ids if rid in delta_exp_values]
     if len(obs_pairs) < 3 and not fit_delta_chi:
         pass  # 경고 없이 진행
 
@@ -418,8 +418,8 @@ def fit_euler_global(state, proton_ids,
     else:
         group_indices = list(range(len(atom_data)))
 
-    delta_values = state.get('delta_values', {})
-    obs_pairs = [(rid, delta_values[rid]) for rid in proton_ids if rid in delta_values]
+    delta_exp_values = state.get('delta_exp_values', {})
+    obs_pairs = [(rid, delta_exp_values[rid]) for rid in proton_ids if rid in delta_exp_values]
     if len(obs_pairs) < 3 and not fit_delta_chi:
         pass
 

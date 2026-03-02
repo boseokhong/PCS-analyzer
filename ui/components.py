@@ -31,7 +31,6 @@ from ui.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
 from ui.nmr_spectrum_window import NMRSpectrumWindow
 from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
 
-
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
 
@@ -275,6 +274,7 @@ def build_app():
     state["rh_dchi_rh_var"] = tk.StringVar(value=f"{state.get('rh_dchi_rh', 0.0):g}")
     rh_dchi_entry = ttk.Entry(rh_top, textvariable=state["rh_dchi_rh_var"], width=10)
     rh_dchi_entry.pack(side="left")
+    state["rh_dchi_entry"] = rh_dchi_entry
 
     # Rhombicity tab table
     cols = ("Ref", "Atom", "r", "theta(deg)", "phi(deg)",
@@ -655,18 +655,38 @@ def build_app():
         """Auto-calc가 켜져 있을 때만 χ_xx/yy/zz 계산."""
         if not state["chi_auto_calc_var"].get():
             return
-        calculate_tensor_components_ui(
-            state['chi_mol_entry'],
-            state['molar_value_label'],
-            state['tensor_xx_label'],
-            state['tensor_yy_label'],
-            state['tensor_zz_label'],
-            state['messagebox'],
-        )
+
+        # Use rh tensor formula if enabled
+        if state.get("rh_calc_enabled", False):
+            rh_ent = state.get("rh_dchi_entry")
+            if rh_ent is None:
+                return  # No input at Rh tab entry
+
+            calculate_tensor_components_ui_ax_rh(
+                chi_mol_entry=state["chi_mol_entry"],
+                molar_value_label=state["molar_value_label"],
+                rh_dchi_entry=rh_ent,
+                tensor_xx_label=state["tensor_xx_label"],
+                tensor_yy_label=state["tensor_yy_label"],
+                tensor_zz_label=state["tensor_zz_label"],
+                messagebox=state["messagebox"],
+            )
+        else:
+            calculate_tensor_components_ui(
+                state["chi_mol_entry"],
+                state["molar_value_label"],
+                state["tensor_xx_label"],
+                state["tensor_yy_label"],
+                state["tensor_zz_label"],
+                state["messagebox"],
+            )
+
+    state["maybe_calc_chi"] = _maybe_calc_chi
 
     # Enter / FocusOut 에서 자동 계산 (토글로 on/off)
     chi_mol_entry.bind('<Return>', _maybe_calc_chi)
     chi_mol_entry.bind('<FocusOut>', _maybe_calc_chi)
+    chi_mol_entry.bind('<KeyRelease>', _maybe_calc_chi)
 
     _sep(input_frame)
 
@@ -758,10 +778,10 @@ def build_app():
     ttk.Button(sbf, text="Save table", command=lambda: on_save_table_any(state)).grid(row=1, column=2, sticky="ew", padx=2, pady=1)
 
     # Defaults
-    state['delta_values'] = {}
+    state['delta_exp_values'] = {}
     reset_values(state)  # sets defaults and draws initial plots
     # Bindings
-    tree.bind("<Double-1>", lambda e: on_delta_entry_change(state, e, state['delta_values'], plot_cartesian_graph))
+    tree.bind("<Double-1>", lambda e: on_delta_entry_change(state, e, state['delta_exp_values'], plot_cartesian_graph))
     tree.bind("<<TreeviewSelect>>", lambda e: None)  # placeholder; selection highlight could be added
     tree.bind("<<TreeviewSelect>>", lambda e: _on_tree_select_update_spectrum(state))
 
@@ -1006,7 +1026,7 @@ def update_graph(state):
 
     if state.get('atom_data'):
         polar_data, rotated_coords = filter_atoms(state)
-        update_table(state, polar_data, rotated_coords, tensor, state['delta_values'])
+        update_table(state, polar_data, rotated_coords, tensor, state['delta_exp_values'])
         try:
             state['root']._stripe_treeview(state['tree'])
         except Exception:
@@ -1022,6 +1042,12 @@ def update_graph(state):
     plot_graph(state, pcs_values, theta_values, tensor, polar_data=polar_data)
     plot_cartesian_graph(state)
     update_molar_value(state, tensor)
+    try:
+        if state.get("chi_auto_calc_var") and state["chi_auto_calc_var"].get():
+            if "maybe_calc_chi" in state:
+                state["root"].after(0, lambda: state["maybe_calc_chi"](None))
+    except Exception as e:
+        print("auto-calc failed:", e)
 
     if 'fit_proton_list' in state:
         try:
@@ -1036,7 +1062,7 @@ def reset_values(state):
     state['pcs_interval_entry'].delete(0, tk.END); state['pcs_interval_entry'].insert(0, '0.5')
     state['angle_x_var'].set(0); state['angle_y_var'].set(0);
 
-    state.get('delta_values', {}).clear()
+    state.get('delta_exp_values', {}).clear()
     state.pop('last_rotated_coords', None)
 
     if 'angle_z_var' in state:
@@ -1045,7 +1071,7 @@ def reset_values(state):
         state['angle_z_entry'].delete(0, tk.END)
         state['angle_z_entry'].insert(0, "0.0")
 
-    state.get('delta_values', {}).clear()
+    state.get('delta_exp_values', {}).clear()
     state.pop('last_rotated_coords', None)
 
     # fit override도 reset (이게 남아있으면 Rh/PCS가 계속 override됨)
@@ -1119,7 +1145,7 @@ def load_xyz_file(state):
         return
 
     # reset
-    state.get('delta_values', {}).clear()
+    state.get('delta_exp_values', {}).clear()
     state.pop('last_rotated_coords', None)
     state.pop('row_by_id', None)
     state.pop('current_selected_ids', None)

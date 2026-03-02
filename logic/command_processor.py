@@ -36,4 +36,4 @@ def update_all(state):
     state['update_graph']()
     state['plot_cartesian'](state)
     polar_data, rotated_coords = state['filter_atoms'](state)
-    state['update_table'](state, polar_data, rotated_coords, float(state['tensor_entry'].get() or 1.0), state['delta_values'])
+    state['update_table'](state, polar_data, rotated_coords, float(state['tensor_entry'].get() or 1.0), state['delta_exp_values'])

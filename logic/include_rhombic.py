@@ -41,7 +41,7 @@ def build_rh_table_rows(state, filter_atoms_fn):
     Rhombicity 탭 전용 테이블에 넣을 rows 생성.
     반환: list[tuple]  (Treeview values로 바로 넣을 수 있게)
     """
-    dv = state.get("delta_values", {})
+    dv = state.get("delta_exp_values", {})
 
     # Δχ_ax(tensor) Entry에서
     tensor = 0.0

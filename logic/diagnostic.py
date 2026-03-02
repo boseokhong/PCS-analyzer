@@ -87,7 +87,7 @@ def _get_obs_pairs(state, proton_ids=None):
         obs_pairs: [(rid, delta_exp), ...]
         proton_ids_used: [rid, ...]
     """
-    delta_values = state.get("delta_values", {}) or {}
+    delta_exp_values = state.get("delta_exp_values", {}) or {}
 
     if proton_ids is None:
         # if user selected in fitting list, use that
@@ -97,10 +97,10 @@ def _get_obs_pairs(state, proton_ids=None):
                 proton_ids = [int(state["fit_proton_list"].get(i)) for i in sel]
 
     if proton_ids is None:
-        # fallback: any keys in delta_values
-        proton_ids = sorted(delta_values.keys())
+        # fallback: any keys in delta_exp_values
+        proton_ids = sorted(delta_exp_values.keys())
 
-    obs_pairs = [(rid, float(delta_values[rid])) for rid in proton_ids if rid in delta_values]
+    obs_pairs = [(rid, float(delta_exp_values[rid])) for rid in proton_ids if rid in delta_exp_values]
     return obs_pairs, proton_ids
 
 def _rotated_coords_for_obs(state, obs_pairs):
