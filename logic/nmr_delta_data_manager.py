@@ -57,7 +57,6 @@ def recompute_delta_para(state: dict) -> None:
 
     state["delta_para_values"] = para
 
-
 def compute_nonpcs_by_id(state: dict) -> Dict[int, float]:
     """
     Return δ_nonPCS = δ_para - δ_pcs (where available).
@@ -75,6 +74,61 @@ def compute_nonpcs_by_id(state: dict) -> Dict[int, float]:
             out[rid] = float(para) - float(pcs_by_id[rid])
     return out
 
+def build_analysis_rows(state: dict):
+    """
+    Build analysis rows for nuclei where PCS / obs / dia are available.
+
+    Returns:
+        List[dict] with keys:
+        ref_id, atom,
+        pcs, obs, dia, para,
+        non_pcs, abs_non_pcs, ratio_non_pcs
+    """
+    pcs_by_id  = state.get("pcs_by_id", {}) or {}
+    obs_by_id  = state.get("delta_obs_values", {}) or {}
+    dia_by_id  = state.get("delta_dia_values", {}) or {}
+    atom_by_id = state.get("atom_by_id", {}) or {}
+
+    # ensure δ_para up to date
+    recompute_delta_para(state)
+    para_by_id = state.get("delta_para_values", {}) or {}
+
+    rows = []
+
+    # union of all ids
+    all_ids = set(pcs_by_id) | set(obs_by_id) | set(dia_by_id)
+
+    for rid in sorted(all_ids):
+        pcs  = pcs_by_id.get(rid)
+        obs  = obs_by_id.get(rid)
+        dia  = dia_by_id.get(rid)
+        para = para_by_id.get(rid)
+
+        non_pcs = None
+        ratio   = None
+
+        if para is not None and pcs is not None:
+            try:
+                non_pcs = float(para) - float(pcs)
+                if abs(float(para)) > 1e-12:
+                    ratio = non_pcs / float(para)
+            except Exception:
+                non_pcs = None
+                ratio = None
+
+        rows.append({
+            "ref_id": rid,
+            "atom": atom_by_id.get(rid, ""),
+            "pcs": pcs,
+            "obs": obs,
+            "dia": dia,
+            "para": para,
+            "non_pcs": non_pcs,
+            "abs_non_pcs": abs(non_pcs) if non_pcs is not None else None,
+            "ratio_non_pcs": ratio,
+        })
+
+    return rows
 
 def _ordered_ids_for_display(state: dict) -> List[int]:
     """Use current selection order if present; otherwise sort known ids."""
@@ -227,6 +281,8 @@ def _push_now(state: dict) -> None:
     if hasattr(win, "set_layers"):
         # Even if empty, push so drawer can clear itself cleanly
         win.set_layers(layers or [], mode=mode)
+
+
 
 
 # Old push pcs to nmr

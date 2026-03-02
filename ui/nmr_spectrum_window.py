@@ -2,6 +2,7 @@
 '''
 logic/nmr_spectrum.py -> spectrum logic
 logic/nmr_delta_data_manager.py -> table related logic
+ui/nmr_analysis_window.py
 tools/demo_nmr_spectrum.py -> standalone NMR spectrum demo
 
 '''
@@ -161,7 +162,7 @@ class NMRSpectrumWindow(tk.Toplevel):
         self._drawer = ttk.Frame(self)
         self._drawer_visible = False
 
-        # drawer: extra spectrum (FULL WIDTH)
+        # drawer: extra spectrum
         self._extra_plot_frame = ttk.Frame(self._drawer)
         self._extra_plot_frame.pack(fill="both", expand=True, padx=6, pady=(6, 2))
 
@@ -269,6 +270,16 @@ class NMRSpectrumWindow(tk.Toplevel):
         ttk.Button(r2, text="Import δ_dia", command=self._import_dia, state=("normal" if has_state else "disabled")).pack(side="left")
         ttk.Button(r2, text="Paste δ_dia", command=self._paste_dia, state=("normal" if has_state else "disabled")).pack(side="left", padx=4)
         ttk.Button(r2, text="Clear δ_dia", command=self._clear_dia, state=("normal" if has_state else "disabled")).pack(side="left")
+
+        # ---- Analysis button ----
+        ttk.Separator(host, orient="vertical").pack(side="left", fill="y", padx=6)
+
+        ttk.Button(
+            host,
+            text="Analysis…",
+            command=self._open_analysis_window,
+            state=("normal" if has_state else "disabled"),
+        ).pack(side="left", padx=(0, 6))
 
         # Middle: layer toggles
         box_show = ttk.LabelFrame(host, text="Layers")
@@ -938,6 +949,25 @@ class NMRSpectrumWindow(tk.Toplevel):
             ax.set_ylim(0.0, 1.2)
 
         self._extra_canvas.draw_idle()
+
+    # ----- analysis -----
+    def _open_analysis_window(self):
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+
+        # 이미 열려있으면 포커스만
+        win = self.state.get("nmr_analysis_win", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.lift()
+                win.focus_force()
+                return
+        except Exception:
+            pass
+
+        from ui.nmr_analysis_window import NMRAnalysisWindow
+        win = NMRAnalysisWindow(self, state=self.state)
+        self.state["nmr_analysis_win"] = win
 
         # # Simple y-offset rule: 1.2 * layer index
         # # You can refine this to depend on number of peaks later.
