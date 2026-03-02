@@ -708,7 +708,7 @@ def build_app():
 
     # 3D / projection / NMR buttons
     opf = ttk.Frame(input_frame);
-    opf.pack(fill=tk.X, padx=0, pady=3)
+    opf.pack(fill=tk.X, padx=0, pady=0)
     ttk.Label(opf, text="Open viewers", font=("default", 9, "bold")).pack(pady=3)
 
     opf_row1 = ttk.Frame(opf)

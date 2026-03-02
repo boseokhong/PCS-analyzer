@@ -13,7 +13,7 @@ class NMRSpectrumWindow(tk.Toplevel):
     def __init__(self, parent: tk.Misc, title: str = "Simulated NMR Spectrum"):
         super().__init__(parent)
         self.title(title)
-        self.geometry("1150x420")
+        self.geometry("1150x450")
 
         # --------- state ---------
         self._shifts: np.ndarray | None = None
@@ -61,6 +61,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             xy=(0, 0),
             xytext=(10, 10),
             textcoords="offset points",
+            fontsize=7,
             bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
             arrowprops=dict(arrowstyle="->", color="0.3"),
         )
@@ -123,7 +124,7 @@ class NMRSpectrumWindow(tk.Toplevel):
         bin_entry.bind("<Return>", _on_tol_commit)
         bin_entry.bind("<FocusOut>", _on_tol_commit)
 
-        ttk.Button(ctrl, text="Clear pins", command=self._clear_pins).pack(side="right")
+        ttk.Button(ctrl, text="Clear", command=self._clear_pins).pack(side="right")
 
     # ---------------- public API ----------------
 
@@ -256,6 +257,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             xy=(0, 0),
             xytext=(10, 10),
             textcoords="offset points",
+            fontsize=7,
             bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
             arrowprops=dict(arrowstyle="->", color="0.3"),
         )
@@ -307,13 +309,13 @@ class NMRSpectrumWindow(tk.Toplevel):
                         continue
                     y = float(counts[k]) + 0.03
                     self.ax.text(c["center"], y, f"n={c['n']}",
-                                 ha="center", va="bottom", fontsize=9, clip_on=True)
+                                 ha="center", va="bottom", fontsize=7, clip_on=True)
 
             for k in sorted(self._pinned_clusters):
                 if 0 <= k < len(self._clusters):
                     c = self._clusters[k]
                     self.ax.text(c["center"], 1.10, self._cluster_label(k),
-                                 ha="center", va="top", fontsize=9, clip_on=True)
+                                 ha="center", va="top", fontsize=7, clip_on=True)
 
             # Fix y-limits so texts don't hit the border
             self.ax.set_ylim(0.0, 1.15)
@@ -401,7 +403,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             rotation=0,
             ha="left",
             va="center",
-            fontsize=9 if force else 8,
+            fontsize=7 if force else 6,
             fontweight="bold" if force else "normal",
             clip_on=True,
         )
