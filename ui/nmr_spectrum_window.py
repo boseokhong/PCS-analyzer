@@ -1,3 +1,8 @@
+# ui/nmr_spectrum_window.py
+'''
+logic/nmr_spectrum.py
+'''
+
 from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
@@ -188,8 +193,8 @@ class NMRSpectrumWindow(tk.Toplevel):
                 intensities = intensities / m
 
         if self.var_auto_range.get():
-            lo = float(np.min(shifts)) - 5.0
-            hi = float(np.max(shifts)) + 5.0
+            lo = float(np.min(shifts)) - 7.0
+            hi = float(np.max(shifts)) + 7.0
             x_range = (lo, hi)
         else:
             # manual fallback range
@@ -263,8 +268,8 @@ class NMRSpectrumWindow(tk.Toplevel):
         )
         self._hover_annot.set_visible(False)
 
-        self.ax.set_xlabel("ppm")
-        self.ax.set_ylabel("a.u.")
+        self.ax.set_xlabel("ppm", fontsize=8)
+        self.ax.set_ylabel("a.u.", fontsize=8)
         self.ax.set_yticks([])
 
         self._stick_x = np.asarray(sticks["x"], dtype=float)
@@ -335,12 +340,12 @@ class NMRSpectrumWindow(tk.Toplevel):
 
             # broadened mode
             if env is not None:
-                self.ax.plot(env["x"], env["y"], color="#800000", linewidth=1.3)
+                self.ax.plot(env["x"], env["y"], color="#800000", linewidth=1.2)
 
             # Highlight ref as thick stick
             hi = self._index_of_ref(self._highlight_ref)
             if hi is not None:
-                self.ax.vlines(float(self._stick_x[hi]), 0.0, float(self._stick_h[hi]), linewidth=4.0)
+                self.ax.vlines(float(self._stick_x[hi]), 0.0, float(self._stick_h[hi]), linewidth=4.0, color="orange")
 
             # Labels: avoid duplicates between pinned and highlighted
             if self.var_show_labels.get():
@@ -356,6 +361,7 @@ class NMRSpectrumWindow(tk.Toplevel):
         # NMR convention: left = higher ppm
         lo, hi2 = meta["x_range"]
         self.ax.set_xlim(hi2, lo)
+        self.ax.tick_params(axis="both", labelsize=8)
 
         self.canvas.draw_idle()
 
@@ -428,7 +434,6 @@ class NMRSpectrumWindow(tk.Toplevel):
         return header + "\n" + "\n".join(lines)
 
     # ---------- hover / click ----------
-
     def _on_mouse_leave(self, _event):
         self._hover_annot.set_visible(False)
         self.canvas.draw_idle()
@@ -451,7 +456,7 @@ class NMRSpectrumWindow(tk.Toplevel):
                 return
 
             c = self._clusters[k]
-            self._hover_annot.xy = (float(c["center"]), 0.9)
+            self._hover_annot.xy = (float(c["center"]), 0.5)
             self._hover_annot.set_text(self._cluster_label(k))
             self._hover_annot.set_visible(True)
             self.canvas.draw_idle()
@@ -480,7 +485,6 @@ class NMRSpectrumWindow(tk.Toplevel):
         self._hover_annot.set_text(lab)
         self._hover_annot.set_visible(True)
         self.canvas.draw_idle()
-
 
     def _on_mouse_click(self, event):
         if event.inaxes != self.ax or event.xdata is None:
