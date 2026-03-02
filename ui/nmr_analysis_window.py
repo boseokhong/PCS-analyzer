@@ -176,8 +176,7 @@ class NMRAnalysisWindow(tk.Toplevel):
         use_abs = bool(self.var_abs.get())
 
         nonpcs_vals = []
-        # store per nucleus for bar plot
-        per_atom = {}  # atom -> dict(list pcs/para/nonpcs)
+
         for r in rows:
             ref = r["ref"]
             atom = r["atom"]
@@ -203,11 +202,6 @@ class NMRAnalysisWindow(tk.Toplevel):
                 ref, atom, fmt(pcs), fmt(obs), fmt(dia), fmt(para), fmt(nonpcs)
             ), tags=tuple(tags))
 
-            if atom:
-                d = per_atom.setdefault(atom, {"pcs": [], "para": [], "nonpcs": []})
-                if pcs is not None: d["pcs"].append(pcs)
-                if para is not None: d["para"].append(para)
-                if nonpcs is not None: d["nonpcs"].append(nonpcs)
 
         # ---- histogram ----
         self.ax_h.clear()
