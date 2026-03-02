@@ -18,20 +18,17 @@ class NMRLayer:
 def ensure_delta_dicts(state: dict) -> None:
     """
     Ensure required dictionaries exist in state.
-    Keeps backward compatibility with old 'delta_values' by aliasing to 'delta_obs_values'
-    if obs dict is missing.
+    IMPORTANT: Do NOT alias dict objects between different delta kinds.
     """
-    if "delta_obs_values" not in state:
-        if "delta_values" in state and isinstance(state["delta_values"], dict):
-            state["delta_obs_values"] = state["delta_values"]
-        else:
-            state["delta_obs_values"] = {}
-
+    state.setdefault("delta_obs_values", {})
     state.setdefault("delta_dia_values", {})
     state.setdefault("delta_para_values", {})  # cache
     state.setdefault("nmr_layer_show", {"PCS": True, "OBS": False, "DIA": False, "PARA": False})
     state.setdefault("nmr_layer_mode", "stacked")  # 'stacked' | 'overlay'
 
+    # Legacy migration: old projects stored δ_Exp in 'delta_values'
+    if "delta_exp_values" not in state and isinstance(state.get("delta_values"), dict):
+        state["delta_exp_values"] = dict(state["delta_values"])
 
 def recompute_delta_para(state: dict) -> None:
     """

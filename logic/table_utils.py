@@ -27,6 +27,72 @@
 # Units:
 Δχ_ax, Δχ_rh are handled internally in units of 10^−32 m^3 (per molecule),
 while χ_iso, χ_xx, χ_yy, χ_zz are reported in m^3/mol.
+
+# ============================================================
+# Additional notes on tensor reconstruction
+# ============================================================
+
+# Two computational modes are supported in this program:
+
+# ------------------------------------------------------------
+# (1) Normal mode  → χ_iso = χ_mol (experimental input given)
+# ------------------------------------------------------------
+# If χ_mol is provided, χ_iso is taken as χ_mol and the full
+# susceptibility tensor is reconstructed as:
+
+# χ_xx = χ_mol − Δχ_ax/3 + Δχ_rh/2
+# χ_yy = χ_mol − Δχ_ax/3 − Δχ_rh/2
+# χ_zz = χ_mol + 2Δχ_ax/3
+
+# Special case (Δχ_rh = 0):
+# → axial symmetry (χ_xx = χ_yy)
+
+# In this case:
+# χ_xx = χ_yy = χ_mol − Δχ_ax/3
+# χ_zz = χ_mol + 2Δχ_ax/3
+
+# ------------------------------------------------------------
+# (2) Traceless fallback mode  → χ_iso = 0 (no χ_mol input)
+# ------------------------------------------------------------
+# If χ_mol is not provided, the tensor is reconstructed assuming
+# a traceless diagonal tensor:
+
+# χ_xx + χ_yy + χ_zz = 0
+
+# From the definition:
+# Δχ_ax = χ_zz − (χ_xx + χ_yy)/2
+
+# This gives:
+# χ_zz = (2/3) Δχ_ax
+
+# The in-plane sum is then fixed by traceless condition:
+# χ_xx + χ_yy = −χ_zz = −(2/3) Δχ_ax
+
+# If Δχ_rh = 0 (axial symmetry):
+# χ_xx = χ_yy = −(1/3) Δχ_ax
+# χ_zz =  (2/3) Δχ_ax
+
+# If Δχ_rh ≠ 0 (rhombic case):
+# χ_xx − χ_yy = Δχ_rh
+#
+# Solving:
+# χ_xx = −Δχ_ax/3 + Δχ_rh/2
+# χ_yy = −Δχ_ax/3 − Δχ_rh/2
+# χ_zz =  2Δχ_ax/3
+
+
+# ------------------------------------------------------------
+# Physical meaning
+# ------------------------------------------------------------
+# Normal mode:
+#   Uses experimental χ_mol and preserves absolute scale.
+#
+# Traceless mode:
+#   Sets χ_iso = 0 and reconstructs only the anisotropic part.
+#   Useful for testing, visualization, or when χ_mol is unknown.
+#   Absolute isotropic offset is not represented in this mode.
+# ============================================================
+
 '''
 
 
@@ -42,20 +108,21 @@ from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
 def _delta_kind_config(kind: str):
     kind = (kind or "").lower().strip()
 
-    # δ_Exp
+    # δ_Exp (main window table)
     if kind in ("exp", "delta_exp", "deltaexp", "δ_exp", "δexp"):
         return (
-            "delta_values",        # <- δ_Exp storage (update_table에서 쓰는 그 dict)
-            "_delta_exp_undo",     # <- undo buffer
-            ("δ_exp", "δ_Exp", "delta_exp", "delta_Exp", "exp", "ppm", "shift"),
+            "delta_exp_values",
+            "_delta_exp_undo",
+            ("δ_exp", "δ_Exp", "delta_exp", "delta_Exp", "exp", "delta values"),
         )
-
+    # δ_obs (NMR window)
     if kind in ("obs", "delta_obs", "observed"):
         return (
             "delta_obs_values",
             "_delta_obs_undo",
-            ("δ_obs", "delta_obs", "obs", "δexp", "δ_exp", "delta_exp", "delta", "ppm", "shift", "exp"),
+            ("δ_obs", "delta_obs", "obs", "ppm", "shift"),
         )
+    # δ_dia (NMR window)
     if kind in ("dia", "delta_dia", "diamagnetic"):
         return (
             "delta_dia_values",
@@ -230,11 +297,11 @@ def import_delta_exp_from_clipboard(state, plot_cartesian_graph_fn):
     ttk.Button(btns, text="Cancel", command=top.destroy).pack(side="right", padx=6)
 
 def undo_last_delta_import(state, plot_cartesian_graph_fn=None):
-    prev = state.get('_delta_values_undo')
+    prev = state.get('_delta_exp_undo')
     if prev is None:
         state['messagebox'].showwarning("Undo", "No undo buffer available.")
         return
-    state['delta_values'] = prev
+    state['delta_exp_values'] = prev
     state['update_graph']()
     if plot_cartesian_graph_fn:
         plot_cartesian_graph_fn(state)
@@ -627,7 +694,7 @@ def clear_delta_kind(state, kind: str, plot_cartesian_graph_fn):
 
 def clear_delta_exp(state, plot_cartesian_graph_fn):
     """모든 δ_Exp를 초기화(비우기)하고 테이블/플롯을 갱신."""
-    state.get('delta_values', {}).clear()
+    state.get('delta_exp_values', {}).clear()
     # 테이블의 δ_Exp 컬럼을 비우려면 update_graph로 재빌드하는 게 가장 안전
     state['update_graph']()
     plot_cartesian_graph_fn(state)
@@ -637,7 +704,7 @@ def update_molar_value(state, tensor):
     val = tensor * AVOGADRO_CONSTANT * 1e-32
     state['molar_value_label'].config(text=f"Δχ_mol_ax: {val:.2e} m³/mol")
 
-def update_table(state, polar_data, rotated_coords, tensor, delta_values):
+def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
     tree = state['tree']
     # 모든 행 비우기
     for r in tree.get_children():
@@ -663,8 +730,8 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_values):
 
         # Read/Write with Ref ID
         delta_exp_str = ""
-        if ref_id in delta_values:
-            v = delta_values[ref_id]
+        if ref_id in delta_exp_values:
+            v = delta_exp_values[ref_id]
             delta_exp_str = f"{v:g}"
 
         item = tree.insert("", state['tk'].END, values=(
@@ -676,7 +743,7 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_values):
     # push delta_pcs to NMR spectrum window if it exists
     push_layers_to_nmr_if_open(state)
 
-def on_delta_entry_change(state, event, delta_values, plot_cartesian_graph_fn):
+def on_delta_entry_change(state, event, delta_exp_values, plot_cartesian_graph_fn):
     tree = state['tree']
     sel = tree.selection()
     if not sel: return
@@ -700,14 +767,14 @@ def on_delta_entry_change(state, event, delta_values, plot_cartesian_graph_fn):
     new_str = new.strip()
     if new_str == "":
         tree.set(item, col, "")
-        delta_values.pop(ref_id, None)
+        delta_exp_values.pop(ref_id, None)
         plot_cartesian_graph_fn(state)
         return
 
     try:
         val = float(new_str)
         tree.set(item, col, new_str)
-        delta_values[ref_id] = val
+        delta_exp_values[ref_id] = val
         plot_cartesian_graph_fn(state)
     except ValueError:
         state['messagebox'].showerror(
@@ -715,65 +782,114 @@ def on_delta_entry_change(state, event, delta_values, plot_cartesian_graph_fn):
             "Please enter a valid number for δ_Exp or leave empty to clear."
         )
 
-def calculate_tensor_components_ui(chi_mol_entry, molar_value_label, tensor_xx_label, tensor_yy_label, tensor_zz_label, messagebox):
-    """
-    chi_mol_entry: 실험 χ_mol (m^3/mol)
-    molar_value_label: 'Δχ_mol_ax : ... m³/mol' 형식의 라벨
-    tensor_*_label: 결과 출력 라벨들
-    """
-    try:
-        chi_mol = float(chi_mol_entry.get())
-        # 라벨에서 Δχ_mol_ax 수치만 파싱
-        txt = molar_value_label['text']  # 예: 'Δχ_mol_ax : 1.23e-28 m³/mol'
-        delta_chi_ax = float(txt.split(':')[1].strip().split()[0])
+def _parse_delta_chi_ax_from_label(molar_value_label) -> float:
+    # Example: "Δχ_mol_ax: 1.23e-28 m³/mol"
+    txt = str(molar_value_label["text"])
+    return float(txt.split(":")[1].strip().split()[0])
 
-        chi_perp = chi_mol - delta_chi_ax/3
-        chi_parallel = (2/3)*delta_chi_ax + chi_mol
-
-        tensor_xx_label.config(text=f"χ_xx: {chi_perp:.2e} m³/mol")
-        tensor_yy_label.config(text=f"χ_yy: {chi_perp:.2e} m³/mol")
-        tensor_zz_label.config(text=f"χ_zz: {chi_parallel:.2e} m³/mol")
-    except Exception:
-        messagebox.showerror("Input Error", "Please enter valid numerical values for χ_mol.")
-
-def calculate_tensor_components_ui_ax_rh(
+def calculate_tensor_components_ui(
     chi_mol_entry,
-    molar_value_label,      # Δχ_mol_ax 라벨(기존 그대로 재사용)
-    rh_dchi_entry,          # Rhombicity 탭 Δχ_rh entry (StringVar/Entry에서 get)
+    molar_value_label,
     tensor_xx_label,
     tensor_yy_label,
     tensor_zz_label,
     messagebox,
+    *,
+    assume_traceless_when_empty: bool = True,  # optional switch
+):
+    """
+    Normal mode (χ_mol provided):
+      χ_xx = χ_mol - Δχ_ax/3
+      χ_yy = χ_mol - Δχ_ax/3
+      χ_zz = χ_mol + 2Δχ_ax/3
+
+    Fallback mode (χ_mol empty and assume_traceless_when_empty=True):
+      assume χ_iso = 0 (traceless) and axial symmetry (Δχ_rh = 0)
+      χ_zz = 2Δχ_ax/3
+      χ_xx = χ_yy = -Δχ_ax/3
+    """
+    try:
+        delta_chi_ax = _parse_delta_chi_ax_from_label(molar_value_label)
+
+        s_iso = (chi_mol_entry.get() or "").strip()
+        if s_iso == "":
+            if not assume_traceless_when_empty:
+                messagebox.showerror("Input Error", "Please enter χ_mol (or enable traceless mode).")
+                return
+
+            # --- traceless + axial symmetry ---
+            chi_zz = (2.0 / 3.0) * delta_chi_ax
+            chi_xx = chi_yy = -(1.0 / 3.0) * delta_chi_ax
+        else:
+            # --- normal ---
+            chi_mol = float(s_iso)
+            chi_xx = chi_yy = chi_mol - delta_chi_ax / 3.0
+            chi_zz = chi_mol + (2.0 / 3.0) * delta_chi_ax
+
+        tensor_xx_label.config(text=f"χ_xx: {chi_xx:.2e} m³/mol")
+        tensor_yy_label.config(text=f"χ_yy: {chi_yy:.2e} m³/mol")
+        tensor_zz_label.config(text=f"χ_zz: {chi_zz:.2e} m³/mol")
+
+    except Exception:
+        messagebox.showerror("Input Error", "Please enter valid numerical values for χ_mol / Δχ.")
+
+def calculate_tensor_components_ui_ax_rh(
+    chi_mol_entry,
+    molar_value_label,
+    rh_dchi_entry,
+    tensor_xx_label,
+    tensor_yy_label,
+    tensor_zz_label,
+    messagebox,
+    *,
+    assume_traceless_when_empty: bool = True,  # optional switch
 ):
     """
     χ_iso = χ_mol
     Δχ_ax = 라벨(Δχ_mol_ax)에서 읽음
     Δχ_rh = rh_dchi_entry에서 읽음 (E-32 m^3 scale)
 
-    χ_xx = χ_iso - Δχ_ax/3 + Δχ_rh/2
-    χ_yy = χ_iso - Δχ_ax/3 - Δχ_rh/2
-    χ_zz = χ_iso + 2Δχ_ax/3
+    Normal mode (χ_mol provided):
+      χ_xx = χ_mol − Δχ_ax/3 + Δχ_rh/2
+      χ_yy = χ_mol − Δχ_ax/3 − Δχ_rh/2
+      χ_zz = χ_mol + 2Δχ_ax/3
+
+    Fallback mode (χ_mol empty and assume_traceless_when_empty=True):
+      assume traceless diagonal tensor (χ_iso = 0)
+      χ_zz = 2Δχ_ax/3
+      χ_xx + χ_yy = -χ_zz
+      χ_xx - χ_yy = Δχ_rh
     """
     # PCS calculations use Δχ_ax and Δχ_rh together with the corresponding
     # geometry factors G_ax and G_rh derived from atomic coordinates.
 
     try:
-        chi_mol = float(chi_mol_entry.get())
+        delta_chi_ax = _parse_delta_chi_ax_from_label(molar_value_label)
 
-        txt = molar_value_label['text']  # "Δχ_mol_ax: 1.23e-28 m³/mol"
-        delta_chi_ax = float(txt.split(':')[1].strip().split()[0])
+        s_rh = (rh_dchi_entry.get() or "").strip()
+        dchi_rh = float(s_rh) if s_rh else 0.0
 
-        s = rh_dchi_entry.get().strip()
-        dchi_rh = float(s) if s else 0.0
-
-        # Δχ_rh 입력이 "E-32 m^3" 스케일,
-        # 따라서 dchi_rh(E-32 m^3) -> m^3/mol 변환:
-        from logic.chem_constants import AVOGADRO_CONSTANT
+        # Convert per-molecule (E-32 m^3) -> m^3/mol
         delta_chi_rh_mol = dchi_rh * AVOGADRO_CONSTANT * 1e-32
 
-        chi_xx = chi_mol - delta_chi_ax/3 + delta_chi_rh_mol/2
-        chi_yy = chi_mol - delta_chi_ax/3 - delta_chi_rh_mol/2
-        chi_zz = chi_mol + (2/3)*delta_chi_ax
+        s_iso = (chi_mol_entry.get() or "").strip()
+        if s_iso == "":
+            if not assume_traceless_when_empty:
+                messagebox.showerror("Input Error", "Please enter χ_mol (or enable traceless mode).")
+                return
+
+            # --- traceless mode ---
+            chi_zz = (2.0 / 3.0) * delta_chi_ax
+            S = -chi_zz  # χ_xx + χ_yy
+            R = delta_chi_rh_mol  # χ_xx - χ_yy
+            chi_xx = 0.5 * (S + R)
+            chi_yy = 0.5 * (S - R)
+        else:
+            # --- normal ---
+            chi_mol = float(s_iso)
+            chi_xx = chi_mol - delta_chi_ax / 3.0 + delta_chi_rh_mol / 2.0
+            chi_yy = chi_mol - delta_chi_ax / 3.0 - delta_chi_rh_mol / 2.0
+            chi_zz = chi_mol + (2.0 / 3.0) * delta_chi_ax
 
         tensor_xx_label.config(text=f"χ_xx: {chi_xx:.2e} m³/mol")
         tensor_yy_label.config(text=f"χ_yy: {chi_yy:.2e} m³/mol")
