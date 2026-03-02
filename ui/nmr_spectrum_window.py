@@ -1,9 +1,13 @@
 # ui/nmr_spectrum_window.py
 '''
-logic/nmr_spectrum.py
+logic/nmr_spectrum.py -> spectrum logic
+logic/nmr_delta_data_manager.py -> table related logic
+tools/demo_nmr_spectrum.py -> standalone NMR spectrum demo
+
 '''
 
 from __future__ import annotations
+import re
 import tkinter as tk
 from tkinter import ttk
 
@@ -15,12 +19,21 @@ from logic.nmr_spectrum import make_payload
 
 
 class NMRSpectrumWindow(tk.Toplevel):
-    def __init__(self, parent: tk.Misc, title: str = "Simulated NMR Spectrum"):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        title: str = "Simulated NMR Spectrum",
+        state: dict | None = None,
+        plot_cartesian_graph_fn=None,
+    ):
         super().__init__(parent)
         self.title(title)
-        self.geometry("1150x450")
+        self.geometry("1180x450")
 
         # --------- state ---------
+        self.state = state  # shared app state (table/pcs/etc)
+        self.plot_cartesian_graph_fn = plot_cartesian_graph_fn
+
         self._shifts: np.ndarray | None = None
         self._intensities: np.ndarray | None = None
         self._labels: list[str] | None = None
@@ -54,10 +67,13 @@ class NMRSpectrumWindow(tk.Toplevel):
         fig = Figure(figsize=(12, 2.5), constrained_layout=True)
         self.ax = fig.add_subplot(111)
 
-        self.canvas = FigureCanvasTkAgg(fig, master=self)
+        self.main_plot_frame = ttk.Frame(self)
+        self.main_plot_frame.pack(fill="both", expand=True)
+
+        self.canvas = FigureCanvasTkAgg(fig, master=self.main_plot_frame)
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        toolbar = NavigationToolbar2Tk(self.canvas, self)
+        toolbar = NavigationToolbar2Tk(self.canvas, self.main_plot_frame)
         toolbar.update()
 
         # Hover tooltip
@@ -129,7 +145,234 @@ class NMRSpectrumWindow(tk.Toplevel):
         bin_entry.bind("<Return>", _on_tol_commit)
         bin_entry.bind("<FocusOut>", _on_tol_commit)
 
+        # ---- drawer (delta panel) host on the right ----
+        self._drawer_host = ttk.Frame(ctrl)
+        self._drawer_host.pack(side="right", padx=(6, 0))
+
+        self._drawer_open = tk.BooleanVar(value=False)
+        self._btn_drawer = ttk.Button(self._drawer_host, text="▼", width=3, command=self._toggle_drawer)
+        self._drawer_saved_size: str | None = None
+        self._drawer_height_bump = 400  # drawer height
+
+        self._btn_drawer.pack(side="right")
+
+        #=============================================
+        # ---- drawer panel itself (initially hidden)
+        self._drawer = ttk.Frame(self)
+        self._drawer_visible = False
+
+        # drawer: extra spectrum (FULL WIDTH)
+        self._extra_plot_frame = ttk.Frame(self._drawer)
+        self._extra_plot_frame.pack(fill="both", expand=True, padx=6, pady=(6, 2))
+
+        extra_fig = Figure(figsize=(12, 1.5), constrained_layout=True)
+        self._extra_ax = extra_fig.add_subplot(111)
+        self._extra_canvas = FigureCanvasTkAgg(extra_fig, master=self._extra_plot_frame)
+        self._extra_canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        # --- extra hover tooltip state ---
+        self._extra_hover_annot = self._extra_ax.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(10, 10),
+            textcoords="offset points",
+            fontsize=7,
+            bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
+            arrowprops=dict(arrowstyle="->", color="0.3"),
+        )
+        self._extra_hover_annot.set_visible(False)
+
+        self._extra_points = None  # dict with arrays for hover: x, y, text
+
+        # Matplotlib events for extra canvas (drawer plot)
+        self._extra_canvas.mpl_connect("motion_notify_event", self._on_extra_mouse_move)
+        self._extra_canvas.mpl_connect("figure_leave_event", self._on_extra_mouse_leave)
+
+
+        extra_toolbar = NavigationToolbar2Tk(self._extra_canvas, self._extra_plot_frame)
+        extra_toolbar.update()
+
+        # drawer: controls (UNDER the extra spectrum)
+        self._drawer_ctrl = ttk.Frame(self._drawer)
+        self._drawer_ctrl.pack(fill="x", padx=6, pady=(2, 6))
+
+        # build drawer control widgets INTO self._drawer_ctrl
+        self._build_drawer_contents()
+
+        # Clear button
         ttk.Button(ctrl, text="Clear", command=self._clear_pins).pack(side="right")
+
+    # ---------- drawer UI (delta tools) ----------
+    def _only_size(self, geo: str) -> str:
+        m = re.match(r"^\s*(\d+x\d+)", geo)
+        return m.group(1) if m else geo
+
+    def _toggle_drawer(self):
+        if not self._drawer_visible:
+            self._btn_drawer.configure(text="▲")
+
+            # save size ONCE
+            if self._drawer_saved_size is None:
+                try:
+                    self.update_idletasks()
+                    self._drawer_saved_size = self._only_size(self.geometry())
+                except Exception:
+                    self._drawer_saved_size = None
+
+            self._drawer.pack(fill="both", padx=6, pady=(0, 6))
+            self._drawer_visible = True
+
+            # expand height; keep position (no +x+y)
+            try:
+                self.update_idletasks()
+                w = self.winfo_width()
+                h = self.winfo_height()
+                self.geometry(f"{w}x{h + self._drawer_height_bump}")
+            except Exception:
+                pass
+
+            self._redraw_layers_drawer()
+
+        else:
+            self._btn_drawer.configure(text="▼")
+            self._drawer.pack_forget()
+            self._drawer_visible = False
+
+            # restore ONLY size (no +x+y)
+            if self._drawer_saved_size is not None:
+                try:
+                    self.geometry(self._drawer_saved_size)
+                except Exception:
+                    pass
+
+    def _build_drawer_contents(self):
+        """Create drawer widgets: import/paste/clear + layer toggles + mode."""
+        # If state is missing, disable everything safely
+        host = self._drawer_ctrl
+        has_state = isinstance(getattr(self, "state", None), dict)
+
+        # Defaults in state
+        if has_state:
+            self.state.setdefault("nmr_layer_show", {"PCS": True, "OBS": False, "DIA": False, "PARA": False})
+            self.state.setdefault("nmr_layer_mode", "stacked")
+
+        # Top: Import / Paste / Clear
+        box_imp = ttk.LabelFrame(host, text="δ data")
+        box_imp.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        r1 = ttk.Frame(box_imp); r1.pack(fill="x", pady=2)
+        ttk.Button(r1, text="Import δ_obs", command=self._import_obs, state=("normal" if has_state else "disabled")).pack(side="left")
+        ttk.Button(r1, text="Paste δ_obs", command=self._paste_obs, state=("normal" if has_state else "disabled")).pack(side="left", padx=4)
+        ttk.Button(r1, text="Clear δ_obs", command=self._clear_obs, state=("normal" if has_state else "disabled")).pack(side="left")
+
+        r2 = ttk.Frame(box_imp); r2.pack(fill="x", pady=2)
+        ttk.Button(r2, text="Import δ_dia", command=self._import_dia, state=("normal" if has_state else "disabled")).pack(side="left")
+        ttk.Button(r2, text="Paste δ_dia", command=self._paste_dia, state=("normal" if has_state else "disabled")).pack(side="left", padx=4)
+        ttk.Button(r2, text="Clear δ_dia", command=self._clear_dia, state=("normal" if has_state else "disabled")).pack(side="left")
+
+        # Middle: layer toggles
+        box_show = ttk.LabelFrame(host, text="Layers")
+        box_show.pack(side="left", fill="x", padx=(0, 6))
+
+        if has_state:
+            show = self.state.get("nmr_layer_show", {})
+            mode = self.state.get("nmr_layer_mode", "stacked")
+        else:
+            show = {"PCS": True, "OBS": False, "DIA": False, "PARA": False}
+            mode = "stacked"
+
+        self._v_pcs  = tk.BooleanVar(value=bool(show.get("PCS", True)))
+        self._v_obs  = tk.BooleanVar(value=bool(show.get("OBS", False)))
+        self._v_dia  = tk.BooleanVar(value=bool(show.get("DIA", False)))
+        self._v_para = tk.BooleanVar(value=bool(show.get("PARA", False)))
+
+        ttk.Checkbutton(box_show, text="PCS", variable=self._v_pcs, command=self._on_layer_toggle,
+                        state=("normal" if has_state else "disabled")).pack(anchor="w")
+        ttk.Checkbutton(box_show, text="δ_obs", variable=self._v_obs, command=self._on_layer_toggle,
+                        state=("normal" if has_state else "disabled")).pack(anchor="w")
+        ttk.Checkbutton(box_show, text="δ_dia", variable=self._v_dia, command=self._on_layer_toggle,
+                        state=("normal" if has_state else "disabled")).pack(anchor="w")
+        ttk.Checkbutton(box_show, text="δ_para (=obs−dia)", variable=self._v_para, command=self._on_layer_toggle,
+                        state=("normal" if has_state else "disabled")).pack(anchor="w")
+
+        # Right: mode
+        box_mode = ttk.LabelFrame(host, text="Mode")
+        box_mode.pack(side="left", fill="x")
+
+        self._v_mode = tk.StringVar(value=str(mode))
+        ttk.Radiobutton(box_mode, text="Stacked", value="stacked", variable=self._v_mode,
+                        command=self._on_mode_change, state=("normal" if has_state else "disabled")).pack(anchor="w")
+        ttk.Radiobutton(box_mode, text="Overlay", value="overlay", variable=self._v_mode,
+                        command=self._on_mode_change, state=("normal" if has_state else "disabled")).pack(anchor="w")
+
+    def _sync_layer_flags_to_state(self):
+        """Write current drawer checkbox values back into shared state."""
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        self.state.setdefault("nmr_layer_show", {})
+        self.state["nmr_layer_show"]["PCS"]  = bool(self._v_pcs.get())
+        self.state["nmr_layer_show"]["OBS"]  = bool(self._v_obs.get())
+        self.state["nmr_layer_show"]["DIA"]  = bool(self._v_dia.get())
+        self.state["nmr_layer_show"]["PARA"] = bool(self._v_para.get())
+
+    def _on_layer_toggle(self):
+        """Checkbox toggles -> update state -> push layers to window."""
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        self._sync_layer_flags_to_state()
+        from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
+        push_layers_to_nmr_if_open(self.state)
+
+    def _on_mode_change(self):
+        """Mode radio -> update state -> push layers to window."""
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        self.state["nmr_layer_mode"] = str(self._v_mode.get())
+        from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
+        push_layers_to_nmr_if_open(self.state)
+
+    # ---- import/paste/clear actions ----
+    def _import_obs(self):
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        from logic.table_utils import import_delta_file
+        fn = self.plot_cartesian_graph_fn or self.state.get("plot_cartesian_graph_fn")
+        import_delta_file(self.state, kind="obs", plot_cartesian_graph_fn=fn)
+
+    def _paste_obs(self):
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        from logic.table_utils import import_delta_from_clipboard
+        fn = self.plot_cartesian_graph_fn or self.state.get("plot_cartesian_graph_fn")
+        import_delta_from_clipboard(self.state, kind="obs", plot_cartesian_graph_fn=fn)
+
+    def _clear_obs(self):
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        from logic.table_utils import clear_delta_kind
+        fn = self.plot_cartesian_graph_fn or self.state.get("plot_cartesian_graph_fn")
+        clear_delta_kind(self.state, kind="obs", plot_cartesian_graph_fn=fn)
+
+    def _import_dia(self):
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        from logic.table_utils import import_delta_file
+        fn = self.plot_cartesian_graph_fn or self.state.get("plot_cartesian_graph_fn")
+        import_delta_file(self.state, kind="dia", plot_cartesian_graph_fn=fn)
+
+    def _paste_dia(self):
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        from logic.table_utils import import_delta_from_clipboard
+        fn = self.plot_cartesian_graph_fn or self.state.get("plot_cartesian_graph_fn")
+        import_delta_from_clipboard(self.state, kind="dia", plot_cartesian_graph_fn=fn)
+
+    def _clear_dia(self):
+        if not isinstance(getattr(self, "state", None), dict):
+            return
+        from logic.table_utils import clear_delta_kind
+        fn = self.plot_cartesian_graph_fn or self.state.get("plot_cartesian_graph_fn")
+        clear_delta_kind(self.state, kind="dia", plot_cartesian_graph_fn=fn)
 
     # ---------------- public API ----------------
 
@@ -529,3 +772,205 @@ class NMRSpectrumWindow(tk.Toplevel):
             self._pick_callback([int(self._ref_ids[idx])])
 
         self._refresh()
+
+    def _on_extra_mouse_leave(self, _event):
+        if hasattr(self, "_extra_hover_annot") and self._extra_hover_annot is not None:
+            self._extra_hover_annot.set_visible(False)
+            self._extra_canvas.draw_idle()
+
+    def _on_extra_mouse_move(self, event):
+        if event.inaxes != getattr(self, "_extra_ax", None) or event.xdata is None:
+            return
+        if not getattr(self, "_extra_points", None):
+            return
+
+        x = float(event.xdata)
+        xs = self._extra_points["x"]
+        ys = self._extra_points["y"]
+        y0 = self._extra_points["y0"]
+        texts = self._extra_points["text"]
+
+        if xs.size == 0:
+            return
+
+        idx = int(np.argmin(np.abs(xs - x)))
+        if abs(float(xs[idx]) - x) > 0.15:  # same feel as main plot
+            if self._extra_hover_annot.get_visible():
+                self._extra_hover_annot.set_visible(False)
+                self._extra_canvas.draw_idle()
+            return
+
+        y_anchor = float(y0[idx] + 0.7 * (ys[idx] - y0[idx]))
+
+        self._extra_hover_annot.xy = (float(xs[idx]), y_anchor)
+        self._extra_hover_annot.set_text(str(texts[idx]))
+        self._extra_hover_annot.set_visible(True)
+        self._extra_canvas.draw_idle()
+
+    # ---------- nmr delta data ----------
+    def set_layers(self, layers, mode: str = "stacked"):
+        """
+        Receive spectrum layers from logic and store them.
+        IMPORTANT: This must NOT touch the main spectrum axis (self.ax),
+        so that hover/labels/broadened/group/pins remain intact.
+        """
+        self._layers = layers or []
+        self._layer_mode = mode
+
+        # Only draw to drawer plot if drawer is visible
+        if getattr(self, "_drawer_visible", False):
+            self._redraw_layers_drawer()
+
+    def _layer_color(self, name: str) -> str:
+        n = (name or "").lower()
+        if n == "pcs":
+            return "#1f77b4"   # blue
+        if "obs" in n:
+            return "#2ca02c"   # green
+        if "dia" in n:
+            return "#7f7f7f"   # gray
+        if "para" in n:
+            return "#d62728"   # red
+        return "#9467bd"       # purple fallback
+
+    def _redraw_layers_drawer(self):
+        """Render layers into the drawer-only axis."""
+        if not hasattr(self, "_extra_ax"):
+            return
+
+        ax = self._extra_ax
+        ax.clear()
+
+        self._extra_hover_annot = ax.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(10, 10),
+            textcoords="offset points",
+            fontsize=7,
+            bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
+            arrowprops=dict(arrowstyle="->", color="0.3"),
+        )
+        self._extra_hover_annot.set_visible(False)
+
+        layers = getattr(self, "_layers", None) or []
+        mode = getattr(self, "_layer_mode", "stacked")
+
+        if not layers:
+            self._extra_points = None
+            self._extra_canvas.draw_idle()
+            return
+
+        # collect all points for hover
+        xs_all = []
+        ys_all = []
+        y0_all = []
+        texts_all = []
+
+        # global x-range
+        any_nonempty = any(len(getattr(l, "shifts", [])) > 0 for l in layers)
+        if not any_nonempty:
+            self._extra_points = None
+            self._extra_canvas.draw_idle()
+            return
+
+        # global x-range
+        all_x = np.concatenate([np.asarray(l.shifts, dtype=float) for l in layers if len(l.shifts) > 0])
+        xmin, xmax = float(np.min(all_x)), float(np.max(all_x))
+
+        # match main plot style
+        ax.set_xlabel("ppm", fontsize=8)
+        ax.set_ylabel("a.u.", fontsize=8)
+        ax.set_yticks([])
+        ax.tick_params(axis="both", labelsize=8)
+
+        for i, layer in enumerate(layers):
+            c = self._layer_color(layer.name)
+            shifts = np.asarray(layer.shifts, dtype=float)
+            intens = np.asarray(layer.intensities, dtype=float)
+
+            if shifts.size == 0:
+                continue
+
+            if mode == "stacked":
+                y0 = i * 1.25
+                y_top = y0 + intens
+                ax.hlines(y0, xmin=xmin - 1, xmax=xmax + 1, linewidth=0.6, color=c, alpha=0.6)
+            else:
+                y0 = 0.0
+                y_top = intens
+
+            # draw sticks (no per-peak text)
+            ax.vlines(shifts, y0, y_top, linewidth=1.2, color=c)
+
+            # layer name tag (keep, but light)
+            ax.text(
+                0.01, 0.98 - i * 0.12, layer.name,
+                transform=ax.transAxes, va="top", fontsize=8, color=c
+            )
+
+            # hover payload
+            # text: "LAYER | label"
+            labs = list(getattr(layer, "labels", []))
+            if len(labs) != len(shifts):
+                # fallback: index labels
+                labs = [str(j) for j in range(len(shifts))]
+
+            for x, yy, lab in zip(shifts, y_top, labs):
+                xs_all.append(float(x))
+                ys_all.append(float(yy))
+                y0_all.append(float(y0))
+                texts_all.append(f"{layer.name} | {lab}")
+
+        self._extra_points = {
+            "x": np.asarray(xs_all, dtype=float),
+            "y": np.asarray(ys_all, dtype=float),
+            "y0": np.asarray(y0_all, dtype=float),
+            "text": np.asarray(texts_all, dtype=object),
+        }
+
+        # NMR convention: left = higher ppm
+        ax.set_xlim(xmax + 5, xmin - 5)
+
+        # y-limit
+        if mode == "stacked":
+            ax.set_ylim(0.0, max(1.0, (len(layers) - 1) * 1.25 + 1.2))
+        else:
+            ax.set_ylim(0.0, 1.2)
+
+        self._extra_canvas.draw_idle()
+
+        # # Simple y-offset rule: 1.2 * layer index
+        # # You can refine this to depend on number of peaks later.
+        # for i, layer in enumerate(layers):
+        #     shifts = np.asarray(layer.shifts, dtype=float)
+        #     intens = np.asarray(layer.intensities, dtype=float)
+        #
+        #     if mode == "stacked":
+        #         y0 = i * 1.2
+        #         y = y0 + intens
+        #         # Baseline (optional, helps readability)
+        #         self.ax.hlines(y0, xmin=np.min(shifts) - 1, xmax=np.max(shifts) + 1, linewidth=0.8)
+        #     else:
+        #         y0 = 0.0
+        #         y = intens
+        #
+        #     # Stem plot for discrete shifts
+        #     markerline, stemlines, baseline = self.ax.stem(shifts, y, use_line_collection=True)
+        #     # Label at the top of stems (optional; can be heavy with many peaks)
+        #     # Keep light: only annotate when there are not too many peaks
+        #     if len(shifts) <= 40:
+        #         for x, yy, lab in zip(shifts, y, layer.labels):
+        #             self.ax.text(x, yy + 0.05, lab, fontsize=8, rotation=90, va="bottom", ha="center")
+        #     # All label version:
+        #     # for x, yy, lab in zip(shifts, y, layer.labels):
+        #     #     self.ax.text(x, yy + 0.05, lab, fontsize=8, rotation=90, va="bottom", ha="center")
+        #
+        #     # Layer title on the left
+        #     self.ax.text(0.01, 0.95 - i * 0.08, layer.name, transform=self.ax.transAxes, va="top")
+
+        # # NMR convention: decreasing ppm to the right (optional, depends on your current plot)
+        # self.ax.invert_xaxis()
+        # self.ax.set_xlabel("ppm")
+        # self.ax.set_yticks([])
+        #
+        # self.canvas.draw_idle()

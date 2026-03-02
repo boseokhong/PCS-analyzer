@@ -31,12 +31,40 @@ while χ_iso, χ_xx, χ_yy, χ_zz are reported in m^3/mol.
 
 
 import numpy as np
-from logic.chem_constants import AVOGADRO_CONSTANT
 import pandas as pd
 import os
 import tkinter as tk
 from tkinter import ttk, Toplevel
 
+from logic.chem_constants import AVOGADRO_CONSTANT
+from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
+
+def _delta_kind_config(kind: str):
+    kind = (kind or "").lower().strip()
+
+    # δ_Exp
+    if kind in ("exp", "delta_exp", "deltaexp", "δ_exp", "δexp"):
+        return (
+            "delta_values",        # <- δ_Exp storage (update_table에서 쓰는 그 dict)
+            "_delta_exp_undo",     # <- undo buffer
+            ("δ_exp", "δ_Exp", "delta_exp", "delta_Exp", "exp", "ppm", "shift"),
+        )
+
+    if kind in ("obs", "delta_obs", "observed"):
+        return (
+            "delta_obs_values",
+            "_delta_obs_undo",
+            ("δ_obs", "delta_obs", "obs", "δexp", "δ_exp", "delta_exp", "delta", "ppm", "shift", "exp"),
+        )
+    if kind in ("dia", "delta_dia", "diamagnetic"):
+        return (
+            "delta_dia_values",
+            "_delta_dia_undo",
+            ("δ_dia", "delta_dia", "dia", "diamagnetic", "delta_diamagnetic"),
+        )
+    raise ValueError(f"Unknown kind: {kind}")
+
+#========Main window table NMR===========
 def export_delta_exp_template(state):
     """
     현재 테이블(보이는 행들)의 Ref, Atom을 기준으로
@@ -120,7 +148,7 @@ def import_delta_exp_file(state, plot_cartesian_graph_fn):
         return
 
     try:
-        rows = _build_preview_rows_from_df(state, df)
+        rows = _build_preview_rows_from_df(state, df, kind="exp")
     except Exception as e:
         state['messagebox'].showerror("Import δ_Exp", str(e))
         return
@@ -129,7 +157,10 @@ def import_delta_exp_file(state, plot_cartesian_graph_fn):
         state['messagebox'].showwarning("Import δ_Exp", "No data to apply")
         return
 
-    _show_delta_preview_and_apply(state, rows, os.path.basename(fd), plot_cartesian_graph_fn)
+    _show_delta_preview_and_apply(
+        state, rows, os.path.basename(fd), plot_cartesian_graph_fn,
+        kind="exp"
+    )
 
 def import_delta_exp_from_clipboard(state, plot_cartesian_graph_fn):
     top = Toplevel(state['root'])
@@ -179,7 +210,7 @@ def import_delta_exp_from_clipboard(state, plot_cartesian_graph_fn):
                 df.columns = ["Ref","δ_Exp"]
 
         try:
-            rows = _build_preview_rows_from_df(state, df)  # 기존 함수 재사용
+            rows = _build_preview_rows_from_df(state, df, kind="exp")  # 기존 함수 재사용
         except Exception as e:
             state['messagebox'].showerror("Paste δ_Exp", str(e))
             return
@@ -188,7 +219,10 @@ def import_delta_exp_from_clipboard(state, plot_cartesian_graph_fn):
             state['messagebox'].showwarning("Paste δ_Exp", "No data to apply")
             return
 
-        _show_delta_preview_and_apply(state, rows, "clipboard", plot_cartesian_graph_fn)
+        _show_delta_preview_and_apply(
+            state, rows, "clipboard", plot_cartesian_graph_fn,
+            kind="exp"
+        )
         top.destroy()
 
     btns = ttk.Frame(top); btns.pack(fill="x", padx=8, pady=8)
@@ -206,50 +240,60 @@ def undo_last_delta_import(state, plot_cartesian_graph_fn=None):
         plot_cartesian_graph_fn(state)
     state['messagebox'].showinfo("Undo", "Restored to the previous δ_Exp state.")
 
+#=======================================
 
-def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesian_graph_fn):
+def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesian_graph_fn, kind: str):
     """
     mapped_rows: 리스트[ dict( file_id, file_atom, file_delta_raw, mapped_id, parsed_delta, action ) ]
       - action: 'set' | 'clear' | 'skip'
     부분 적용(체크박스) + 되돌리기 버퍼 저장 후 적용
+    kind: 'obs' or 'dia'
     """
+    if not kind:
+        raise ValueError("kind is required")
+    target_key, undo_key, _ = _delta_kind_config(kind)
+    state.setdefault(target_key, {})
+
     top = Toplevel(state['root'])
-    top.title("δ_Exp Import Preview")
+    top.title(f"{kind} Import Preview")
     top.geometry("860x520")
 
-    ttk.Label(top, text=f"Source: {source_label}").pack(anchor="w", padx=8, pady=(8,2))
+    ttk.Label(top, text=f"Source: {source_label}").pack(anchor="w", padx=8, pady=(8, 2))
 
     # 적용 체크 플래그 (기본: set/clear만 True)
     apply_flags = [ (r['action'] in ('set','clear')) and (r.get('mapped_id') is not None) for r in mapped_rows ]
 
     info_var = tk.StringVar()
+
     def _refresh_info():
         tot = len(mapped_rows)
         sel = sum(apply_flags)
-        set_n = sum(1 for f,r in zip(apply_flags,mapped_rows) if f and r['action']=='set')
-        clr_n = sum(1 for f,r in zip(apply_flags,mapped_rows) if f and r['action']=='clear')
+        set_n = sum(1 for f, r in zip(apply_flags, mapped_rows) if f and r['action'] == 'set')
+        clr_n = sum(1 for f, r in zip(apply_flags, mapped_rows) if f and r['action'] == 'clear')
         skp_n = tot - sel
         info_var.set(f"Selected: {sel}  |  set: {set_n}, clear: {clr_n}  |  skipped: {skp_n}")
 
-    ttk.Label(top, textvariable=info_var).pack(anchor="w", padx=8, pady=(0,6))
+    ttk.Label(top, textvariable=info_var).pack(anchor="w", padx=8, pady=(0, 6))
 
-    cols = ("apply","file_id","file_atom","file_delta","mapped_id","parsed_delta","action")
+    cols = ("apply", "file_id", "file_atom", "file_value", "mapped_id", "parsed_value", "action")
     tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
-    for c, w in zip(cols, (60,100,100,160,100,120,80)):
+    for c, w in zip(cols, (60, 100, 100, 160, 100, 120, 80)):
         tv.heading(c, text=c)
         tv.column(c, width=w, anchor="center")
     tv.pack(fill="both", expand=True, padx=8, pady=6)
 
-    def _flag_symbol(b): return "✓" if b else ""
+    def _flag_symbol(b):
+        return "✓" if b else ""
+
     for i, r in enumerate(mapped_rows):
         tv.insert("", "end", values=(
             _flag_symbol(apply_flags[i]),
-            r.get('file_id',''),
-            r.get('file_atom',''),
-            r.get('file_delta_raw',''),
-            r.get('mapped_id',''),
+            r.get('file_id', ''),
+            r.get('file_atom', ''),
+            r.get('file_delta_raw', ''),
+            r.get('mapped_id', ''),
             "" if r.get('parsed_delta') is None else f"{r['parsed_delta']:.6g}",
-            r.get('action','')
+            r.get('action', '')
         ))
 
     def _toggle_row(i):
@@ -268,7 +312,7 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
                 continue
             apply_flags[i] = bool(to) if to is not None else not apply_flags[i]
             item = tv.get_children()[i]
-            vals = list(tv.item(item,"values"))
+            vals = list(tv.item(item, "values"))
             vals[0] = _flag_symbol(apply_flags[i])
             tv.item(item, values=vals)
         _refresh_info()
@@ -278,7 +322,7 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
         x, y = event.x, event.y
         iid = tv.identify_row(y)
         col = tv.identify_column(x)
-        if not iid or col != "#1":  # apply 칼럼
+        if not iid or col != "#1":
             return
         idx = tv.index(iid)
         _toggle_row(idx)
@@ -291,10 +335,10 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
     ttk.Button(btns, text="Invert", command=lambda: _toggle_all(None)).pack(side="left")
 
     def _apply():
-        # 되돌리기 버퍼
-        state['_delta_values_undo'] = state.get('delta_values', {}).copy()
+        # undo buffer per kind
+        state[undo_key] = state.get(target_key, {}).copy()
 
-        dv = state.setdefault('delta_values', {})
+        dv = state.setdefault(target_key, {})
         applied_set = applied_clear = 0
 
         for flag, r in zip(apply_flags, mapped_rows):
@@ -310,20 +354,39 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
                 dv.pop(rid, None)
                 applied_clear += 1
 
+        # recompute δ_para and refresh NMR layers
+        try:
+            from logic.nmr_delta_data_manager import recompute_delta_para, push_layers_to_nmr_if_open
+            recompute_delta_para(state)
+            push_layers_to_nmr_if_open(state)
+        except Exception:
+            pass
+
         state['update_graph']()
-        plot_cartesian_graph_fn(state)
-        state['messagebox'].showinfo("δ_Exp import", f"Applied set: {applied_set}, clear: {applied_clear}")
+        if callable(plot_cartesian_graph_fn):
+            plot_cartesian_graph_fn(state)
+
+        state['messagebox'].showinfo(f"{kind} import", f"Applied set: {applied_set}, clear: {applied_clear}")
         top.destroy()
 
     def _undo_last():
-        prev = state.get('_delta_values_undo')
+        prev = state.get(undo_key)
         if prev is None:
             state['messagebox'].showwarning("Undo", "No undo buffer available.")
             return
-        state['delta_values'] = prev
+        state[target_key] = prev
+
+        try:
+            from logic.nmr_delta_data_manager import recompute_delta_para, push_layers_to_nmr_if_open
+            recompute_delta_para(state)
+            push_layers_to_nmr_if_open(state)
+        except Exception:
+            pass
+
         state['update_graph']()
-        plot_cartesian_graph_fn(state)
-        state['messagebox'].showinfo("Undo", "Restored to the previous δ_Exp state.")
+        if callable(plot_cartesian_graph_fn):
+            plot_cartesian_graph_fn(state)
+        state['messagebox'].showinfo("Undo", f"Restored previous {kind} state.")
 
     ttk.Button(btns, text="Apply", command=_apply).pack(side="right")
     ttk.Button(btns, text="Undo last", command=_undo_last).pack(side="right", padx=6)
@@ -331,17 +394,22 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
 
     _refresh_info()
 
-def _build_preview_rows_from_df(state, df):
+def _build_preview_rows_from_df(state, df, kind: str = "obs"):
     """
     DF를 해석해 미리보기용 mapped_rows를 만든다.
+    kind: 'obs' or 'dia'
     반환: 리스트[ dict(file_id,file_atom,file_delta_raw,mapped_id,parsed_delta,action) ]
     """
     def _norm(s): return str(s).strip().lower()
-    cols = { _norm(c): c for c in df.columns }
+    cols = {_norm(c): c for c in df.columns}
 
-    ref_col  = next((cols[k] for k in cols if k in ("ref","id","ref_id","rid")), None)
-    atom_col = next((cols[k] for k in cols if k in ("atom","element")), None)
-    delta_col = next((cols[k] for k in cols if k in ("δ_exp","delta_exp","delta","ppm","shift","d_exp","exp")), None)
+    ref_col = next((cols[k] for k in cols if k in ("ref", "id", "ref_id", "rid")), None)
+    atom_col = next((cols[k] for k in cols if k in ("atom", "element")), None)
+    #delta_col = next((cols[k] for k in cols if k in ("δ_exp","delta_exp","delta","ppm","shift","d_exp","exp")), None)
+
+    # kind-dependent delta column detection
+    _, _, delta_names = _delta_kind_config(kind)
+    delta_col = next((cols[_norm_name] for _norm_name in (_norm(x) for x in delta_names) if _norm_name in cols), None)
 
     mapped_rows = []
 
@@ -415,6 +483,147 @@ def _build_preview_rows_from_df(state, df):
 
     return mapped_rows
 
+#========NMR spectrum delta data manager=========
+def import_delta_file(state, kind: str, plot_cartesian_graph_fn):
+    """
+    Generic importer for δ_obs / δ_dia.
+    Reuses existing preview/apply workflow.
+    """
+    target_key, _, _ = _delta_kind_config(kind)
+
+    # Ensure dict exists
+    state.setdefault(target_key, {})
+
+    fd = state['filedialog'].askopenfilename(
+        title=f"Load {kind} file",
+        filetypes=[("CSV", "*.csv"), ("Excel", "*.xlsx;*.xls"), ("All files", "*.*")]
+    )
+    if not fd:
+        return
+
+    try:
+        if fd.lower().endswith((".xlsx", ".xls")):
+            df = pd.read_excel(fd)
+        else:
+            try:
+                df = pd.read_csv(fd, encoding="utf-8-sig")
+            except Exception:
+                df = pd.read_csv(fd, encoding="cp1252")
+    except Exception as e:
+        state['messagebox'].showerror(f"Import {kind}", f"Cannot read the file:\n{e}")
+        return
+
+    try:
+        rows = _build_preview_rows_from_df(state, df, kind=kind)
+    except Exception as e:
+        state['messagebox'].showerror(f"Import {kind}", str(e))
+        return
+
+    if not rows:
+        state['messagebox'].showwarning(f"Import {kind}", "No data to apply")
+        return
+
+    _show_delta_preview_and_apply(
+        state, rows, os.path.basename(fd), plot_cartesian_graph_fn,
+        kind=kind
+    )
+
+def import_delta_from_clipboard(state, kind: str, plot_cartesian_graph_fn):
+    """
+    Paste δ_obs / δ_dia from clipboard-like text box, with preview/apply.
+    """
+    top = Toplevel(state['root'])
+    top.title(f"Paste {kind} from clipboard")
+    top.geometry("720x700")
+
+    ttk.Label(top, text=f"Paste your data and click “Preview”. Format: Ref, value (ppm)").pack(anchor="w", padx=8, pady=6)
+    txt = tk.Text(top, height=16)
+    txt.pack(fill="both", expand=True, padx=8, pady=6)
+
+    # Header preset
+    if kind.lower().startswith("dia"):
+        txt.insert("1.0", "Ref, δ_dia\n")
+    else:
+        txt.insert("1.0", "Ref, δ_obs\n")
+    txt.mark_set("insert", "2.0")
+
+    def _guess_sep(first_line: str):
+        if "," in first_line:  return ","
+        if "\t" in first_line: return "\t"
+        if ";" in first_line:  return ";"
+        return r"\s+"
+
+    def _preview():
+        raw = txt.get("1.0", "end").strip()
+        if not raw:
+            state['messagebox'].showwarning(f"Paste {kind}", "No data found")
+            return
+
+        lines = [ln for ln in raw.splitlines() if ln.strip()]
+        first = lines[0] if lines else ""
+        sep = _guess_sep(first)
+
+        from io import StringIO
+        sio = StringIO(raw)
+
+        try:
+            df = pd.read_csv(sio, sep=sep, engine="python",
+                             header=0, dtype=str, na_filter=False)
+        except Exception:
+            sio.seek(0)
+            df = pd.read_csv(sio, sep=sep, engine="python",
+                             header=None, dtype=str, na_filter=False)
+            if df.shape[1] == 3:
+                df.columns = ["Ref", "Atom", "value"]
+            elif df.shape[1] == 2:
+                df.columns = ["Ref", "value"]
+
+        # If user used "value", rename to a kind-expected column
+        if "value" in [str(c).strip().lower() for c in df.columns]:
+            # Create a canonical column that our detector can find
+            if kind.lower().startswith("dia"):
+                df = df.rename(columns={"value": "δ_dia"})
+            else:
+                df = df.rename(columns={"value": "δ_obs"})
+
+        try:
+            rows = _build_preview_rows_from_df(state, df, kind=kind)
+        except Exception as e:
+            state['messagebox'].showerror(f"Paste {kind}", str(e))
+            return
+
+        if not rows:
+            state['messagebox'].showwarning(f"Paste {kind}", "No data to apply")
+            return
+
+        _show_delta_preview_and_apply(
+            state, rows, "clipboard", plot_cartesian_graph_fn,
+            kind=kind
+        )
+        top.destroy()
+
+    btns = ttk.Frame(top); btns.pack(fill="x", padx=8, pady=8)
+    ttk.Button(btns, text="Preview", command=_preview).pack(side="right")
+    ttk.Button(btns, text="Cancel", command=top.destroy).pack(side="right", padx=6)
+
+def clear_delta_kind(state, kind: str, plot_cartesian_graph_fn):
+    """Clear δ_obs or δ_dia."""
+    target_key, _, _ = _delta_kind_config(kind)
+    state.setdefault(target_key, {}).clear()
+
+    # Rebuild dependent values and refresh
+    try:
+        from logic.nmr_delta_data_manager import recompute_delta_para, push_layers_to_nmr_if_open
+        recompute_delta_para(state)
+        push_layers_to_nmr_if_open(state)
+    except Exception:
+        pass
+
+    state['update_graph']()
+    plot_cartesian_graph_fn(state)
+    state['messagebox'].showinfo(f"Clear {kind}", f"{kind} data initialized.")
+
+#================================================
 
 def clear_delta_exp(state, plot_cartesian_graph_fn):
     """모든 δ_Exp를 초기화(비우기)하고 테이블/플롯을 갱신."""
@@ -465,53 +674,7 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_values):
         state['row_by_id'][ref_id] = item
 
     # push delta_pcs to NMR spectrum window if it exists
-    _push_pcs_to_nmr_if_open(state)
-
-def _push_pcs_to_nmr_if_open(state):
-    """
-    Push current PCS values to the NMR spectrum window (if open).
-    Labels are formatted as "Ref Atom" for quick identification.
-    """
-    import numpy as np
-    win = state.get('nmr_win', None)
-    if win is None:
-        return
-    try:
-        if hasattr(win, "winfo_exists") and not win.winfo_exists():
-            state['nmr_win'] = None
-            return
-    except Exception:
-        return
-
-    pcs_by_id = state.get('pcs_by_id', {})
-    atom_by_id = state.get('atom_by_id', {})
-    if not pcs_by_id:
-        return
-
-    ids = state.get('current_selected_ids', [])
-    if ids:
-        ordered_ids = [i for i in ids if i in pcs_by_id]
-    else:
-        ordered_ids = sorted(pcs_by_id.keys())
-
-    if not ordered_ids:
-        return
-
-    shifts = np.asarray([pcs_by_id[i] for i in ordered_ids], dtype=float)
-    intensities = np.ones_like(shifts, dtype=float)
-    # labels like "12, H" or "12, H16"
-    labels = [f"{i}, {atom_by_id.get(i, '')}".strip(", ") for i in ordered_ids]
-    ref_ids = ordered_ids
-
-    # Debounce if available, else direct
-    sched = state.get('schedule_nmr_update', None)
-    if callable(sched):
-        sched()
-    else:
-        try:
-            win.set_data(shifts, intensities, labels=labels, ref_ids=ref_ids)
-        except TypeError:
-            win.set_data(shifts, intensities, labels=labels, ref_ids=ref_ids)
+    push_layers_to_nmr_if_open(state)
 
 def on_delta_entry_change(state, event, delta_values, plot_cartesian_graph_fn):
     tree = state['tree']

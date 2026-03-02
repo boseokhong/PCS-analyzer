@@ -29,7 +29,7 @@ from logic.diagnostic import update_diagnostic_panel
 from ui.plot_3d import open_3d_plot_window
 from ui.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
 from ui.nmr_spectrum_window import NMRSpectrumWindow
-from logic.table_utils import _push_pcs_to_nmr_if_open
+from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
 
 
 def get_cpk_color(atom):
@@ -54,7 +54,11 @@ def open_nmr_window(state):
         except Exception:
             pass
 
-    win = NMRSpectrumWindow(root)
+    # Keep a reference so the NMR window can call table plotting after imports (drawer actions)
+    state["plot_cartesian_graph_fn"] = plot_cartesian_graph
+
+    # Pass state + plot fn into the window (drawer needs them)
+    win = NMRSpectrumWindow(root, state=state, plot_cartesian_graph_fn=plot_cartesian_graph)
     state['nmr_win'] = win
 
     def _on_pick_refs(ref_ids: list[int]):
@@ -73,7 +77,6 @@ def open_nmr_window(state):
         tree.focus(items[0])
         tree.see(items[0])
 
-    # attach callback to NMR window
     win.set_pick_callback(_on_pick_refs)
 
     def _on_close():
@@ -84,8 +87,8 @@ def open_nmr_window(state):
 
     win.protocol("WM_DELETE_WINDOW", _on_close)
 
-    # push current PCS once immediately
-    _push_pcs_to_nmr_if_open(state)
+    # Push layers (PCS/OBS/DIA/PARA) based on state flags
+    push_layers_to_nmr_if_open(state)
 
 def _on_tree_select_update_spectrum(state):
     """Highlight selected Ref in the NMR spectrum window (if open)."""
