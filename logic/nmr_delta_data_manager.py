@@ -177,7 +177,7 @@ def build_nmr_layers(state: dict) -> Tuple[List[NMRLayer], str]:
 
     layers: List[NMRLayer] = []
     if show.get("PCS", True):
-        lay = _build_layer_from_dict("PCS", pcs_by_id, ordered_ids, atom_by_id)
+        lay = _build_layer_from_dict("δ_pcs", pcs_by_id, ordered_ids, atom_by_id)
         if lay: layers.append(lay)
     if show.get("PARA", False):
         lay = _build_layer_from_dict("δ_para", para_by_id, ordered_ids, atom_by_id)
@@ -247,7 +247,7 @@ def build_pcs_layer_only(state: dict):
 
     # Use the same layer class you already use in build_nmr_layers()
     return NMRLayer(
-        name="PCS",
+        name="δ_pcs",
         shifts=shifts,
         intensities=intensities,
         labels=labels,

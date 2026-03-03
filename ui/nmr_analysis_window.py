@@ -104,12 +104,12 @@ class NMRAnalysisWindow(tk.Toplevel):
         tab1 = ttk.Frame(nb)
         nb.add(tab1, text="Table")
 
-        cols = ("ref", "atom", "δ_PCS", "δ_obs", "δ_dia", "δ_para", "δ_nonPCS")
+        cols = ("ref", "atom", "δ_pcs", "δ_obs", "δ_dia", "δ_para", "δ_nonPCS")
         self.tv = ttk.Treeview(tab1, columns=cols, show="headings", height=18)
         for c, w, a in [
             ("ref", 70, "center"),
             ("atom", 90, "center"),
-            ("δ_PCS", 110, "e"),
+            ("δ_pcs", 110, "e"),
             ("δ_obs", 110, "e"),
             ("δ_dia", 110, "e"),
             ("δ_para", 110, "e"),
@@ -216,7 +216,7 @@ class NMRAnalysisWindow(tk.Toplevel):
             self.ax_h.axvline(+thr, linestyle="--")
             self.ax_h.axvline(-thr, linestyle="--")
         else:
-            self.ax_h.text(0.5, 0.5, "No δ_nonPCS data (need PCS + δ_para).",
+            self.ax_h.text(0.5, 0.5, "No δ_nonPCS data (need δ_pcs + δ_para).",
                            transform=self.ax_h.transAxes, ha="center", va="center", fontsize=10)
         self.canvas_h.draw_idle()
 
@@ -272,7 +272,7 @@ class NMRAnalysisWindow(tk.Toplevel):
         y = np.arange(len(pts), dtype=float)
         h = 0.25
 
-        self.ax_b.barh(y - h, pcs_v, height=h, label="PCS")
+        self.ax_b.barh(y - h, pcs_v, height=h, label="δ_pcs")
         self.ax_b.barh(y, para_v, height=h, label="δ_para")
         self.ax_b.barh(y + h, non_v, height=h, label="δ_nonPCS")
 

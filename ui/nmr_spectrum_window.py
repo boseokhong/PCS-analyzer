@@ -297,7 +297,7 @@ class NMRSpectrumWindow(tk.Toplevel):
         self._v_dia  = tk.BooleanVar(value=bool(show.get("DIA", False)))
         self._v_para = tk.BooleanVar(value=bool(show.get("PARA", False)))
 
-        ttk.Checkbutton(box_show, text="PCS", variable=self._v_pcs, command=self._on_layer_toggle,
+        ttk.Checkbutton(box_show, text="δ_pcs", variable=self._v_pcs, command=self._on_layer_toggle,
                         state=("normal" if has_state else "disabled")).pack(anchor="w")
         ttk.Checkbutton(box_show, text="δ_obs", variable=self._v_obs, command=self._on_layer_toggle,
                         state=("normal" if has_state else "disabled")).pack(anchor="w")
@@ -834,7 +834,7 @@ class NMRSpectrumWindow(tk.Toplevel):
 
     def _layer_color(self, name: str) -> str:
         n = (name or "").lower()
-        if n == "pcs":
+        if "pcs" in n:
             return "#1f77b4"   # blue
         if "obs" in n:
             return "#2ca02c"   # green

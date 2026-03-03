@@ -48,6 +48,9 @@ v.1.0.2 updates
 v.1.1.0 updates
 -Diagnostics, Rhombicity utilities, fitting functions update
 
+v.1.1.1 updates
+-bug fix
+
 v.1.2.0 updates
 -NMR spectrum
 -bug fix, code refactoring
