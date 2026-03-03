@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from logic.command_processor import process_command as _pc
-from logic.xyz_loader import parse_xyz
+from logic.xyz_loader import load_structure
 from logic.plot_pcs import plot_graph, update_figsize
 from logic.plot_cartesian import plot_cartesian_graph
 from logic.table_utils import (
@@ -1206,7 +1206,12 @@ def on_angle_entry_commit(state, axis):
     state['update_graph']()
 
 def load_xyz_file(state):
-    path = state['filedialog'].askopenfilename(filetypes=[("XYZ files","*.xyz")])
+    path = state['filedialog'].askopenfilename(filetypes=[
+        ("Structure files", "*.xyz *.out *.log"),
+        ("XYZ", "*.xyz"),
+        ("ORCA output", "*.out *.log"),
+        ("All files", "*.*"),
+    ])
     if not path:
         return
 
@@ -1216,7 +1221,7 @@ def load_xyz_file(state):
     state.pop('row_by_id', None)
     state.pop('current_selected_ids', None)
 
-    atom_data = parse_xyz(path)
+    atom_data = load_structure(path)
     state['atom_data'] = atom_data
 
     # Ref(ID): atom id fix (1..N)

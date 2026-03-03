@@ -53,6 +53,7 @@ v.1.1.1 updates
 
 v.1.2.0 updates
 -NMR spectrum
+-xyz loader: now support importing orca .out .log files
 -bug fix, code refactoring
 
 
