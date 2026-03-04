@@ -4,52 +4,115 @@ from __future__ import annotations
 
 import os
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 Atom = Tuple[str, float, float, float]
 
 BOHR_TO_ANGSTROM = 0.529177210903  # CODATA 2018; sufficiently precise for geometry
 
+def _is_int_token(tok: str) -> bool:
+    try:
+        int(tok)
+        return True
+    except Exception:
+        return False
+
+def _is_float_token(tok: str) -> bool:
+    try:
+        float(tok)
+        return True
+    except Exception:
+        return False
+
+def _try_parse_atom_line(parts: List[str]) -> Optional[Atom]:
+    """
+    Try multiple common XYZ-ish formats.
+
+    Supported line formats (tokens):
+      A) El   x   y   z
+      B) idx  El  x   y   z
+      C) El   Z   x   y   z        (Z = atomic number)
+      D) idx  El  Z   x   y   z
+    Returns (el, x, y, z) or None if not parseable.
+    """
+    if len(parts) < 4:
+        return None
+
+    # Case A: El x y z
+    if len(parts) >= 4 and (not _is_int_token(parts[0])) and _is_float_token(parts[1]) and _is_float_token(parts[2]) and _is_float_token(parts[3]):
+        el = parts[0]
+        x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+        return (el, x, y, z)
+
+    # Case B: idx El x y z
+    if len(parts) >= 5 and _is_int_token(parts[0]) and (not _is_int_token(parts[1])) and _is_float_token(parts[2]) and _is_float_token(parts[3]) and _is_float_token(parts[4]):
+        el = parts[1]
+        x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
+        return (el, x, y, z)
+
+    # Case C: El Z x y z
+    if len(parts) >= 5 and (not _is_int_token(parts[0])) and _is_int_token(parts[1]) and _is_float_token(parts[2]) and _is_float_token(parts[3]) and _is_float_token(parts[4]):
+        el = parts[0]
+        x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
+        return (el, x, y, z)
+
+    # Case D: idx El Z x y z
+    if len(parts) >= 6 and _is_int_token(parts[0]) and (not _is_int_token(parts[1])) and _is_int_token(parts[2]) and _is_float_token(parts[3]) and _is_float_token(parts[4]) and _is_float_token(parts[5]):
+        el = parts[1]
+        x, y, z = float(parts[3]), float(parts[4]), float(parts[5])
+        return (el, x, y, z)
+
+    return None
+
 def parse_xyz(file_path: str) -> List[Atom]:
     """
-    Robust XYZ parser.
-
-    Supports:
-      1) Standard XYZ:
-         line1 = atom count (int)
-         line2 = comment
-         line3+ = "El  x  y  z"
-      2) Headerless XYZ:
-         all lines are "El  x  y  z"
+    Robust XYZ parser that tolerates:
+      - Standard XYZ header (atom count + comment; comment may be blank)
+      - Headerless XYZ
+      - Optional leading atom index column
+      - Optional atomic-number column (Z)
 
     Returns:
       [(element, x, y, z), ...]
     """
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-        lines = [ln.strip() for ln in f if ln.strip()]
+        raw_lines = [ln.rstrip("\n") for ln in f]  # keep blank lines (important!)
 
-    if not lines:
+    # Find first non-empty line
+    first_nonempty = None
+    for i, ln in enumerate(raw_lines):
+        if ln.strip():
+            first_nonempty = i
+            break
+    if first_nonempty is None:
         return []
 
-    start = 0
+    # Detect standard XYZ header: first non-empty line is an integer (atom count)
+    start = first_nonempty
+    has_header = False
     try:
-        # If first non-empty line is integer -> assume standard XYZ header
-        int(lines[0])
-        start = 2
+        int(raw_lines[first_nonempty].strip())
+        has_header = True
     except Exception:
-        start = 0
+        has_header = False
+
+    # If header exists: skip exactly two lines (count + comment), even if comment is blank
+    if has_header:
+        start = first_nonempty + 2
 
     out: List[Atom] = []
-    for ln in lines[start:]:
-        parts = ln.split()
-        if len(parts) < 4:
+    for ln in raw_lines[start:]:
+        s = ln.strip()
+        if not s:
             continue
-        el = parts[0]
-        try:
-            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
-        except Exception:
+
+        parts = s.split()
+        atom = _try_parse_atom_line(parts)
+        if atom is None:
             continue
-        out.append((el, x, y, z))
+
+        out.append(atom)
+
     return out
 
 def _extract_orca_cartesian_blocks(text: str) -> List[Tuple[str, List[Atom]]]:
