@@ -1502,13 +1502,19 @@ def filter_atoms(state):
     rotated_sel = []
     selected_ids = []
 
+    label_overrides = state.get("ref_label_overrides", {}) or {}
+
     for idx, ((atom, *_), (dx, dy, dz)) in enumerate(zip(atom_data, rotated)):
         if atom in sel:
             r = (dx*dx + dy*dy + dz*dz) ** 0.5
             theta = np.arccos(dz / r) if r != 0 else 0.0
-            polar.append((atom, r, theta))
+
+            ref_id = ids[idx]
+            atom_label = label_overrides.get(ref_id, atom)
+
+            polar.append((atom_label, r, theta))
             rotated_sel.append((dx, dy, dz))
-            selected_ids.append(ids[idx])
+            selected_ids.append(ref_id)
 
     state['current_selected_ids'] = selected_ids
     return polar, rotated_sel
