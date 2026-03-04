@@ -52,9 +52,9 @@ v.1.1.1 updates
 -bug fix
 
 v.1.2.0 updates
--NMR spectrum
--xyz loader: more robust and now support importing orca .out .log files
--bug fix, code refactoring
+-Added NMR spectrum viewer
+-Improved xyz loader: more robust and now supports ORCA .out .log files
+-Bug fixes and code refactoring
 
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
