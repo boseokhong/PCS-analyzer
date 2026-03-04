@@ -5,7 +5,7 @@ AVOGADRO_CONSTANT = 6.0221408e23
 
 # CPK color palette
 CPK_COLORS = {
-    'H': '#656565', 'C': '#111111', 'N': '#0000FF', 'O': '#FF0000',
+    'H': '#6E6E6E', 'C': '#111111', 'N': '#0000FF', 'O': '#FF0000',
     'F': '#90E050', 'Cl': '#1FF01F', 'Br': '#A62929', 'I': '#940094',
     'He': '#D9FFFF', 'Ne': '#B3E3F5', 'Ar': '#80D1E3', 'Xe': '#67D3E0',
     'Kr': '#5CB8D1', 'P': '#FF8000', 'S': '#FFFF30', 'B': '#FFB5B5',
