@@ -1,7 +1,8 @@
 # Pseudocontact chemical shift (PCS) analyzer
-![version](https://img.shields.io/badge/version-1.1.0-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
+![version](https://img.shields.io/badge/version-1.2.0-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
 <img width="1409" height="919" alt="image" src="https://github.com/user-attachments/assets/e4a0b469-4a98-4552-803d-6cb8a3fbfdab" />
+<img width="2420" height="882" alt="image_2" src="https://github.com/user-attachments/assets/7981899a-5cc4-46a6-9462-152e7a0f38bb" />
 
 **A tool for PCS analysis and 2D polar contour visualization, particularly suited for small paramagnetic complexes with rotational symmetry.**
  > [!NOTE]
@@ -10,7 +11,7 @@
 ---
 
 ## Version and Changelog 
-Latest update: **v.1.1.0** – Diagnostics, Rhombicity utilities, fitting functions update
+Latest update: **v.1.2.0** 
 
 <details>
 <summary><b>Click to expand version history</b></summary>
@@ -20,7 +21,7 @@ Latest update: **v.1.1.0** – Diagnostics, Rhombicity utilities, fitting functi
 - `.xlsx` export: x, y cartesian coordinates are calculated, and each column is separated by PCS values.
 
 **v.0.2 updates**
-- Tensor values, PCS range, and intervals can now be inputted for calculations.
+- Tensor values, PCS range, and intervals can now be input for calculations.
 - Molar susceptibility tensor calculation  
   ∆χ<sub>ax</sub> = χ<sub>zz</sub> - ((χ<sub>xx</sub> + χ<sub>yy</sub>))/2  
   ∆χ<sub>rh</sub> = χ<sub>xx</sub> - χ<sub>yy</sub>
@@ -58,6 +59,12 @@ Latest update: **v.1.1.0** – Diagnostics, Rhombicity utilities, fitting functi
 
 **v.1.1.0 updates**
 - Diagnostics, Rhombicity utilities, fitting functions update
+
+**v.1.2.0 updates**
+- Added NMR spectrum viewer
+- Added automatic methyl/CF3 symmetry averaging
+- Improved xyz loader: more robust and now supports ORCA .out .log files
+- Bug fixes and code refactoring
 
 </details>
 
