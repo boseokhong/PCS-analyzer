@@ -53,6 +53,7 @@ v.1.1.1 updates
 
 v.1.2.0 updates
 -Added NMR spectrum viewer
+-Added automatic methyl/CF3 symmetry averaging
 -Improved xyz loader: more robust and now supports ORCA .out .log files
 -Bug fixes and code refactoring
 
