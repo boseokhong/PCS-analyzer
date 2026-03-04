@@ -174,7 +174,7 @@ def export_delta_exp_template(state):
         else:
             # 기본 CSV
             df.to_csv(fd, index=False, encoding="utf-8-sig")
-        state['messagebox'].showinfo("Export δ_Exp template", f"저장 완료:\n{fd}")
+        state['messagebox'].showinfo("Export δ_Exp template", f"Save completed:\n{fd}")
     except Exception as e:
         state['messagebox'].showerror("Export δ_Exp template", f"Save failed:\n{e}")
 
