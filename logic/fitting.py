@@ -183,21 +183,23 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
     proton_ids: δ_Exp가 들어있는 Ref ID 목록 (보통 H들)
     axis_mode: 'first' | 'bisector' | 'average' | 'centroid' | 'normal' | 'pca'
     """
-    atom_data = state.get('atom_data', [])
-    ids = state.get('atom_ids', [])
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
     if not atom_data or not ids:
         raise RuntimeError("No atom data")
 
     id2idx = {rid: i for i, rid in enumerate(ids)}
     metal = np.array([state['x0'], state['y0'], state['z0']])
     abs_coords = np.array([a[1:4] for a in atom_data])
-    donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids]
+    donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
+    if not donor_pts:
+        raise RuntimeError("No valid donor ids for current atom set.")
 
     # rigid group
     if fit_visible_as_group:
         state['filter_atoms'](state)
         sel_ids = state.get('current_selected_ids', []) or ids
-        group_indices = [id2idx[rid] for rid in sel_ids]
+        group_indices = [id2idx[rid] for rid in sel_ids if rid in id2idx]
     else:
         group_indices = list(range(len(atom_data)))
     # 현재는 group_indices를 직접 쓰지는 않지만, 원하면 points=abs_coords[group_indices]로 바꿔 확장 가능
@@ -208,7 +210,8 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         pass  # 경고 없이 진행
 
     theta0, alpha0 = 0.0, 0.0
-    dchi_ax0 = float(state['tensor_entry'].get() or 1.0)
+    tensor_entry = state.get('tensor_entry')
+    dchi_ax0 = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
     dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
 
     if fit_delta_chi and fit_delta_chi_rh:
@@ -221,14 +224,16 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         x0 = np.array([theta0, alpha0])
 
     def coords_for_ids(points, ids_subset):
-        return np.array([points[id2idx[rid]] for rid in ids_subset])
+        idxs = [id2idx[rid] for rid in ids_subset if rid in id2idx]
+        return np.array([points[i] for i in idxs])
 
     def residuals(x):
         # --------------------------------------------
         # 0) UI/상태에서 "고정값"으로 쓸 Δχ 파라미터를 먼저 읽어둔다
         #    - fit 옵션에 따라 일부는 x에서 오고, 일부는 UI entry/state에서 고정값으로 온다.
         # --------------------------------------------
-        dchi_ax_fixed = float(state['tensor_entry'].get() or 1.0)  # Δχ_ax 기본값(고정용)
+        tensor_entry = state.get('tensor_entry')
+        dchi_ax_fixed = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
         dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)  # Δχ_rh 기본값(고정용, Rh tab 입력)
 
         # --------------------------------------------
@@ -304,8 +309,12 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
             # 다시 metal 기준 절대좌표로 복귀
             rot_all = rot0 + metal
 
-        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in obs_pairs])
-        delta_exp = np.array([v for _, v in obs_pairs])
+        valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
+        if not valid_obs_pairs:
+            raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
+
+        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
+        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
 
         # --------------------------------------------
         # 4) PCS 모델 선택
@@ -354,10 +363,12 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
     elif fit_delta_chi_rh:
         theta, alpha, dchi_rh = res.x
-        dchi_ax = float(state['tensor_entry'].get() or 1.0)
+        tensor_entry = state.get('tensor_entry')
+        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
     else:
         theta, alpha = res.x
-        dchi_ax = float(state['tensor_entry'].get() or 1.0)
+        tensor_entry = state.get('tensor_entry')
+        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
         dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
 
     # 결과 요약
@@ -374,7 +385,11 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         rot0 = rotate_euler(coords0, 0.0, 0.0, az)
         rot_all = rot0 + metal
 
-    pts_obs = np.array([rot_all[id2idx[rid]] for rid, _ in obs_pairs])
+    valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
+    if not valid_obs_pairs:
+        raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
+
+    pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
 
     # axial-only vs ax+rh 모델을 residuals()와 동일 조건으로 선택
     if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
@@ -383,11 +398,11 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
     else:
         _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
 
-    delta_exp = np.array([v for _, v in obs_pairs])
+    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
     resid = dpcs - delta_exp
     rmsd = float(np.sqrt(np.mean(resid ** 2))) if len(resid) else np.nan
     per_point = [(rid, float(exp), float(pred), float(r))
-                 for (rid, exp), pred, r in zip(obs_pairs, dpcs, resid)]
+                 for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)]
 
     return dict(mode='theta_alpha_multi',
                 donor_ids=list(donor_ids),
@@ -402,8 +417,8 @@ def fit_euler_global(state, proton_ids,
                      fit_visible_as_group=True,
                      fit_delta_chi=False,
                      fit_delta_chi_rh=False):
-    atom_data = state.get('atom_data', [])
-    ids = state.get('atom_ids', [])
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
     if not atom_data or not ids:
         raise RuntimeError("No atom data")
 
@@ -414,7 +429,7 @@ def fit_euler_global(state, proton_ids,
     if fit_visible_as_group:
         state['filter_atoms'](state)
         sel_ids = state.get('current_selected_ids', []) or ids
-        group_indices = [id2idx[rid] for rid in sel_ids]
+        group_indices = [id2idx[rid] for rid in sel_ids if rid in id2idx]
     else:
         group_indices = list(range(len(atom_data)))
 
@@ -425,7 +440,8 @@ def fit_euler_global(state, proton_ids,
 
     # 초기값
     ax0, ay0, az0 = 0.0, 0.0, 0.0
-    dchi_ax0 = float(state['tensor_entry'].get() or 1.0)
+    tensor_entry = state.get('tensor_entry')
+    dchi_ax0 = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
     dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
 
     if fit_delta_chi and fit_delta_chi_rh:
@@ -439,10 +455,12 @@ def fit_euler_global(state, proton_ids,
         x0 = np.array([ax0, ay0, az0])
 
     def coords_for_ids(points, ids_subset):
-        return np.array([points[id2idx[rid]] for rid in ids_subset])
+        idxs = [id2idx[rid] for rid in ids_subset if rid in id2idx]
+        return np.array([points[i] for i in idxs])
 
     def residuals(x):
-        dchi_ax_fixed = float(state['tensor_entry'].get() or 1.0)
+        tensor_entry = state.get('tensor_entry')
+        dchi_ax_fixed = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
         dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)
 
         if fit_delta_chi and fit_delta_chi_rh:
@@ -463,8 +481,12 @@ def fit_euler_global(state, proton_ids,
         rot0 = rotate_euler(coords0, ax, ay, az)
         rot_all = rot0 + metal
 
-        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in obs_pairs])
-        delta_exp = np.array([v for _, v in obs_pairs])
+        valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
+        if not valid_obs_pairs:
+            raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
+
+        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
+        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
 
         # axial-only vs ax+rh
         if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
@@ -495,17 +517,24 @@ def fit_euler_global(state, proton_ids,
         dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
     elif fit_delta_chi_rh:
         ax, ay, az, dchi_rh = res.x
-        dchi_ax = float(state['tensor_entry'].get() or 1.0)
+        tensor_entry = state.get('tensor_entry')
+        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
     else:
         ax, ay, az = res.x
-        dchi_ax = float(state['tensor_entry'].get() or 1.0)
+        tensor_entry = state.get('tensor_entry')
+        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
         dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
 
     # 결과 요약
     coords0 = abs_coords - metal
     rot0 = rotate_euler(coords0, ax, ay, az)
     rot_all = rot0 + metal
-    pts_obs = np.array([rot_all[id2idx[rid]] for rid, _ in obs_pairs])
+
+    valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
+    if not valid_obs_pairs:
+        raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
+
+    pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
 
     if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
         _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
@@ -513,11 +542,11 @@ def fit_euler_global(state, proton_ids,
     else:
         _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
 
-    delta_exp = np.array([v for _, v in obs_pairs])
+    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
     resid = dpcs - delta_exp
     rmsd = float(np.sqrt(np.mean(resid**2))) if len(resid) else np.nan
     per_point = [(rid, float(exp), float(pred), float(r))
-                 for (rid, exp), pred, r in zip(obs_pairs, dpcs, resid)]
+                 for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)]
 
     return dict(mode='euler_global',
                 ax=float(ax), ay=float(ay), az=float(az),
@@ -528,12 +557,14 @@ def fit_euler_global(state, proton_ids,
 
 # ---------- UI wiring helpers ----------
 def populate_fitting_controls(state):
-    atom_data = state.get('atom_data', [])
-    ids = state.get('atom_ids', [])
-    if not atom_data:
+    # Prefer effective data for 2D/table/fitting consistency
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
+
+    if not atom_data or not ids:
         return
 
-    # Donor list: H 제외
+    # Donor list: exclude H
     items = [f"{rid}:{atom}" for rid, (atom, *_ ) in zip(ids, atom_data) if atom != 'H']
     lst = state.get('fit_donor_list')
     if lst:
@@ -541,11 +572,18 @@ def populate_fitting_controls(state):
         for s in items:
             lst.insert("end", s)
 
-    # Proton list: 현재 보이는 원자 중 H만 Ref ID
-    state['filter_atoms'](state)  # 최신 선택 반영
+    # Proton list: visible atoms among current selection, H only
+    state['filter_atoms'](state)
     sel_ids = state.get('current_selected_ids', []) or ids
-    id2idx = {rid:i for i, rid in enumerate(ids)}
-    proton_ids = [rid for rid in sel_ids if atom_data[id2idx[rid]][0] == 'H']
+
+    id2idx = {rid: i for i, rid in enumerate(ids)}
+    proton_ids = []
+    for rid in sel_ids:
+        i = id2idx.get(rid)
+        if i is None:
+            continue
+        if atom_data[i][0] == 'H':
+            proton_ids.append(rid)
 
     pl = state.get('fit_proton_list')
     if pl:

@@ -11,6 +11,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 
 from logic.command_processor import process_command as _pc
 from logic.xyz_loader import load_structure
+from logic.func_group_collapse import collapse_methyl_groups, collapse_cf3_groups
+
 from logic.plot_pcs import plot_graph, update_figsize
 from logic.plot_cartesian import plot_cartesian_graph
 from logic.table_utils import (
@@ -762,15 +764,59 @@ def build_app():
                command=lambda: load_xyz_file(state)
                ).pack(anchor="center", pady=3)
 
-    ttk.Label(
+    # ---- Symmetry averaging (Me/CF3) ----
+    state.setdefault("symavg_enabled_var", tk.BooleanVar(value=False))
+    def _on_toggle_symavg():
+        # Rebuild effective coordinates if a structure is loaded
+        try:
+            apply_symavg_to_state(state)
+        except Exception as e:
+            state["messagebox"].showwarning("Symmetry average", f"Failed:\n{e}")
+            return
+        tree = state.get("tree")
+        if tree is not None:
+            try:
+                tree.selection_remove(tree.selection())
+            except Exception:
+                pass
+        update_graph(state)
+        try:
+            populate_fitting_controls(state)
+        except Exception:
+            pass
+
+    tk.Checkbutton(
         input_frame,
-        text=("The coordinates should align\n"
-              "the molecule's rotational axis\n"
-              "with the z-axis for proper analysis."),
-        font=("Helvetica", 8, "italic"),
-        justify="center",
-        anchor="center"
-    ).pack(pady=0, anchor="center")
+        text="Coordinate average (eg. CH₃)",
+        variable=state["symavg_enabled_var"],
+        command=_on_toggle_symavg,
+        bg="#F5F6FA",
+        activebackground="#F5F6FA",
+        highlightthickness=0,
+        relief="flat",
+    ).pack(anchor="w", pady=(0, 0))
+
+    state.setdefault("symavg_keep_original_var", tk.BooleanVar(value=False))
+    tk.Checkbutton(
+        input_frame,
+        text="Keep original atoms",
+        variable=state["symavg_keep_original_var"],
+        command=lambda: (_on_toggle_symavg()),
+        bg="#F5F6FA",
+        activebackground="#F5F6FA",
+        highlightthickness=0,
+        relief="flat"
+    ).pack(anchor="w", pady=(0, 0))
+
+    # ttk.Label(
+    #     input_frame,
+    #     text=("The coordinates should align\n"
+    #           "the molecule's rotational axis\n"
+    #           "with the z-axis for proper analysis."),
+    #     font=("Helvetica", 8, "italic"),
+    #     justify="center",
+    #     anchor="center"
+    # ).pack(pady=0, anchor="center")
 
     _sep(input_frame)
 
@@ -1205,6 +1251,140 @@ def on_angle_entry_commit(state, axis):
         return
     state['update_graph']()
 
+def apply_symavg_to_state(state):
+    """
+    Build effective coordinates (2D/table only) from raw structure
+    according to symmetry-average UI toggles.
+
+    - 3D viewer always uses raw coordinates (state["atom_data"])
+    - 2D plot + table use state["atom_data_eff"]
+
+    Modes:
+        enabled = False → raw structure as it is
+        enabled = True  →
+            drop mode (default): averaged H/F delete + only pseudo used
+            mask mode (keep original): original H/F + pseudo
+    """
+    # --- raw structure  ---
+    raw = state.get("atom_data_raw") or state.get("atom_data") or []
+    if not raw:
+        state["atom_data_eff"] = []
+        state["atom_ids_eff"] = []
+        state["symavg_pseudo_ref_ids"] = set()
+        state["symavg_records"] = []
+        return
+
+    enabled_var = state.get("symavg_enabled_var")
+    enabled = bool(enabled_var.get()) if enabled_var is not None else False
+
+    # --- symmetry average OFF → raw as it is ---
+    if not enabled:
+        state["atom_data_eff"] = list(raw)
+        state["atom_ids_eff"] = list(range(1, len(raw) + 1))
+        state["symavg_pseudo_ref_ids"] = set()
+        state["symavg_records"] = []
+        return
+
+    # --- keep original atoms  ---
+    keep_var = state.get("symavg_keep_original_var")
+    keep_original = bool(keep_var.get()) if keep_var is not None else False
+
+    # collapse mode
+    mode = "mask" if keep_original else "drop"
+
+    # --- 시작 구조 ---
+    atom_data = list(raw)
+    ids = list(range(1, len(raw) + 1))
+
+    records_all = []
+    # Ref-ID -> display label override for table (pseudo atoms)
+    # Example: { 153: "MeH@C12", 154: "CF3F@C7" }
+    label_overrides = {}
+
+
+    def _apply_collapse_with_ids(atom_data_in, ids_in, collapse_fn):
+        """
+        collapse_* 함수 적용 + ref id 동기화
+        mask mode:
+            original ids 유지 + pseudo ids append
+        drop mode:
+            masked indices 제거 후 pseudo ids append
+        """
+
+        out_atoms, records, masked = collapse_fn(atom_data_in)
+
+        # --- mask mode ---
+        if mode == "mask":
+            next_id = (max(ids_in) if ids_in else 0) + 1
+            pseudo_ids = list(range(next_id, next_id + len(records)))
+            out_ids = list(ids_in) + pseudo_ids
+            return out_atoms, out_ids, records, set(pseudo_ids)
+
+        # --- drop mode ---
+        kept_ids = [rid for i, rid in enumerate(ids_in) if i not in masked]
+
+        next_id = (max(ids_in) if ids_in else 0) + 1
+        pseudo_ids = list(range(next_id, next_id + len(records)))
+        out_ids = kept_ids + pseudo_ids
+
+        return out_atoms, out_ids, records, set(pseudo_ids)
+
+    # 1) Methyl collapse
+    def _do_me(atoms):
+        return collapse_methyl_groups(
+            atoms,
+            mode=mode,
+            pseudo_element="H",
+            require_carbon_substituent_count=1,
+        )
+
+    atom_data, ids, rec_me, pseudo_me = _apply_collapse_with_ids(
+        atom_data, ids, _do_me
+    )
+    records_all.extend(rec_me)
+
+    # Map pseudo Ref IDs to human-readable labels for table display
+    # NOTE: record.pseudo_index must refer to the index in the returned out_atoms list
+    for rec in rec_me:
+        try:
+            rid = ids[rec.pseudo_index]
+            label_overrides[rid] = rec.label
+        except Exception:
+            pass
+
+    # 2) CF3 collapse
+    def _do_cf(atoms):
+        return collapse_cf3_groups(
+            atoms,
+            mode=mode,
+            pseudo_element="F",
+            require_carbon_substituent_count=1,
+        )
+
+    atom_data, ids, rec_cf, pseudo_cf = _apply_collapse_with_ids(
+        atom_data, ids, _do_cf
+    )
+    records_all.extend(rec_cf)
+
+    for rec in rec_cf:
+        try:
+            rid = ids[rec.pseudo_index]
+            label_overrides[rid] = rec.label
+        except Exception:
+            pass
+
+    # --- pseudo ref ids (plot에서 marker='x' 구분용) ---
+    pseudo_ref_ids = set()
+    pseudo_ref_ids.update(pseudo_me)
+    pseudo_ref_ids.update(pseudo_cf)
+
+    # --- state 반영 ---
+    state["atom_data_eff"] = atom_data
+    state["atom_ids_eff"] = ids
+    state["symavg_pseudo_ref_ids"] = pseudo_ref_ids
+    state["symavg_records"] = records_all
+    state["ref_label_overrides"] = label_overrides
+
 def load_xyz_file(state):
     path = state['filedialog'].askopenfilename(filetypes=[
         ("Structure files", "*.xyz *.out *.log"),
@@ -1222,10 +1402,14 @@ def load_xyz_file(state):
     state.pop('current_selected_ids', None)
 
     atom_data = load_structure(path)
-    state['atom_data'] = atom_data
 
-    # Ref(ID): atom id fix (1..N)
-    state['atom_ids'] = list(range(1, len(atom_data) + 1))
+    # Keep raw for 3D plot
+    state["atom_data_raw"] = atom_data
+    state["atom_data"] = atom_data  # keep existing key for 3D viewer compatibility
+    state["atom_ids_raw"] = list(range(1, len(atom_data) + 1))
+
+    # Build effective (2D/table) data based on checkbox
+    apply_symavg_to_state(state)
 
     target_atom = state['simpledialog'].askstring("Input center atom", "Enter the center atom (element) :")
     tgt = None
@@ -1239,6 +1423,7 @@ def load_xyz_file(state):
     state['x0'], state['y0'], state['z0'] = tgt
 
     create_checklist(state)
+    apply_symavg_to_state(state)
     update_graph(state)
     populate_fitting_controls(state)
 
@@ -1271,7 +1456,11 @@ def create_checklist(state):
 def filter_atoms(state):
     sel = {a for a, v in state['check_vars'].items() if v.get()}
 
-    abs_coords = np.array([[x, y, z] for a, x, y, z in state['atom_data']])
+    # Use effective coords for 2D/table, keep raw for 3D separately
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = state.get("atom_ids_eff") or state.get("atom_ids") or list(range(1, len(atom_data) + 1))
+
+    abs_coords = np.array([[x, y, z] for a, x, y, z in atom_data])
     metal = np.array([state['x0'], state['y0'], state['z0']])
 
     fo = state.get('fit_override')
@@ -1280,11 +1469,10 @@ def filter_atoms(state):
 
         # --- Mode A: donor-axis (theta/alpha) ---
         if mode == 'theta_alpha_multi':
-            ids = state.get('atom_ids', [])
             id2idx = {rid: i for i, rid in enumerate(ids)}
             donor_ids = fo.get('donor_ids') or []
             if donor_ids:
-                donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids]
+                donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
                 abs_coords = _angles_to_rotation_multi(
                     points=abs_coords,
                     metal=metal,
@@ -1314,8 +1502,7 @@ def filter_atoms(state):
     rotated_sel = []
     selected_ids = []
 
-    ids = state.get('atom_ids', [])
-    for idx, ((atom, *_), (dx, dy, dz)) in enumerate(zip(state['atom_data'], rotated)):
+    for idx, ((atom, *_), (dx, dy, dz)) in enumerate(zip(atom_data, rotated)):
         if atom in sel:
             r = (dx*dx + dy*dy + dz*dz) ** 0.5
             theta = np.arccos(dz / r) if r != 0 else 0.0

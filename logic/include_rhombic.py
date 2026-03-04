@@ -43,6 +43,9 @@ def build_rh_table_rows(state, filter_atoms_fn):
     """
     dv = state.get("delta_exp_values", {})
 
+    # NEW: pseudo label overrides (Ref-ID -> "MeH@Cxx" etc.)
+    label_overrides = state.get("ref_label_overrides", {}) or {}
+
     # Δχ_ax(tensor) Entry에서
     tensor = 0.0
     try:
@@ -70,6 +73,8 @@ def build_rh_table_rows(state, filter_atoms_fn):
     for i, (atom, _, _) in enumerate(polar_data):
         ref_id = ids[i] if i < len(ids) else (i + 1)
 
+        atom_disp = label_overrides.get(ref_id, atom)
+
         r_val = float(r_arr[i])
         theta_deg = float(theta_arr[i] * 180.0 / np.pi)
         phi_deg   = float(phi_arr[i]   * 180.0 / np.pi)
@@ -93,7 +98,7 @@ def build_rh_table_rows(state, filter_atoms_fn):
 
         rows.append((
             ref_id,
-            atom,
+            atom_disp,
             f"{r_val:.2f}",
             f"{theta_deg:.2f}",
             f"{phi_deg:.2f}",

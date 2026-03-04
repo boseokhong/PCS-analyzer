@@ -109,8 +109,8 @@ def _rotated_coords_for_obs(state, obs_pairs):
       (A) fit_override (Mode A or Mode B)
       (B) UI sliders (x,y,z)
     """
-    atom_data = state.get("atom_data", [])
-    ids = state.get("atom_ids", [])
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
     if not atom_data or not ids:
         raise RuntimeError("No atom data loaded.")
 
@@ -129,7 +129,9 @@ def _rotated_coords_for_obs(state, obs_pairs):
             donor_ids = fo.get("donor_ids") or []
             if donor_ids:
                 from logic.fitting import _angles_to_rotation_multi  # local import OK
-                donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids]
+                donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
+                if not donor_pts:
+                    pass
 
                 abs_coords = _angles_to_rotation_multi(
                     points=abs_coords,

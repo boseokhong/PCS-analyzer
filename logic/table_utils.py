@@ -720,6 +720,9 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
     atom_by_id = state.setdefault('atom_by_id', {})
     atom_by_id.clear()
 
+    # Ref-ID -> display label override (pseudo atoms)
+    label_overrides = state.get("ref_label_overrides", {}) or {}
+
     for i, ((atom, r, theta), (dx, dy, dz)) in enumerate(zip(polar_data, rotated_coords)):
         ref_id = ids[i] if i < len(ids) else (i + 1)  # for safety
         geom_param = (3 * (np.cos(theta))**2 - 1) / (r**3) if r != 0 else 0.0
@@ -728,6 +731,9 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
         atom_by_id[ref_id] = str(atom)
         pcs_by_id[ref_id] = float(delta_pcs)
 
+        # Display label override only for table Atom column
+        atom_disp = label_overrides.get(ref_id, atom)
+
         # Read/Write with Ref ID
         delta_exp_str = ""
         if ref_id in delta_exp_values:
@@ -735,7 +741,7 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
             delta_exp_str = f"{v:g}"
 
         item = tree.insert("", state['tk'].END, values=(
-            ref_id, atom, f"{dx:.6f}", f"{dy:.6f}", f"{dz:.6f}",
+            ref_id, atom_disp, f"{dx:.6f}", f"{dy:.6f}", f"{dz:.6f}",
             f"{geom_param:.5f}", f"{delta_pcs: .2f}", delta_exp_str
         ))
         state['row_by_id'][ref_id] = item
