@@ -31,10 +31,10 @@ from logic.include_rhombic import build_rh_table_rows
 from logic.diagnostic import update_diagnostic_panel
 
 from ui.plot_3d import open_3d_plot_window
-from ui.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
 from ui.nmr_spectrum_window import NMRSpectrumWindow
 from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
 
+from ui.projection_window import open_projection_window
 from ui.pcs_plot_window import open_pcs_plot_popup
 
 def get_cpk_color(atom):
@@ -137,6 +137,13 @@ def build_app():
     state['pcs_canvas_popup'] = None
     state['pcs_click_cid'] = None
     state['pcs_popup_click_cid'] = None
+    # projection plot window
+    state['projection_popup'] = None
+    state['projection_figure'] = None
+    state['projection_canvas'] = None
+    state['projection_mode_var'] = None
+    state['projection_r_var'] = None
+    state['projection_show_atoms_var'] = None
 
     # Window size
     root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1180x910"); state['root'] = root
@@ -965,15 +972,7 @@ def build_app():
     ttk.Button(
         opf,
         text="Projection",
-        command=lambda: open_mollweide_plot(
-            state['atom_data'],
-            (state['x0'], state['y0'], state['z0']),
-            float(state['angle_x_var'].get()),
-            float(state['angle_y_var'].get()),
-            0.0,  # non z-rotation
-            state['root'],
-            state['FigureCanvas']
-        )
+        command=lambda: open_projection_window(state)
     ).grid(row=2, column=0, sticky="ew", padx=2)
 
     ttk.Button(
@@ -1472,6 +1471,14 @@ def update_graph(state):
             populate_fitting_controls(state)
         except Exception:
             pass
+
+    try:
+        win = state.get("projection_popup")
+        if win is not None and win.winfo_exists():
+            from ui.projection_window import _draw_projection_plot
+            _draw_projection_plot(state)
+    except Exception:
+        pass
 
 def reset_values(state):
     state['tensor_entry'].delete(0, tk.END); state['tensor_entry'].insert(0, '-2.0')
