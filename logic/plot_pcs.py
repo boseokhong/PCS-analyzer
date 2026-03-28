@@ -92,6 +92,16 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
 
     click_pairs = []
 
+    tree = state.get("tree")
+    selected_ref = None
+    if tree is not None:
+        sel = tree.selection()
+        if sel:
+            try:
+                selected_ref = int(tree.item(sel[0], "values")[0])
+            except Exception:
+                selected_ref = None
+
     ids = state.get("current_selected_ids", []) or []
 
     pseudo_ref_ids = state.get("symavg_pseudo_ref_ids", None)
@@ -116,15 +126,26 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
             size = 30 if is_pseudo else 15
             lw = 1.3 if is_pseudo else 0.8
 
-            pt = ax.scatter(
-                theta,
-                r,
+            is_selected = (selected_ref is not None and ref_id == selected_ref)
+            scatter_kwargs = dict(
                 color=get_cpk_color(atom),
-                zorder=6 if is_pseudo else 5,
-                s=size,
+                zorder=7 if is_selected else (6 if is_pseudo else 5),
+                s=(size * 2.2) if is_selected else size,
                 marker=marker,
                 linewidths=lw,
             )
+            pt = ax.scatter(theta, r, **scatter_kwargs)
+            # Add a second highlight ring for selected normal atoms.
+            if is_selected and marker != "x":
+                ax.scatter(
+                    theta,
+                    r,
+                    s=size * 3.2,
+                    facecolors="none",
+                    edgecolors="yellow",
+                    linewidths=1.6,
+                    zorder=8,
+                )
             click_pairs.append((pt, ref_id))
 
     r_ticks = [0, 2, 4, 6, 8, 10]
@@ -173,13 +194,14 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
                 item = row_by_id.get(ref_id)
                 if item:
                     tree.selection_set(item)
+                    tree.focus(item)
                     tree.see(item)
                 break
 
     if store_click_key:
         state[store_click_key] = fig.canvas.mpl_connect("button_press_event", on_click)
 
-    canvas.draw()
+    canvas.draw_idle()
 
 
 def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):

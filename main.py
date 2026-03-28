@@ -57,6 +57,10 @@ v.1.2.0 updates
 -Improved xyz loader: more robust and now supports ORCA .out .log files
 -Bug fixes and code refactoring
 
+v.2.0.0 updates
+- Fitting [Mode C] added
+- Separated PCS polar plot from main window
+- Projection plot updated
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com>

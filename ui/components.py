@@ -30,7 +30,7 @@ from logic.fitting import (
 from logic.include_rhombic import build_rh_table_rows
 from logic.diagnostic import update_diagnostic_panel
 
-from ui.plot_3d import open_3d_plot_window
+from ui.plot_3d_window import open_3d_plot_window
 from ui.nmr_spectrum_window import NMRSpectrumWindow
 from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
 
@@ -95,6 +95,7 @@ def open_nmr_window(state):
     # Push layers (PCS/OBS/DIA/PARA) based on state flags
     push_layers_to_nmr_if_open(state)
 
+# select - table - plot
 def _on_tree_select_update_spectrum(state):
     """Highlight selected Ref in the NMR spectrum window (if open)."""
     win = state.get("nmr_win")
@@ -123,6 +124,59 @@ def _on_tree_select_update_spectrum(state):
     except Exception:
         pass
 
+def _on_tree_select_update_3d(state):
+    """Refresh the 3D viewer highlight when the main table selection changes."""
+    win = state.get("plot3d_popup")
+    if win is None:
+        return
+    try:
+        if not win.winfo_exists():
+            state["plot3d_popup"] = None
+            return
+    except Exception:
+        return
+
+    try:
+        from ui.plot_3d_window import _draw_3d_plot
+        _draw_3d_plot(state)
+    except Exception:
+        pass
+
+def _on_tree_select_update_pcs(state):
+    """Refresh the 2D PCS plot highlight when the main table selection changes."""
+    try:
+        tensor_text = state['tensor_entry'].get()
+        tensor = float(tensor_text) if tensor_text else 1.0
+    except Exception:
+        tensor = 1.0
+    pcs_values = state.get("pcs_values")
+    if pcs_values is None:
+        try:
+            pcs_min = float(state['pcs_min_entry'].get())
+            pcs_max = float(state['pcs_max_entry'].get())
+            pcs_interval = float(state['pcs_interval_entry'].get())
+            pcs_values = np.arange(pcs_min, pcs_max + pcs_interval, pcs_interval)
+        except Exception:
+            return
+    theta_values = state.get("theta_values")
+    if theta_values is None:
+        theta_values = np.linspace(0, 2 * np.pi, 500)
+        state["theta_values"] = theta_values
+    try:
+        polar_data, _ = state["filter_atoms"](state)
+    except Exception:
+        polar_data = None
+    try:
+        plot_graph(state, pcs_values, theta_values, tensor, polar_data=polar_data)
+    except Exception:
+        pass
+
+# integrated helper
+def _on_tree_select_update_views(state):
+    _on_tree_select_update_spectrum(state)
+    _on_tree_select_update_3d(state)
+    _on_tree_select_update_pcs(state)
+
 def build_app():
     state = {}
     # Tk and common modules
@@ -144,6 +198,16 @@ def build_app():
     state['projection_mode_var'] = None
     state['projection_r_var'] = None
     state['projection_show_atoms_var'] = None
+    state['projection_show_h_var'] =None
+    state['projection_click_cid'] = None
+    # 3D plot window
+    state["plot3d_popup"] = None
+    state["plot3d_figure"] = None
+    state["plot3d_canvas"] = None
+    state["plot3d_color_mode_var"] = None
+    state["plot3d_show_labels_var"] = None
+    state["plot3d_click_cid"] = None
+
 
     # Window size
     root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1180x910"); state['root'] = root
@@ -187,7 +251,7 @@ def build_app():
     table_btns = ttk.Frame(center_frame)
     table_btns.pack(side=tk.TOP, fill=tk.X, padx=3, pady=(4, 6))
     ttk.Button(
-        table_btns, text="Export δ_Exp Template",
+        table_btns, text="💾 Export δ_Exp Template",
         command=lambda: export_delta_exp_template(state)
     ).pack(side=tk.LEFT, padx=(0, 6))
     ttk.Button(
@@ -238,7 +302,7 @@ def build_app():
 
     ttk.Button(
         diag_btnrow,
-        text="Update Diagnostic",
+        text="⟳ Update Diagnostic",
         command=lambda: update_diagnostic_panel(state)
     ).pack(side=tk.LEFT)
 
@@ -408,7 +472,7 @@ def build_app():
     rh_dchi_entry.bind("<Return>", lambda e: _apply_dchi_rh())
 
     # Apply btn
-    ttk.Button(rh_top, text="Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
+    ttk.Button(rh_top, text="⟳ Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
 
     # Rhombicity ON/OFF toggle checkbox
     state.setdefault("rh_calc_enabled", False)
@@ -642,13 +706,13 @@ def build_app():
 
     btns = ttk.Frame(fittab);
     btns.pack(fill=tk.X, pady=4)
-    ttk.Button(btns, text="Refresh lists",
+    ttk.Button(btns, text="⟳ Refresh",
                command=lambda: populate_fitting_controls(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(btns, text="Run fit",
                command=lambda: run_fit_from_ui(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(btns, text="Apply to plot",
                command=lambda: apply_fit_to_views(state)).pack(side=tk.LEFT, padx=3)
-    ttk.Button(btns, text="Export correlation plot",
+    ttk.Button(btns, text="💾 Export plot",
                command=lambda: export_fit_plot(state)).pack(side=tk.RIGHT, padx=3)
 
     state['fit_status_var'] = tk.StringVar(value="Ready.")
@@ -734,7 +798,7 @@ def build_app():
 
     # Update/Reset
     bf = ttk.Frame(input_frame); bf.pack(pady=3)
-    ttk.Button(bf, text="Update", command=lambda: state['update_graph']()).pack(side=tk.LEFT, padx=2)
+    ttk.Button(bf, text="⟳ Update", command=lambda: state['update_graph']()).pack(side=tk.LEFT, padx=2)
     ttk.Button(bf, text="Reset", command=lambda: reset_values(state)).pack(side=tk.LEFT, padx=2)
 
     # Frame - align middle
@@ -1003,16 +1067,15 @@ def build_app():
     # Export buttons
     sbf = ttk.Frame(cmdf); sbf.pack(side=tk.RIGHT, padx=15)
     ttk.Label(sbf, text="Export data ", font=("default",9,"bold")).grid(row=1, column=0, sticky="ew", pady=3)
-    ttk.Button(sbf, text="Save plot",  command=lambda: on_save_plot_any(state)).grid( row=1, column=1, sticky="ew", padx=2, pady=1)
-    ttk.Button(sbf, text="Save table", command=lambda: on_save_table_any(state)).grid(row=1, column=2, sticky="ew", padx=2, pady=1)
+    ttk.Button(sbf, text="💾 Save plot",  command=lambda: on_save_plot_any(state)).grid( row=1, column=1, sticky="ew", padx=2, pady=1)
+    ttk.Button(sbf, text="💾 Save table", command=lambda: on_save_table_any(state)).grid(row=1, column=2, sticky="ew", padx=2, pady=1)
 
     # Defaults
     state['delta_exp_values'] = {}
     reset_values(state)  # sets defaults and draws initial plots
     # Bindings
     tree.bind("<Double-1>", lambda e: on_delta_entry_change(state, e, state['delta_exp_values'], plot_cartesian_graph))
-    tree.bind("<<TreeviewSelect>>", lambda e: None)  # placeholder; selection highlight could be added
-    tree.bind("<<TreeviewSelect>>", lambda e: _on_tree_select_update_spectrum(state))
+    tree.bind("<<TreeviewSelect>>", lambda e: _on_tree_select_update_views(state))
 
     state['root'].after(150, lambda: open_pcs_plot_popup(state))
     state['root'].after(250, lambda: state['update_graph']())
@@ -1314,7 +1377,7 @@ def export_fit_plot(state):
     if not path:
         return
 
-    fig.savefig(path, dpi=300, bbox_inches="tight")
+    fig.savefig(path, dpi=600, bbox_inches="tight")
     state['messagebox'].showinfo("Export", f"Saved fit plot:\n{path}")
 
 def on_save_plot_any(state):
@@ -1369,7 +1432,22 @@ def on_save_plot_any(state):
             )
 
     elif ext == ".png":
-        state['pcs_canvas'].print_figure(fd, dpi=600)
+        win = state.get("pcs_plot_popup")
+        canvas = state.get("pcs_canvas_popup")
+        try:
+            if win is None or not win.winfo_exists() or canvas is None:
+                state['messagebox'].showerror(
+                    "Export", "No 2D PCS plot window is open.\nPlease open the 2D PCS Plot window first."
+                )
+                return
+
+        except Exception:
+
+            state['messagebox'].showerror(
+                "Export", "No valid 2D PCS plot window is available."
+            )
+            return
+        canvas.print_figure(fd, dpi=600)
         state['messagebox'].showinfo("Export", f"Saved PNG:\n{fd}")
 
     else:
@@ -1472,11 +1550,21 @@ def update_graph(state):
         except Exception:
             pass
 
+    # projection window
     try:
         win = state.get("projection_popup")
         if win is not None and win.winfo_exists():
             from ui.projection_window import _draw_projection_plot
             _draw_projection_plot(state)
+    except Exception:
+        pass
+
+    # 3d plot window
+    try:
+        win3d = state.get("plot3d_popup")
+        if win3d is not None and win3d.winfo_exists():
+            from ui.plot_3d_window import _draw_3d_plot
+            _draw_3d_plot(state)
     except Exception:
         pass
 

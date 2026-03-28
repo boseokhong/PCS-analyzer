@@ -77,13 +77,13 @@ def open_projection_window(state):
 
     ttk.Button(
         control,
-        text="Refresh",
+        text="⟳ Refresh",
         command=lambda: _draw_projection_plot(state),
     ).pack(side=tk.RIGHT, padx=(6, 0))
 
     ttk.Button(
         control,
-        text="Export Figure",
+        text="💾 Export Figure",
         command=lambda: _export_projection_figure(state),
     ).pack(side=tk.RIGHT)
 
@@ -116,6 +116,7 @@ def open_projection_window(state):
             state["projection_r_var"] = None
             state["projection_show_atoms_var"] = None
             state["projection_show_h_var"] = None
+            state["projection_click_cid"] = None
 
     win.protocol("WM_DELETE_WINDOW", _on_close)
 
@@ -141,27 +142,33 @@ def _get_projection_tensor(state):
 
 def _get_projection_coords(state):
     """
-    Return rotated coordinates and atom labels using the current app state.
+    Return rotated coordinates, display labels, and ref_ids using the current app state.
     This uses the same filtered and rotated coordinates as the main PCS view.
     """
     fn = state.get("filter_atoms")
     if fn is None:
-        return None, None
+        return None, None, None
 
     if not state.get("atom_data"):
-        return None, None
+        return None, None, None
 
     try:
         polar_data, rotated_sel = fn(state)
     except Exception:
-        return None, None
+        return None, None, None
 
     if not rotated_sel:
-        return None, None
+        return None, None, None
 
     coords = np.array([[x, y, z] for x, y, z in rotated_sel], dtype=float)
     labels = [row[0] for row in polar_data]
-    return coords, labels
+    ref_ids = list(state.get("current_selected_ids", []) or [])
+
+    n = min(len(coords), len(labels), len(ref_ids))
+    if n == 0:
+        return None, None, None
+
+    return coords[:n], labels[:n], ref_ids[:n]
 
 
 def _pcs_from_grid(gax, grh, dchi_ax, dchi_rh):
@@ -211,6 +218,7 @@ def _draw_projection_plot(state):
         return
 
     fig.clear()
+    click_pairs = []
 
     mode_var = state.get("projection_mode_var")
     r_var = state.get("projection_r_var")
@@ -297,7 +305,7 @@ def _draw_projection_plot(state):
         cb.ax.tick_params(labelsize=7)
 
         if show_atoms:
-            coords, labels = _get_projection_coords(state)
+            coords, labels, ref_ids = _get_projection_coords(state)
             if coords is not None:
                 r_atom = np.linalg.norm(coords, axis=1)
                 r_atom = np.where(r_atom > 1e-6, r_atom, 1e-6)
@@ -307,7 +315,7 @@ def _draw_projection_plot(state):
                 for i, label in enumerate(labels):
                     if (not show_h) and label and label[0] == "H":
                         continue
-                    ax.scatter(
+                    pt = ax.scatter(
                         phi_atom[i],
                         np.cos(theta_atom[i]),
                         color=_get_atom_color(label),
@@ -315,7 +323,9 @@ def _draw_projection_plot(state):
                         zorder=5,
                         edgecolors="white",
                         linewidths=0.4,
+                        picker=True,
                     )
+                    click_pairs.append((pt, ref_ids[i]))
 
     else:
         lat = np.pi / 2.0 - TH
@@ -355,7 +365,7 @@ def _draw_projection_plot(state):
         cb.ax.tick_params(labelsize=7)
 
         if show_atoms:
-            coords, labels = _get_projection_coords(state)
+            coords, labels, ref_ids = _get_projection_coords(state)
             if coords is not None:
                 r_atom = np.linalg.norm(coords, axis=1)
                 r_atom = np.where(r_atom > 1e-6, r_atom, 1e-6)
@@ -366,17 +376,50 @@ def _draw_projection_plot(state):
                 for i, label in enumerate(labels):
                     if (not show_h) and label and label[0] == "H":
                         continue
-                    ax.scatter(
+                    pt = ax.scatter(
                         phi_atom[i],
                         lat_atom[i],
                         color=_get_atom_color(label),
-                        s=30,
+                        s=26,
                         zorder=5,
                         edgecolors="white",
                         linewidths=0.4,
+                        picker=True,
                     )
+                    click_pairs.append((pt, ref_ids[i]))
 
-    fig.tight_layout(pad=0.3)
+    old_cid = state.get("projection_click_cid")
+    if old_cid is not None:
+        try:
+            fig.canvas.mpl_disconnect(old_cid)
+        except Exception:
+            pass
+        state["projection_click_cid"] = None
+
+    def _on_click(event):
+        row_by_id = state.get("row_by_id", {})
+        tree = state.get("tree")
+        if tree is None:
+            return
+
+        for artist, ref_id in click_pairs:
+            contains, _ = artist.contains(event)
+            if contains:
+                item = row_by_id.get(ref_id)
+                if item:
+                    tree.selection_set(item)
+                    tree.focus(item)
+                    tree.see(item)
+                break
+
+    state["projection_click_cid"] = fig.canvas.mpl_connect("button_press_event", _on_click)
+
+    try:
+        if mode != "φ / cos(θ)":
+            fig.tight_layout(pad=0.3)
+    except Exception:
+        pass
+
     canvas.draw_idle()
 
 
@@ -400,7 +443,7 @@ def _export_projection_figure(state):
         return
 
     try:
-        fig.savefig(path, dpi=300, bbox_inches="tight")
+        fig.savefig(path, dpi=600, bbox_inches="tight")
         state["messagebox"].showinfo("Projection", f"Saved:\n{path}")
     except Exception as exc:
         state["messagebox"].showerror("Projection", f"Export failed:\n{exc}")

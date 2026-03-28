@@ -94,7 +94,7 @@ class NMRAnalysisWindow(tk.Toplevel):
         self.var_abs = tk.BooleanVar(value=True)
         ttk.Checkbutton(top, text="use |nonPCS|", variable=self.var_abs, command=self.refresh).pack(side="left")
 
-        ttk.Button(top, text="Refresh", command=self.refresh).pack(side="right")
+        ttk.Button(top, text="⟳ Refresh", command=self.refresh).pack(side="right")
 
         # ---- notebook ----
         nb = ttk.Notebook(self)
