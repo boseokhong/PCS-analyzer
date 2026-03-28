@@ -32,16 +32,17 @@ def calculate_r(pcs_value, theta, tensor):
     return r
 
 
-def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
+def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, polar_data=None, store_click_key=None):
     """
-    Notes for symmetry-averaged (collapsed) points:
-      - If you want pseudo/averaged points to be drawn as 'x' markers,
-        put their Ref IDs into:
-          state["symavg_pseudo_ref_ids"] = set([...])
-        (Ref IDs must match the IDs in state["current_selected_ids"] order.)
+    Draw one PCS polar plot onto the given figure/canvas pair.
+
+    store_click_key:
+        state key used to store the mpl click callback id
+        e.g. "pcs_click_cid" or "pcs_popup_click_cid"
     """
-    fig = state["pcs_figure"]
-    canvas = state["pcs_canvas"]
+    if fig is None or canvas is None:
+        return
+
     plot_90 = state["plot_90_var"].get()
 
     fig.clear()
@@ -89,13 +90,10 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
         else:
             ax.plot(theta_range, rvals, color=color, label=f"{pcs_value: .1f}")
 
-    # Points: keep click mapping
-    click_pairs = []  # [(PathCollection, ref_id), ...]
+    click_pairs = []
 
-    # Ref IDs must match polar_data ordering (your current design)
     ids = state.get("current_selected_ids", []) or []
 
-    # Pseudo/averaged IDs to draw with cross marker
     pseudo_ref_ids = state.get("symavg_pseudo_ref_ids", None)
     if pseudo_ref_ids is None:
         pseudo_ref_ids = set()
@@ -103,7 +101,6 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
         pseudo_ref_ids = set(pseudo_ref_ids)
 
     if polar_data:
-        # Safety: avoid IndexError if IDs and polar_data lengths mismatch
         n = min(len(polar_data), len(ids))
 
         for i in range(n):
@@ -115,10 +112,9 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
 
             is_pseudo = ref_id in pseudo_ref_ids
 
-            # Marker/size tweaks for pseudo sites
             marker = "x" if is_pseudo else "o"
-            size = 30 if is_pseudo else 15  # slightly larger for visibility
-            lw = 1.3 if is_pseudo else 0.8  # 'x' marker benefits from linewidth
+            size = 30 if is_pseudo else 15
+            lw = 1.3 if is_pseudo else 0.8
 
             pt = ax.scatter(
                 theta,
@@ -131,7 +127,6 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
             )
             click_pairs.append((pt, ref_id))
 
-    # radius ticks
     r_ticks = [0, 2, 4, 6, 8, 10]
     ax.set_yticks(r_ticks)
     ax.set_yticklabels([f"{r} Å" for r in r_ticks])
@@ -157,19 +152,20 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
     )
     leg.set_title("PCS legend (ppm)", prop={"size": 6, "weight": "bold"})
 
-    # Disconnect previous click handler if any
-    if state.get("pcs_click_cid") is not None:
-        try:
-            fig.canvas.mpl_disconnect(state["pcs_click_cid"])
-        except Exception:
-            pass
-        state["pcs_click_cid"] = None
+    # Disconnect previous click handler for this specific figure
+    if store_click_key:
+        old_cid = state.get(store_click_key)
+        if old_cid is not None:
+            try:
+                fig.canvas.mpl_disconnect(old_cid)
+            except Exception:
+                pass
+            state[store_click_key] = None
 
-    # 점을 클릭하면 해당 Ref(ID)로 테이블 선택
     def on_click(event):
         if event.inaxes != ax:
             return
-        row_by_id = state.get("row_by_id", {})  # update_table에서 채움
+        row_by_id = state.get("row_by_id", {})
         tree = state["tree"]
         for artist, ref_id in click_pairs:
             contains, _ = artist.contains(event)
@@ -180,16 +176,52 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
                     tree.see(item)
                 break
 
-    state["pcs_click_cid"] = fig.canvas.mpl_connect("button_press_event", on_click)
+    if store_click_key:
+        state[store_click_key] = fig.canvas.mpl_connect("button_press_event", on_click)
+
     canvas.draw()
 
 
+def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
+    """
+    Draw the embedded PCS plot and, if open, the popup PCS plot as well.
+    """
+    # Main embedded PCS plot
+    _draw_single_pcs_plot(
+        fig=state.get("pcs_figure"),
+        canvas=state.get("pcs_canvas"),
+        state=state,
+        pcs_values=pcs_values,
+        theta_values=theta_values,
+        tensor=tensor,
+        polar_data=polar_data,
+        store_click_key="pcs_click_cid",
+    )
+
+    # Popup PCS plot (same rendering)
+    _draw_single_pcs_plot(
+        fig=state.get("pcs_figure_popup"),
+        canvas=state.get("pcs_canvas_popup"),
+        state=state,
+        pcs_values=pcs_values,
+        theta_values=theta_values,
+        tensor=tensor,
+        polar_data=polar_data,
+        store_click_key="pcs_popup_click_cid",
+    )
+
+
 def update_figsize(state):
-    canvas_widget = state["pcs_canvas"].get_tk_widget()
+    canvas = state.get("pcs_canvas")
+    fig = state.get("pcs_figure")
+
+    if canvas is None or fig is None:
+        return
+
+    canvas_widget = canvas.get_tk_widget()
     parent = canvas_widget.master
     canvas_widget.destroy()
 
-    fig = state["pcs_figure"]
     if state["plot_90_var"].get():
         fig.set_size_inches(4, 2, forward=True)
     else:

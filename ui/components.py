@@ -3,17 +3,19 @@
 import subprocess, sys, os
 import tkinter as tk
 import tkinter.ttk as ttk
+import threading
 from ui.style import apply_style
 from tkinter import filedialog, simpledialog, messagebox
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from logic.command_processor import process_command as _pc
 from logic.xyz_loader import load_structure
 from logic.func_group_collapse import collapse_methyl_groups, collapse_cf3_groups
 
-from logic.plot_pcs import plot_graph, update_figsize
+from logic.plot_pcs import plot_graph
 from logic.plot_cartesian import plot_cartesian_graph
 from logic.table_utils import (
     update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui, calculate_tensor_components_ui_ax_rh,
@@ -23,7 +25,7 @@ from logic.rotate_align import rotate_coordinates, rotate_euler
 from logic.chem_constants import CPK_COLORS
 from logic.fitting import (
     populate_fitting_controls, apply_fit_to_views,
-    fit_theta_alpha_multi, fit_euler_global, _angles_to_rotation_multi
+    fit_theta_alpha_multi, fit_euler_global, fit_full_tensor, _angles_to_rotation_multi
 )
 from logic.include_rhombic import build_rh_table_rows
 from logic.diagnostic import update_diagnostic_panel
@@ -32,6 +34,8 @@ from ui.plot_3d import open_3d_plot_window
 from ui.mollweide_projection import open_theta_phi_plot as open_mollweide_plot
 from ui.nmr_spectrum_window import NMRSpectrumWindow
 from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
+
+from ui.pcs_plot_window import open_pcs_plot_popup
 
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
@@ -128,22 +132,39 @@ def build_app():
     # handle for the NMR spectrum window
     state['pcs_by_id'] = {}
     state['nmr_win'] = None
+    state['pcs_plot_popup'] = None
+    state['pcs_figure_popup'] = None
+    state['pcs_canvas_popup'] = None
+    state['pcs_click_cid'] = None
+    state['pcs_popup_click_cid'] = None
 
-    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1400x910"); state['root'] = root
+    # Window size
+    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1180x910"); state['root'] = root
     apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
 
     # Frames
     main_frame = ttk.Frame(root)
     main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-    left_frame = ttk.Frame(main_frame); left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True); state['left_frame']=left_frame
-    center_frame = ttk.Frame(main_frame); center_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True); state['center_frame']=center_frame
-    right_frame = ttk.Frame(main_frame); right_frame.pack(side=tk.LEFT, fill=tk.Y); state['right_frame']=right_frame
+    center_frame = ttk.Frame(main_frame)
+    center_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    state['center_frame'] = center_frame
 
-    # PCS figure/canvas
-    pcs_figure = plt.figure(figsize=(4,4), dpi=150); state['pcs_figure']=pcs_figure
-    pcs_canvas = FigureCanvasTkAgg(pcs_figure, master=left_frame); pcs_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-    state['pcs_canvas'] = pcs_canvas
+    right_frame = ttk.Frame(main_frame)
+    right_frame.pack(side=tk.LEFT, fill=tk.Y)
+    state['right_frame'] = right_frame
+
+    state['left_frame'] = None
+
+    # Embedded PCS plot removed.
+    # # PCS figure/canvas
+    # pcs_figure = plt.figure(figsize=(4,4), dpi=150); state['pcs_figure']=pcs_figure
+    # pcs_canvas = FigureCanvasTkAgg(pcs_figure, master=left_frame); pcs_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    # state['pcs_canvas'] = pcs_canvas
+    state['pcs_figure'] = None
+    state['pcs_canvas'] = None
+    state['pcs_click_cid'] = None
+    state['pcs_popup_click_cid'] = None
 
     # Table
     table_frame = ttk.Frame(center_frame); table_frame.pack(side=tk.TOP, fill=tk.X, padx=3, pady=0)
@@ -253,26 +274,26 @@ def build_app():
     rhtab = ttk.Frame(plots_nb, width=560)  # Fixed width
     plots_nb.add(rhtab, text="Rhombicity")
 
-    # 탭 프레임이 자식의 reqsize에 끌려가지 않게
+    # Prevent the tab frame from resizing to the requested size of its children.
     rhtab.grid_propagate(False)
 
-    # rhtab 내부는 grid로만 배치
+    # Use grid layout only inside the Rhombicity tab.
     rhtab.rowconfigure(0, weight=0)  # top bar
     rhtab.rowconfigure(1, weight=0)  # z-rotation bar
     rhtab.rowconfigure(2, weight=1)  # table area
     rhtab.columnconfigure(0, weight=1)
 
-    # 상단 버튼 영역
+    # Top control row
     rh_top = ttk.Frame(rhtab)
     rh_top.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
 
     # Δχ_rh input (unit: 1e-32 m^3)
     ttk.Label(rh_top, text="Δχ_rh values (E-32 m³):").pack(side="left", padx=(0, 6))
 
-    # state 기본값
+    # Default state value
     state.setdefault("rh_dchi_rh", 0.0)
 
-    # Entry 변수
+    # Entry variable
     state["rh_dchi_rh_var"] = tk.StringVar(value=f"{state.get('rh_dchi_rh', 0.0):g}")
     rh_dchi_entry = ttk.Entry(rh_top, textvariable=state["rh_dchi_rh_var"], width=10)
     rh_dchi_entry.pack(side="left")
@@ -319,25 +340,25 @@ def build_app():
     angle_z_entry.bind('<FocusOut>', lambda e: on_angle_entry_commit(state, 'z'))
 
     # ---------------------------
-    # table frame도 grid로 (CHANGED row: 1 -> 2)
+    # Use grid layout for the table frame as well(CHANGED row: 1 -> 2)
     # ---------------------------
     rh_table_frame = ttk.Frame(rhtab)
     rh_table_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
 
     rh_tree = ttk.Treeview(rh_table_frame, columns=cols, show="headings", height=18)
 
-    # 스크롤바 (세로/가로)
+    # Vertical and horizontal scrollbars
     rh_ys = ttk.Scrollbar(rh_table_frame, orient="vertical", command=rh_tree.yview)
     rh_xs = ttk.Scrollbar(rh_table_frame, orient="horizontal", command=rh_tree.xview)
     rh_tree.configure(yscrollcommand=rh_ys.set, xscrollcommand=rh_xs.set)
 
-    # 컬럼 widths (전부 stretch=False)
+    # Column widths (all with stretch=False)
     widths = (40, 50, 50, 80, 80, 80, 80, 80, 105, 60, 60, 80)
     for c, w in zip(cols, widths):
         rh_tree.heading(c, text=c)
         rh_tree.column(c, width=w, minwidth=40, anchor="center", stretch=False)
 
-    # grid 배치(테이블 프레임 내부)
+    # Grid layout inside the table frame
     rh_table_frame.rowconfigure(0, weight=1)
     rh_table_frame.rowconfigure(1, weight=0)
     rh_table_frame.columnconfigure(0, weight=1)
@@ -376,10 +397,10 @@ def build_app():
         # Apply = Refresh
         _rh_refresh_table()
 
-    # Enter로 Apply
+    # Apply on Enter
     rh_dchi_entry.bind("<Return>", lambda e: _apply_dchi_rh())
 
-    # Apply 버튼
+    # Apply btn
     ttk.Button(rh_top, text="Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
 
     # Rhombicity ON/OFF toggle checkbox
@@ -445,11 +466,11 @@ def build_app():
     protons_col = ttk.Frame(fit_top)  # right
     protons_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-    # Mode selection (A/B) : inside settings_col
+    # Mode selection : inside settings_col
     mode_row = ttk.Frame(settings_col)
     mode_row.pack(fill=tk.X, pady=4)
     state['fit_mode_var'] = tk.StringVar(value='theta_alpha_multi')
-    tk.Radiobutton(mode_row, text="[Mode A] θ,α (multi-donor)",
+    tk.Radiobutton(mode_row, text="[Mode A] Ligand-donor fit",
                    variable=state['fit_mode_var'], value='theta_alpha_multi',
                    command=lambda: switch_fit_mode(state),
                    bg="#F5F6FA",
@@ -457,8 +478,16 @@ def build_app():
                    highlightthickness=0,
                    relief="flat"
                    ).pack(side=tk.LEFT)
-    tk.Radiobutton(mode_row, text="[Mode B] 3D Euler fitting",
+    tk.Radiobutton(mode_row, text="[Mode B] Euler fit",
                    variable=state['fit_mode_var'], value='euler_global',
+                   command=lambda: switch_fit_mode(state),
+                   bg="#F5F6FA",
+                   activebackground="#F5F6FA",
+                   highlightthickness=0,
+                   relief="flat"
+                   ).pack(side=tk.LEFT, padx=10)
+    tk.Radiobutton(mode_row, text="[Mode C] 8-param fit",
+                   variable=state['fit_mode_var'], value='full_tensor',
                    command=lambda: switch_fit_mode(state),
                    bg="#F5F6FA",
                    activebackground="#F5F6FA",
@@ -471,7 +500,7 @@ def build_app():
     state['fit_anchor'].pack(fill=tk.X)
 
     # --- Mode A (Settings) ---
-    frameA = ttk.LabelFrame(settings_col, text="Settings", width=360, height=230)
+    frameA = ttk.LabelFrame(settings_col, text="Settings", width=200, height=230)
     state['fit_frameA'] = frameA
     frameA.pack_propagate(False)
     frameA.pack(fill=tk.X, pady=4, before=state['fit_anchor'])
@@ -479,7 +508,7 @@ def build_app():
     labelA = ttk.Label(
         frameA,
         text=("Donor atoms list : define the ligand donor atoms and decide "
-              "how to establish the vector used in the fitting."),
+              "how to establish the axis/vector used in the fitting."),
         justify="left"
     )
     labelA.pack(anchor='w', padx=6, pady=(6, 0), fill="x")
@@ -509,7 +538,7 @@ def build_app():
                  width=12, state="readonly").pack(side=tk.LEFT, padx=6)
 
     # --- Mode B (Settings) ---
-    frameB = ttk.LabelFrame(settings_col, text="Settings", width=360, height=230)
+    frameB = ttk.LabelFrame(settings_col, text="Settings", width=200, height=230)
     state['fit_frameB'] = frameB
     frameB.pack_propagate(False)
 
@@ -528,6 +557,29 @@ def build_app():
 
     # initiate- hide mode B
     frameB.pack_forget()
+
+    # --- Mode C (Settings) ---
+    frameC = ttk.LabelFrame(settings_col, text="Settings", width=200, height=230)
+    state['fit_frameC'] = frameC
+    frameC.pack_propagate(False)
+
+    labelC = ttk.Label(
+        frameC,
+        text=("8-parameter fitting of the selected protons.\n"
+              "Optimizes Δχ_ax, optional Δχ_rh, metal position (x, y, z; range ±1 Å),\n"
+              "and Euler angles (α,β,γ) in the global frame. Molecule stays rigid. \n"
+              "Two stages fit: Differential Evolution → Levenberg-Marquardt.\n"
+              "Recommended: ≥8 protons with δ_exp, enable 'Global Search (DE)'."),
+        justify="left"
+    )
+    labelC.pack(anchor='w', padx=6, pady=6, fill="x")
+
+    def _adjust_wrapC(event):
+        labelC.configure(wraplength=event.width - 12)
+
+    frameC.bind("<Configure>", _adjust_wrapC)
+    # initiate- hide mode C
+    frameC.pack_forget()
 
     # --- Protons to fit ---
     state['fit_protons_label'] = ttk.Label(protons_col, text="Protons to fit")
@@ -571,19 +623,75 @@ def build_app():
                     activebackground="#F5F6FA",
                     highlightthickness=0,
                     relief="flat"
-                ).pack(side=tk.LEFT, padx=12)
+                    ).pack(side=tk.LEFT, padx=12)
+    state['fit_global_search_var'] = tk.BooleanVar(value=False)
+    tk.Checkbutton(opts, text="Global search (DE)",
+                   variable=state['fit_global_search_var'],
+                   bg="#F5F6FA",
+                   activebackground="#F5F6FA",
+                   highlightthickness=0,
+                   relief="flat"
+                   ).pack(side=tk.LEFT, padx=12)
 
     btns = ttk.Frame(fittab);
     btns.pack(fill=tk.X, pady=4)
     ttk.Button(btns, text="Refresh lists",
-               command=lambda: populate_fitting_controls(state)).pack(side=tk.LEFT)
+               command=lambda: populate_fitting_controls(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(btns, text="Run fit",
-               command=lambda: run_fit_from_ui(state)).pack(side=tk.LEFT, padx=6)
+               command=lambda: run_fit_from_ui(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(btns, text="Apply to plot",
-               command=lambda: apply_fit_to_views(state)).pack(side=tk.RIGHT)
+               command=lambda: apply_fit_to_views(state)).pack(side=tk.LEFT, padx=3)
+    ttk.Button(btns, text="Export correlation plot",
+               command=lambda: export_fit_plot(state)).pack(side=tk.RIGHT, padx=3)
 
-    state['fit_result_box'] = tk.Text(fittab, height=10)
-    state['fit_result_box'].pack(fill=tk.BOTH, expand=True, pady=4)
+    state['fit_status_var'] = tk.StringVar(value="Ready.")
+    fit_status_label = tk.Label(btns,
+                                textvariable=state['fit_status_var'],
+                                font=("Helvetica", 8),
+                                fg="#777777",
+                                bg="#F5F6FA"
+                                )
+    fit_status_label.pack(side=tk.LEFT, padx=(8, 0))
+
+    def _fit_progress_cb(msg):
+        state['fit_status_var'].set(msg)
+        try:
+            state['root'].update_idletasks()
+        except Exception:
+            pass
+
+    state['fit_progress_cb'] = _fit_progress_cb
+
+    # body container
+    fit_body = ttk.Frame(fittab)
+    fit_body.pack(fill=tk.BOTH, expand=True, pady=4)
+
+    fit_body.columnconfigure(0, weight=4)
+    fit_body.columnconfigure(1, weight=5)
+    fit_body.rowconfigure(0, weight=1)
+
+    fit_left = ttk.Frame(fit_body)
+    fit_left.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+
+    fit_right = ttk.Frame(fit_body)
+    fit_right.grid(row=0, column=1, sticky="nsew")
+
+    state['fit_result_box'] = tk.Text(fit_left, height=10)
+    state['fit_result_box'].pack(fill=tk.BOTH, expand=True)
+
+    fit_fig = Figure(figsize=(6, 3), dpi=50)
+    fit_ax = fit_fig.add_subplot(111)
+    fit_ax.set_xlabel("δ_Exp")
+    fit_ax.set_ylabel("δ_Pred")
+    fit_ax.set_title("Fit correlation")
+
+    fit_canvas = FigureCanvasTkAgg(fit_fig, master=fit_right)
+    fit_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    state['fit_corr_fig'] = fit_fig
+    state['fit_corr_ax'] = fit_ax
+    state['fit_corr_canvas'] = fit_canvas
+
 
     # Right inputs region
     input_frame = ttk.Frame(right_frame); input_frame.pack(fill=tk.Y, padx=10, pady=10); state['input_frame']=input_frame
@@ -610,7 +718,7 @@ def build_app():
     prt = ttk.Frame(input_frame); prt.pack(pady=0); ttk.Label(prt, text="Half/Quarter plot toggle", font=("default",9,"bold")).pack(side=tk.LEFT)
     plot_90_var = tk.BooleanVar(value=False); state['plot_90_var']=plot_90_var
     tk.Checkbutton(prt, variable=plot_90_var,
-                   command=lambda: [update_figsize(state), state['update_graph']()],
+                   command=lambda: state['update_graph'](),
                    bg="#F5F6FA",
                    activebackground="#F5F6FA",
                    highlightthickness=0,
@@ -808,16 +916,6 @@ def build_app():
         relief="flat"
     ).pack(anchor="w", pady=(0, 0))
 
-    # ttk.Label(
-    #     input_frame,
-    #     text=("The coordinates should align\n"
-    #           "the molecule's rotational axis\n"
-    #           "with the z-axis for proper analysis."),
-    #     font=("Helvetica", 8, "italic"),
-    #     justify="center",
-    #     anchor="center"
-    # ).pack(pady=0, anchor="center")
-
     _sep(input_frame)
 
     # Angle controls
@@ -841,15 +939,33 @@ def build_app():
 
     _sep(input_frame)
 
-    # 3D / projection / NMR buttons
-    opf = ttk.Frame(input_frame);
+    # Open viewers buttons
+    opf = ttk.Frame(input_frame)
     opf.pack(fill=tk.X, padx=0, pady=0)
-    ttk.Label(opf, text="Open viewers", font=("default", 9, "bold")).pack(pady=3)
 
-    opf_row1 = ttk.Frame(opf)
-    opf_row1.pack(fill=tk.X)
-    ttk.Button(opf_row1, text="mol structure", command=lambda: open_3d_plot_window(state)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
-    ttk.Button(opf_row1, text="Projection", command=lambda: open_mollweide_plot(
+    ttk.Label(opf, text="Open viewers", font=("default", 9, "bold")).grid(
+        row=0, column=0, columnspan=2, pady=3
+    )
+
+    opf.columnconfigure(0, weight=1)
+    opf.columnconfigure(1, weight=1)
+
+    ttk.Button(
+        opf,
+        text="2D PCS Plot",
+        command=lambda: open_pcs_plot_popup(state)
+    ).grid(row=1, column=0, sticky="ew", padx=2, pady=(0, 4))
+
+    ttk.Button(
+        opf,
+        text="3D structure",
+        command=lambda: open_3d_plot_window(state)
+    ).grid(row=1, column=1, sticky="ew", padx=2, pady=(0, 4))
+
+    ttk.Button(
+        opf,
+        text="Projection",
+        command=lambda: open_mollweide_plot(
             state['atom_data'],
             (state['x0'], state['y0'], state['z0']),
             float(state['angle_x_var'].get()),
@@ -858,11 +974,13 @@ def build_app():
             state['root'],
             state['FigureCanvas']
         )
-    ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+    ).grid(row=2, column=0, sticky="ew", padx=2)
 
-    opf_row2 = ttk.Frame(opf)
-    opf_row2.pack(fill=tk.X, pady=(4, 0))
-    ttk.Button(opf_row2, text="NMR Spectrum", command=lambda: open_nmr_window(state)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+    ttk.Button(
+        opf,
+        text="NMR Spectrum",
+        command=lambda: open_nmr_window(state)
+    ).grid(row=2, column=1, sticky="ew", padx=2)
 
     _sep(input_frame)
 
@@ -897,19 +1015,25 @@ def build_app():
     tree.bind("<<TreeviewSelect>>", lambda e: None)  # placeholder; selection highlight could be added
     tree.bind("<<TreeviewSelect>>", lambda e: _on_tree_select_update_spectrum(state))
 
+    state['root'].after(150, lambda: open_pcs_plot_popup(state))
+    state['root'].after(250, lambda: state['update_graph']())
     return state
 
 def switch_fit_mode(state):
     m = state['fit_mode_var'].get()
-    # 일단 둘 다 빼고
+
+    # Hide all mode-specific setting frames first
     state['fit_frameA'].pack_forget()
     state['fit_frameB'].pack_forget()
-
+    state['fit_frameC'].pack_forget()
     anchor = state['fit_anchor']
+
     if m == 'theta_alpha_multi':
         state['fit_frameA'].pack(fill=state['tk'].X, pady=4, before=anchor)
-    else:
+    elif m == 'euler_global':
         state['fit_frameB'].pack(fill=state['tk'].X, pady=4, before=anchor)
+    elif m == 'full_tensor':
+        state['fit_frameC'].pack(fill=state['tk'].X, pady=4, before=anchor)
 
     try:
         populate_fitting_controls(state)
@@ -919,42 +1043,79 @@ def switch_fit_mode(state):
 def run_fit_from_ui(state):
     mode = state['fit_mode_var'].get()
 
-    # general section - protons selection
     psel = state['fit_proton_list'].curselection()
     if not psel:
-        state['messagebox'].showerror("Fitting", "Select ≥3 protons (Ref IDs)."); return
+        state['messagebox'].showerror("Fitting", "Select ≥3 protons (Ref IDs).")
+        return
     proton_ids = [int(state['fit_proton_list'].get(i)) for i in psel]
 
-    try:
-        if mode == 'theta_alpha_multi':
-            dsel = state['fit_donor_list'].curselection()
-            if not dsel:
-                state['messagebox'].showerror("Fitting", "Select ≥1 donor IDs."); return
-            donor_ids = [int(state['fit_donor_list'].get(i).split(':')[0]) for i in dsel]
+    if mode == 'theta_alpha_multi':
+        dsel = state['fit_donor_list'].curselection()
+        if not dsel:
+            state['messagebox'].showerror("Fitting", "Select ≥1 donor IDs.")
+            return
+        donor_ids = [int(state['fit_donor_list'].get(i).split(':')[0]) for i in dsel]
+    else:
+        donor_ids = []
 
-            res = fit_theta_alpha_multi(
-                state,
-                donor_ids=donor_ids,
-                proton_ids=proton_ids,
-                axis_mode=state['axis_mode_var'].get(),
-                fit_visible_as_group=state['fit_use_visible_var'].get(),
-                fit_delta_chi=state['fit_dchi_var'].get(),
-                fit_delta_chi_rh=state['fit_dchi_rh_var'].get(),
-            )
-        else:
-            res = fit_euler_global(
-                state,
-                proton_ids=proton_ids,
-                fit_visible_as_group=state['fit_use_visible_var'].get(),
-                fit_delta_chi=state['fit_dchi_var'].get(),
-                fit_delta_chi_rh=state['fit_dchi_rh_var'].get(),
-            )
-
+    def _finish_success(res):
         state['last_fit_result'] = res
         _show_fit_result(state, res)
+        update_fit_correlation_plot_from_result(state, res)
+        state['fit_status_var'].set("Fit completed.")
 
-    except Exception as e:
-        state['messagebox'].showerror("Fitting", str(e))
+    def _finish_error(msg):
+        state['fit_status_var'].set("Fit failed.")
+        state['messagebox'].showerror("Fitting", msg)
+
+    def _worker():
+        try:
+            state['root'].after(0, lambda: state['fit_status_var'].set("Collecting atoms..."))
+
+            if mode == 'theta_alpha_multi':
+                res = fit_theta_alpha_multi(
+                    state,
+                    donor_ids=donor_ids,
+                    proton_ids=proton_ids,
+                    axis_mode=state['axis_mode_var'].get(),
+                    fit_visible_as_group=state['fit_use_visible_var'].get(),
+                    fit_delta_chi=state['fit_dchi_var'].get(),
+                    fit_delta_chi_rh=state['fit_dchi_rh_var'].get(),
+                    use_global_search=state['fit_global_search_var'].get(),
+                    progress_cb=state.get('fit_progress_cb'),
+                )
+
+            elif mode == 'euler_global':
+                res = fit_euler_global(
+                    state,
+                    proton_ids=proton_ids,
+                    fit_visible_as_group=state['fit_use_visible_var'].get(),
+                    fit_delta_chi=state['fit_dchi_var'].get(),
+                    fit_delta_chi_rh=state['fit_dchi_rh_var'].get(),
+                    use_global_search=state['fit_global_search_var'].get(),
+                    progress_cb=state.get('fit_progress_cb'),
+                )
+
+            elif mode == 'full_tensor':
+                res = fit_full_tensor(
+                    state,
+                    proton_ids=proton_ids,
+                    fit_delta_chi=state['fit_dchi_var'].get(),
+                    fit_delta_chi_rh=state['fit_dchi_rh_var'].get(),
+                    use_global_search=state['fit_global_search_var'].get(),
+                    progress_cb=state.get('fit_progress_cb'),
+                )
+
+            else:
+                raise ValueError(f"Unknown fitting mode: {mode}")
+
+            state['root'].after(0, lambda r=res: _finish_success(r))
+
+        except Exception as e:
+            state['root'].after(0, lambda m=str(e): _finish_error(m))
+
+    state['fit_status_var'].set("Preparing fit...")
+    threading.Thread(target=_worker, daemon=True).start()
 
 def _show_fit_result(state, res):
     box = state['fit_result_box']
@@ -964,14 +1125,27 @@ def _show_fit_result(state, res):
     state.setdefault("rh_ratio_warn_threshold", 0.5)  # ratio threshold 0.5
 
     mode = res.get('mode')
+
     if mode == 'theta_alpha_multi':
         box.insert("end", f"[Mode A] axis={res.get('axis_mode')}\n")
         box.insert("end", f"Donors: {res['donor_ids']}\n")
-        box.insert("end", f"θ*={res['theta']:.2f}°, α*={res['alpha']:.2f}°\n")
+        box.insert("end", f"θ* = {res['theta']:.2f}°, α* = {res['alpha']:.2f}°\n")
+
+    elif mode == 'euler_global':
+        box.insert("end", "[Mode B] Euler global\n")
+        box.insert("end", f"ax = {res['ax']:.2f}°, ay = {res['ay']:.2f}°, az = {res['az']:.2f}°\n")
+
+    elif mode == 'full_tensor':
+        box.insert("end", "[Mode C] Full tensor fit\n")
+        if 'metal_pos' in res:
+            mx, my, mz = res['metal_pos']
+            box.insert("end", f"Metal position = ({mx:.3f}, {my:.3f}, {mz:.3f})\n")
+        if 'euler_deg' in res:
+            ea, eb, eg = res['euler_deg']
+            box.insert("end", f"Euler angles = ({ea:.2f}°, {eb:.2f}°, {eg:.2f}°)\n")
 
     else:
-        box.insert("end", "[Mode B] Euler global\n")
-        box.insert("end", f"ax={res['ax']:.2f}°, ay={res['ay']:.2f}°, az={res['az']:.2f}°\n")
+        box.insert("end", f"[Unknown mode] {mode}\n")
 
     # --- χ tensor parameters ---
     box.insert("end", f"Δχ_ax = {res['delta_chi_ax']:.3e} (E-32 m³)\n")
@@ -993,24 +1167,156 @@ def _show_fit_result(state, res):
         else:
             box.insert("end", "|Δχ_rh / Δχ_ax| = undefined (Δχ_ax = 0)\n")
 
-    # --- φ reference / z-rotation meaning (MODE-DEPENDENT) ---
+    # --- φ reference / z-rotation meaning (mode-dependent) ---
     if mode == 'theta_alpha_multi':
-        # Mode A: φ reference is user-defined z-rotation (angle_z_var)
+        # In Mode A, the φ reference follows the user-defined z-rotation.
         try:
             az_ref = float(state.get('angle_z_var', 0.0).get())
             box.insert("end", f"φ reference (user z-rotation) = {az_ref:.1f}°\n")
         except Exception:
             pass
-    else:
-        # Mode B: az is part of fitted Euler angles; angle_z_var is irrelevant here
+
+    elif mode == 'euler_global':
+        # In Mode B, az is part of the fitted Euler angles.
         box.insert("end", f"Euler z-angle (az) = {res['az']:.2f}°  (φ reference is defined by Euler convention)\n")
 
+    elif mode == 'full_tensor':
+        # In Mode C, the Euler convention is defined by the fitted tensor orientation.
+        if 'euler_deg' in res:
+            _, _, eg = res['euler_deg']
+            box.insert("end", f"Euler z-angle = {eg:.2f}°  (tensor orientation from full-tensor fit)\n")
+
     # --- fit quality ---
-    box.insert("end", f"RMSD = {res['rmsd']:.3f} ppm  (N = {res['n']})\n\n")
+    box.insert("end", f"RMSD = {res['rmsd']:.3f} ppm  (N = {res['n']})\n")
+    r2 = res.get('r2', float('nan'))
+    if not np.isnan(r2):
+        box.insert("end", f"R² = {r2:.4f}\n")
+    qf = res.get('q_factor', float('nan'))
+    if not np.isnan(qf):
+        box.insert("end", f"Q-factor = {qf:.4f}\n")
+    chi2_n = res.get('chi2_n', float('nan'))
+    if not np.isnan(chi2_n):
+        box.insert("end", f"χ²/N = {chi2_n:.4f} ppm²\n")
+    box.insert("end", "\n")
 
     box.insert("end", "Ref\tδ_exp\tδ_pred\tresid\n")
     for rid, exp, pred, r in res['per_point']:
         box.insert("end", f"{rid}\t{exp:.3f}\t{pred:.3f}\t{r:+.3f}\n")
+
+# Fitting function - correlation plot
+def update_fit_correlation_plot_from_result(state, res):
+    fig = state.get('fit_corr_fig')
+    canvas = state.get('fit_corr_canvas')
+    if fig is None or canvas is None:
+        return
+
+    per_point = res.get('per_point', [])
+    fig.clear()
+
+    if not per_point:
+        canvas.draw_idle()
+        return
+
+    exp_values = np.array([row[1] for row in per_point], float)
+    pred_values = np.array([row[2] for row in per_point], float)
+    resid_values = np.array([row[3] for row in per_point], float)
+    ref_ids = [row[0] for row in per_point]
+
+    gs = fig.add_gridspec(
+        2, 1,
+        height_ratios=[2.5, 1.0],
+        hspace=0.08,
+        left=0.15, right=0.92, top=0.90, bottom=0.16
+    )
+
+    ax_corr = fig.add_subplot(gs[0])
+    ax_res = fig.add_subplot(gs[1])
+
+    mn = min(exp_values.min(), pred_values.min())
+    mx = max(exp_values.max(), pred_values.max())
+    if mn == mx:
+        mn -= 1.0
+        mx += 1.0
+
+    pad = 0.08 * (mx - mn)
+    lo = mn - pad
+    hi = mx + pad
+
+    ax_corr.plot([lo, hi], [lo, hi], linestyle='--', color='gray', linewidth=0.9, alpha=0.7)
+
+    sc = ax_corr.scatter(
+        exp_values,
+        pred_values,
+        c=np.abs(resid_values),
+        cmap='viridis',
+        s=45,
+        alpha=0.9
+    )
+
+    for rid, x, y in zip(ref_ids, exp_values, pred_values):
+        ax_corr.annotate(
+            str(rid),
+            (x, y),
+            xytext=(3, 3),
+            textcoords='offset points',
+            fontsize=6,
+            color='dimgray'
+        )
+
+    ax_corr.set_xlim(lo, hi)
+    ax_corr.set_ylim(lo, hi)
+    ax_corr.set_xlabel("Experimental δ (ppm)")
+    ax_corr.set_ylabel("Predicted δ (ppm)")
+    ax_corr.set_title(
+        f"Fit correlation   R²={res.get('r2', float('nan')):.4f}   "
+        f"RMSD={res.get('rmsd', float('nan')):.4f} ppm   "
+        f"Q={res.get('q_factor', float('nan')):.4f}",
+        fontsize=9
+    )
+    ax_corr.grid(alpha=0.2)
+
+    cbar = fig.colorbar(sc, ax=ax_corr, fraction=0.04, pad=0.02)
+    cbar.set_label("|residual| (ppm)")
+
+    colors = []
+    for r in resid_values:
+        ar = abs(r)
+        if ar <= 0.05:
+            colors.append("#2ecc71")
+        elif ar <= 0.15:
+            colors.append("#f39c12")
+        else:
+            colors.append("#e74c3c")
+
+    ax_res.bar(np.arange(len(resid_values)), resid_values, color=colors, alpha=0.9)
+    ax_res.axhline(0, color='gray', linestyle='--', linewidth=0.8)
+    ax_res.set_ylabel("resid")
+    ax_res.set_xticks(np.arange(len(ref_ids)))
+    ax_res.set_xticklabels([str(r) for r in ref_ids], rotation=45, ha='right', fontsize=6)
+    ax_res.grid(axis='y', alpha=0.2)
+
+    canvas.draw_idle()
+
+# Fitting function - correlation plot export
+def export_fit_plot(state):
+    fig = state.get('fit_corr_fig')
+    if fig is None:
+        state['messagebox'].showwarning("Export", "No fit plot available.")
+        return
+
+    path = state['filedialog'].asksaveasfilename(
+        title="Save fit plot",
+        defaultextension=".png",
+        filetypes=[
+            ("PNG image", "*.png"),
+            ("PDF file", "*.pdf"),
+        ],
+    )
+    if not path:
+        return
+
+    fig.savefig(path, dpi=300, bbox_inches="tight")
+    state['messagebox'].showinfo("Export", f"Saved fit plot:\n{path}")
 
 def on_save_plot_any(state):
     fd = state['filedialog'].asksaveasfilename(
@@ -1186,7 +1492,7 @@ def reset_values(state):
     state.get('delta_exp_values', {}).clear()
     state.pop('last_rotated_coords', None)
 
-    # fit override도 reset (이게 남아있으면 Rh/PCS가 계속 override됨)
+    # Reset fit override as well; otherwise Rh/PCS can remain overridden.
     state.pop('fit_override', None)
     state.pop('last_fit_result', None)
 
@@ -1427,7 +1733,7 @@ def load_xyz_file(state):
     update_graph(state)
     populate_fitting_controls(state)
 
-    # open 3d plot after xyz file loading
+    # Open the 3D viewer automatically after loading the structure file.
     try:
         state['root'].after(50, lambda: open_3d_plot_window(state))
     except Exception as e:
@@ -1490,6 +1796,26 @@ def filter_atoms(state):
             coords0 = abs_coords - metal
             rot0 = rotate_euler(coords0, ax, ay, az)
             abs_coords = rot0 + metal
+
+        # --- Mode C: full tensor ---
+        elif mode == 'full_tensor':
+            euler_deg = fo.get('euler_deg', (0.0, 0.0, 0.0))
+            ax_e, ay_e, az_e = euler_deg
+
+            metal_pos = fo.get('metal_pos')
+            if metal_pos is not None:
+                metal = np.array(metal_pos, dtype=float)
+
+            coords0 = abs_coords - metal
+            rot0 = rotate_euler(coords0, ax_e, ay_e, az_e)
+            abs_coords = rot0 + metal
+
+            if 'dchi_ax' in fo:
+                try:
+                    state['tensor_entry'].delete(0, tk.END)
+                    state['tensor_entry'].insert(0, f"{float(fo['dchi_ax']):g}")
+                except Exception:
+                    pass
 
     coords0 = abs_coords - metal
 

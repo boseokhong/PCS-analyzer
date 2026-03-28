@@ -1,8 +1,44 @@
 # logic/fitting.py
 
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, differential_evolution
 from logic.rotate_align import rotate_euler
+
+def compute_quality_metrics(per_point):
+    """
+    per_point: [(ref_id, delta_exp, delta_pred, residual), ...]
+    Returns: r2, rmsd, q_factor, chi2_n, n
+    """
+    if not per_point:
+        return dict(
+            r2=float("nan"),
+            rmsd=float("nan"),
+            q_factor=float("nan"),
+            chi2_n=float("nan"),
+            n=0,
+        )
+
+    exp_v = np.array([p[1] for p in per_point], float)
+    pred_v = np.array([p[2] for p in per_point], float)
+    resid = pred_v - exp_v
+
+    rmsd = float(np.sqrt(np.mean(resid ** 2)))
+    ss_res = float(np.sum(resid ** 2))
+    ss_tot = float(np.sum((exp_v - exp_v.mean()) ** 2))
+    r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-15 else float("nan")
+
+    ss_exp = float(np.sum(exp_v ** 2))
+    q_factor = float(np.sqrt(ss_res / ss_exp)) if ss_exp > 1e-15 else float("nan")
+
+    chi2_n = float(ss_res / len(resid))
+
+    return dict(
+        r2=r2,
+        rmsd=rmsd,
+        q_factor=q_factor,
+        chi2_n=chi2_n,
+        n=len(per_point),
+    )
 
 def _unit(v):
     n = np.linalg.norm(v)
@@ -133,7 +169,7 @@ def _angles_to_rotation_multi(points, metal, donor_points, theta_deg, alpha_deg,
 def geom_factor_and_pcs(coords, metal, delta_chi_ax):
     """
     coords: (N,3), metal: (3,)
-    반환: r(Å), theta(라디안), Gi, δ_PCS (ppm)
+    Returns: r (Å), theta (radians), Gi, and δ_PCS (ppm).
     """
     metal = np.asarray(metal, float)
     vecs = coords - metal
@@ -172,12 +208,81 @@ def pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh):
     """axial + rhombic PCS (ppm)"""
     return ((float(dchi_ax) * Gax + float(dchi_rh) * Grh) * 1e4) / (12.0 * np.pi)
 
+# ---------- Differential evolution (DE function helper) ----------
+def _make_de_bounds_finite(lb, ub, x0=None, default_span=50.0):
+    """
+    Convert possibly infinite bounds into finite bounds for differential_evolution.
+    least_squares can handle inf bounds, but DE cannot.
+    """
+    if x0 is None:
+        x0 = [0.0] * len(lb)
+
+    lb2, ub2 = [], []
+    for lo, hi, x in zip(lb, ub, x0):
+        lo_finite = np.isfinite(lo)
+        hi_finite = np.isfinite(hi)
+
+        if lo_finite and hi_finite:
+            lb2.append(float(lo))
+            ub2.append(float(hi))
+        elif (not lo_finite) and (not hi_finite):
+            lb2.append(float(x) - default_span)
+            ub2.append(float(x) + default_span)
+        elif not lo_finite:
+            lb2.append(float(hi) - 2.0 * default_span)
+            ub2.append(float(hi))
+        else:  # upper is infinite
+            lb2.append(float(lo))
+            ub2.append(float(lo) + 2.0 * default_span)
+
+    return lb2, ub2
+
+def _run_two_stage_fit(residual_func, x0, lb, ub,
+                       use_global_search=False,
+                       progress_cb=None):
+    """
+    Optional global search (DE) followed by local least-squares refinement.
+    DE requires finite bounds, so infinite bounds are converted temporarily.
+    """
+    if use_global_search:
+        lb_de, ub_de = _make_de_bounds_finite(lb, ub, x0=x0, default_span=50.0)
+        bounds_de = list(zip(lb_de, ub_de))
+
+        if progress_cb:
+            progress_cb("Running global search (DE)...")
+
+        def objective(x):
+            r = residual_func(x)
+            return float(np.sum(np.asarray(r, float) ** 2))
+
+        de_res = differential_evolution(
+            objective,
+            bounds=bounds_de,
+            polish=False,
+            seed=42,
+        )
+        x_start = np.array(de_res.x, float)
+    else:
+        x_start = np.array(x0, float)
+
+    if progress_cb:
+        progress_cb("Running local refinement...")
+
+    res = least_squares(residual_func, x_start, bounds=(lb, ub))
+
+    if progress_cb:
+        progress_cb("Building fit summary...")
+
+    return res
+
 # ---------- Mode A: θ, α (multi-donor) ----------
 def fit_theta_alpha_multi(state, donor_ids, proton_ids,
                           axis_mode='bisector',
                           fit_visible_as_group=True,
                           fit_delta_chi=False,
-                          fit_delta_chi_rh=False):
+                          fit_delta_chi_rh=False,
+                          use_global_search=False,
+                          progress_cb=None):
     """
     donor_ids: Ref ID 리스트(1..N)
     proton_ids: δ_Exp가 들어있는 Ref ID 목록 (보통 H들)
@@ -187,6 +292,8 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
     ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
     if not atom_data or not ids:
         raise RuntimeError("No atom data")
+    if progress_cb:
+        progress_cb("Preparing donor-axis fit...")
 
     id2idx = {rid: i for i, rid in enumerate(ids)}
     metal = np.array([state['x0'], state['y0'], state['z0']])
@@ -203,6 +310,8 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
     else:
         group_indices = list(range(len(atom_data)))
     # 현재는 group_indices를 직접 쓰지는 않지만, 원하면 points=abs_coords[group_indices]로 바꿔 확장 가능
+    # group_indices is prepared for future rigid-group extensions,
+    # but the current implementation still fits against all selected observation points.
 
     delta_exp_values = state.get('delta_exp_values', {})
     obs_pairs = [(rid, delta_exp_values[rid]) for rid in proton_ids if rid in delta_exp_values]
@@ -354,7 +463,11 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         # x = [theta, alpha]
         lb = [-180, -180]
         ub = [180, 180]
-    res = least_squares(residuals, x0, bounds=(lb, ub))
+    res = _run_two_stage_fit(
+        residuals, x0, lb, ub,
+        use_global_search=use_global_search,
+        progress_cb=progress_cb,
+    )
 
     if fit_delta_chi and fit_delta_chi_rh:
         theta, alpha, dchi_ax, dchi_rh = res.x
@@ -400,27 +513,39 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
 
     delta_exp = np.array([v for _, v in valid_obs_pairs], float)
     resid = dpcs - delta_exp
-    rmsd = float(np.sqrt(np.mean(resid ** 2))) if len(resid) else np.nan
     per_point = [(rid, float(exp), float(pred), float(r))
                  for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)]
 
-    return dict(mode='theta_alpha_multi',
-                donor_ids=list(donor_ids),
-                axis_mode=axis_mode,
-                theta=float(theta), alpha=float(alpha),
-                delta_chi_ax=float(dchi_ax),
-                delta_chi_rh=float(dchi_rh),
-                rmsd=rmsd, n=len(per_point), per_point=per_point)
+    if progress_cb:
+        progress_cb("Computing fit quality metrics...")
+
+    metrics = compute_quality_metrics(per_point)
+
+    return dict(
+        mode='theta_alpha_multi',
+        donor_ids=list(donor_ids),
+        axis_mode=axis_mode,
+        theta=float(theta),
+        alpha=float(alpha),
+        delta_chi_ax=float(dchi_ax),
+        delta_chi_rh=float(dchi_rh),
+        per_point=per_point,
+        **metrics,
+    )
 
 # ---------- Mode B: 3D Euler rotation (ax, ay, az) ----------
 def fit_euler_global(state, proton_ids,
                      fit_visible_as_group=True,
                      fit_delta_chi=False,
-                     fit_delta_chi_rh=False):
+                     fit_delta_chi_rh=False,
+                     use_global_search=False,
+                     progress_cb=None):
     atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
     ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
     if not atom_data or not ids:
         raise RuntimeError("No atom data")
+    if progress_cb:
+        progress_cb("Preparing Euler fit...")
 
     id2idx = {rid: i for i, rid in enumerate(ids)}
     metal = np.array([state['x0'], state['y0'], state['z0']])
@@ -509,7 +634,12 @@ def fit_euler_global(state, proton_ids,
     else:
         lb = [-180, -180, -180]
         ub = [180, 180, 180]
-    res = least_squares(residuals, x0, bounds=(lb, ub))
+    res = _run_two_stage_fit(
+        residuals, x0, lb, ub,
+        use_global_search=use_global_search,
+        progress_cb=progress_cb,
+    )
+
     if fit_delta_chi and fit_delta_chi_rh:
         ax, ay, az, dchi_ax, dchi_rh = res.x
     elif fit_delta_chi:
@@ -544,15 +674,158 @@ def fit_euler_global(state, proton_ids,
 
     delta_exp = np.array([v for _, v in valid_obs_pairs], float)
     resid = dpcs - delta_exp
-    rmsd = float(np.sqrt(np.mean(resid**2))) if len(resid) else np.nan
     per_point = [(rid, float(exp), float(pred), float(r))
                  for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)]
 
-    return dict(mode='euler_global',
-                ax=float(ax), ay=float(ay), az=float(az),
-                delta_chi_ax=float(dchi_ax),
-                delta_chi_rh=float(dchi_rh),
-                rmsd=rmsd, n=len(per_point), per_point=per_point)
+    if progress_cb:
+        progress_cb("Computing fit quality metrics...")
+
+    metrics = compute_quality_metrics(per_point)
+
+    return dict(
+        mode='euler_global',
+        ax=float(ax),
+        ay=float(ay),
+        az=float(az),
+        delta_chi_ax=float(dchi_ax),
+        delta_chi_rh=float(dchi_rh),
+        per_point=per_point,
+        **metrics,
+    )
+
+# ---------- Mode C: Fit full tensor ----------
+def fit_full_tensor(state, proton_ids,
+                    fit_delta_chi=True,
+                    fit_delta_chi_rh=False,
+                    use_global_search=False,
+                    progress_cb=None):
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
+    if not atom_data or not ids:
+        raise RuntimeError("No atom data")
+
+    if progress_cb:
+        progress_cb("Preparing 8-parameter fit...")
+
+    id2idx = {rid: i for i, rid in enumerate(ids)}
+    abs_coords = np.array([a[1:4] for a in atom_data], float)
+
+    metal0 = np.array([state['x0'], state['y0'], state['z0']], float)
+
+    delta_exp_values = state.get('delta_exp_values', {})
+    obs_pairs = [(rid, delta_exp_values[rid]) for rid in proton_ids if rid in delta_exp_values]
+    valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
+    if len(valid_obs_pairs) < 3:
+        raise RuntimeError("Need at least 3 valid proton points with δ_exp.")
+
+    tensor_entry = state.get('tensor_entry')
+    dchi_ax0 = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
+    dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+
+    ax0, ay0, az0 = 0.0, 0.0, 0.0
+    mx0, my0, mz0 = metal0
+    pos_window = 1.0        # metal center +- 1 A range
+
+    if fit_delta_chi and fit_delta_chi_rh:
+        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0, dchi_ax0, dchi_rh0], float)
+        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window, -np.inf, -np.inf]
+        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,  np.inf,  np.inf]
+    elif fit_delta_chi:
+        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0, dchi_ax0], float)
+        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window, -np.inf]
+        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,  np.inf]
+    elif fit_delta_chi_rh:
+        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0, dchi_rh0], float)
+        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window, -np.inf]
+        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,  np.inf]
+    else:
+        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0], float)
+        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window]
+        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,]
+
+    def coords_for_ids(points, ids_subset):
+        idxs = [id2idx[rid] for rid in ids_subset if rid in id2idx]
+        return np.array([points[i] for i in idxs], float)
+
+    def unpack_params(x):
+        dchi_ax_fixed = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
+        dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+
+        if fit_delta_chi and fit_delta_chi_rh:
+            ax, ay, az, mx, my, mz, dchi_ax, dchi_rh = x
+        elif fit_delta_chi:
+            ax, ay, az, mx, my, mz, dchi_ax = x
+            dchi_rh = dchi_rh_fixed
+        elif fit_delta_chi_rh:
+            ax, ay, az, mx, my, mz, dchi_rh = x
+            dchi_ax = dchi_ax_fixed
+        else:
+            ax, ay, az, mx, my, mz = x
+            dchi_ax = dchi_ax_fixed
+            dchi_rh = dchi_rh_fixed
+
+        metal = np.array([mx, my, mz], float)
+        return ax, ay, az, metal, dchi_ax, dchi_rh
+
+    def residuals(x):
+        ax, ay, az, metal, dchi_ax, dchi_rh = unpack_params(x)
+
+        coords0 = abs_coords - metal
+        rot0 = rotate_euler(coords0, ax, ay, az)
+        rot_all = rot0 + metal
+
+        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
+        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
+
+        if fit_delta_chi_rh or abs(dchi_rh) > 0.0:
+            _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
+            dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+        else:
+            _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+
+        return dpcs - delta_exp
+
+    res = _run_two_stage_fit(
+        residuals, x0, lb, ub,
+        use_global_search=use_global_search,
+        progress_cb=progress_cb,
+    )
+
+    ax, ay, az, metal, dchi_ax, dchi_rh = unpack_params(res.x)
+
+    coords0 = abs_coords - metal
+    rot0 = rotate_euler(coords0, ax, ay, az)
+    rot_all = rot0 + metal
+
+    pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
+    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
+
+    if fit_delta_chi_rh or abs(dchi_rh) > 0.0:
+        _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
+        dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+    else:
+        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+
+    resid = dpcs - delta_exp
+    per_point = [
+        (rid, float(exp), float(pred), float(r))
+        for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)
+    ]
+
+    if progress_cb:
+        progress_cb("Computing fit quality metrics...")
+
+    metrics = compute_quality_metrics(per_point)
+
+    return dict(
+        mode='full_tensor',
+        euler_deg=(float(ax), float(ay), float(az)),
+        metal_pos=(float(metal[0]), float(metal[1]), float(metal[2])),
+        delta_chi_ax=float(dchi_ax),
+        delta_chi_rh=float(dchi_rh),
+        per_point=per_point,
+        **metrics,
+    )
 
 
 # ---------- UI wiring helpers ----------
@@ -596,10 +869,9 @@ def apply_fit_to_views(state):
     if not res:
         return
 
-    # (옵션 B) 슬라이더 자동 동기화 체크 여부
-    sync = bool(state.get('fit_sync_sliders_var', False) and state['fit_sync_sliders_var'].get())
+    mode = res.get('mode')
 
-    if res.get('mode') == 'theta_alpha_multi':
+    if mode == 'theta_alpha_multi':
         state['fit_override'] = dict(
             mode='theta_alpha_multi',
             donor_ids=res['donor_ids'],
@@ -607,19 +879,37 @@ def apply_fit_to_views(state):
             alpha=res['alpha'],
             axis_mode=res.get('axis_mode', 'bisector')
         )
-        state['messagebox'].showinfo("Fitting", "Applied (Option A). Click 'Update' to redraw.")
+        state['messagebox'].showinfo("Fitting", "Mode A applied. Click 'Update' to redraw.")
 
-    else:  # euler_global
-        if sync:
-            # 슬라이더에 반영하고 override는 지움 (중복 회전 방지)
-            state['angle_x_var'].set(res['ax'])
-            state['angle_y_var'].set(res['ay'])
-            state['angle_z_var'].set(res['az'])
-            state.pop('fit_override', None)
-            state['messagebox'].showinfo("Fitting", "Applied (Option B → sliders). Click 'Update' to redraw.")
-        else:
-            state['fit_override'] = dict(
-                mode='euler_global',
-                ax=res['ax'], ay=res['ay'], az=res['az']
-            )
-            state['messagebox'].showinfo("Fitting", "Applied (Option B). Click 'Update' to redraw.")
+    elif mode == 'euler_global':
+        state['fit_override'] = dict(
+            mode='euler_global',
+            ax=res['ax'],
+            ay=res['ay'],
+            az=res['az']
+        )
+        state['messagebox'].showinfo("Fitting", "Mode B applied. Click 'Update' to redraw.")
+
+    elif mode == 'full_tensor':
+        state['fit_override'] = dict(
+            mode='full_tensor',
+            euler_deg=res['euler_deg'],
+            metal_pos=res['metal_pos'],
+            dchi_ax=res['delta_chi_ax'],
+            dchi_rh=res.get('delta_chi_rh', 0.0)
+        )
+
+        try:
+            state['tensor_entry'].delete(0, "end")
+            state['tensor_entry'].insert(0, f"{float(res['delta_chi_ax']):g}")
+        except Exception:
+            pass
+
+        if 'rh_dchi_rh_var' in state:
+            try:
+                state['rh_dchi_rh_var'].set(f"{float(res.get('delta_chi_rh', 0.0)):g}")
+                state['rh_dchi_rh'] = float(res.get('delta_chi_rh', 0.0))
+            except Exception:
+                pass
+
+        state['messagebox'].showinfo("Fitting", "Mode C applied. Click 'Update' to redraw.")

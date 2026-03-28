@@ -59,7 +59,7 @@ v.1.2.0 updates
 
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
-<bshong66@gmail.com> / <b.hong@hzdr.de>
+<bshong66@gmail.com>
 <https://github.com/boseokhong/PCS-analyzer>
 '''
 
