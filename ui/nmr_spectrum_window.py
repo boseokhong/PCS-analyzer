@@ -29,7 +29,7 @@ class NMRSpectrumWindow(tk.Toplevel):
     ):
         super().__init__(parent)
         self.title(title)
-        self.geometry("1180x450")
+        self.geometry("1200x450")
 
         # --------- state ---------
         self.state = state  # shared app state (table/pcs/etc)
@@ -201,7 +201,7 @@ class NMRSpectrumWindow(tk.Toplevel):
         self._build_drawer_contents()
 
         # Clear button
-        ttk.Button(ctrl, text="Clear", command=self._clear_pins).pack(side="right")
+        ttk.Button(ctrl, text="❌ Clear", command=self._clear_pins).pack(side="right")
 
     # ---------- drawer UI (delta tools) ----------
     def _only_size(self, geo: str) -> str:
@@ -262,21 +262,21 @@ class NMRSpectrumWindow(tk.Toplevel):
         box_imp.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
         r1 = ttk.Frame(box_imp); r1.pack(fill="x", pady=2)
-        ttk.Button(r1, text="Import δ_obs", command=self._import_obs, state=("normal" if has_state else "disabled")).pack(side="left")
-        ttk.Button(r1, text="Paste δ_obs", command=self._paste_obs, state=("normal" if has_state else "disabled")).pack(side="left", padx=4)
-        ttk.Button(r1, text="Clear δ_obs", command=self._clear_obs, state=("normal" if has_state else "disabled")).pack(side="left")
+        ttk.Button(r1, text="📂 Import δ_obs", command=self._import_obs, state=("normal" if has_state else "disabled")).pack(side="left")
+        ttk.Button(r1, text="📝 Paste δ_obs", command=self._paste_obs, state=("normal" if has_state else "disabled")).pack(side="left", padx=4)
+        ttk.Button(r1, text="❌ Clear δ_obs", command=self._clear_obs, state=("normal" if has_state else "disabled")).pack(side="left")
 
         r2 = ttk.Frame(box_imp); r2.pack(fill="x", pady=2)
-        ttk.Button(r2, text="Import δ_dia", command=self._import_dia, state=("normal" if has_state else "disabled")).pack(side="left")
-        ttk.Button(r2, text="Paste δ_dia", command=self._paste_dia, state=("normal" if has_state else "disabled")).pack(side="left", padx=4)
-        ttk.Button(r2, text="Clear δ_dia", command=self._clear_dia, state=("normal" if has_state else "disabled")).pack(side="left")
+        ttk.Button(r2, text="📂 Import δ_dia", command=self._import_dia, state=("normal" if has_state else "disabled")).pack(side="left")
+        ttk.Button(r2, text="📝 Paste δ_dia", command=self._paste_dia, state=("normal" if has_state else "disabled")).pack(side="left", padx=4)
+        ttk.Button(r2, text="❌ Clear δ_dia", command=self._clear_dia, state=("normal" if has_state else "disabled")).pack(side="left")
 
         # ---- Analysis button ----
         ttk.Separator(host, orient="vertical").pack(side="left", fill="y", padx=6)
 
         ttk.Button(
             host,
-            text="Analysis…",
+            text="📊 Analysis…",
             command=self._open_analysis_window,
             state=("normal" if has_state else "disabled"),
         ).pack(side="left", padx=(0, 6))

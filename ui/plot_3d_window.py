@@ -220,7 +220,7 @@ def _build_atom_colors_and_sizes(state, labels, ref_ids):
     sizes = []
     for el in labels:
         radius = covalent_radii.get(el, 1.0)
-        sizes.append(radius * 50)
+        sizes.append(radius * 55)
 
     if color_mode == "PCS":
         pcs_by_id = state.get("pcs_by_id", {}) or {}
@@ -469,7 +469,7 @@ def open_3d_plot_window(state):
 
     ttk.Button(
         control,
-        text="⟳ Refresh",
+        text="🔄 Refresh",
         command=lambda: _draw_3d_plot(state),
     ).pack(side=tk.RIGHT)
 

@@ -60,7 +60,8 @@ v.1.2.0 updates
 v.2.0.0 updates
 - Fitting [Mode C] added
 - Separated PCS polar plot from main window
-- Projection plot updated
+- 2D, 3D, Projection plots updated
+- Table select interaction
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com>

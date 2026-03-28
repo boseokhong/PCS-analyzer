@@ -255,17 +255,17 @@ def build_app():
         command=lambda: export_delta_exp_template(state)
     ).pack(side=tk.LEFT, padx=(0, 6))
     ttk.Button(
-        table_btns, text="Import δ_Exp",
+        table_btns, text="📂 Import δ_Exp",
         command=lambda: import_delta_exp_file(state, plot_cartesian_graph)
     ).pack(side=tk.LEFT)
     ttk.Button(
-        table_btns, text="Paste δ_Exp",
+        table_btns, text="📝 Paste δ_Exp",
                command=lambda: import_delta_exp_from_clipboard(state, plot_cartesian_graph)).pack(side=tk.LEFT, padx=6)
     ttk.Button(
-        table_btns, text="Undo",
+        table_btns, text="↺ Undo",
                command=lambda: undo_last_delta_import(state, plot_cartesian_graph)).pack(side=tk.LEFT)
     ttk.Button(
-        table_btns, text="Clear δ_Exp",
+        table_btns, text="❌ Clear δ_Exp",
         command=lambda: clear_delta_exp(state, plot_cartesian_graph)
     ).pack(side=tk.LEFT, padx=6)
 
@@ -281,7 +281,7 @@ def build_app():
     # --- Cartesian tab UI ---
     # -------------------------
     cartesian_tab = ttk.Frame(plots_nb)
-    plots_nb.add(cartesian_tab, text="Plot")
+    plots_nb.add(cartesian_tab, text="📈 Plot")
 
     cartesian_figure = plt.Figure(figsize=(4, 3), dpi=100);
     state['cartesian_figure'] = cartesian_figure
@@ -293,7 +293,7 @@ def build_app():
     # --- Diagnostic tab UI ---
     # --------------------------
     diagtab = ttk.Frame(plots_nb)
-    plots_nb.add(diagtab, text="Diagnostic")
+    plots_nb.add(diagtab, text="📊 Diagnostic")
     state["diagtab"] = diagtab
 
     # 1) button row (TOP)
@@ -302,7 +302,7 @@ def build_app():
 
     ttk.Button(
         diag_btnrow,
-        text="⟳ Update Diagnostic",
+        text="🔄 Update Diagnostic",
         command=lambda: update_diagnostic_panel(state)
     ).pack(side=tk.LEFT)
 
@@ -343,7 +343,7 @@ def build_app():
     # --- Rhombicity tab UI ----
     # --------------------------
     rhtab = ttk.Frame(plots_nb, width=560)  # Fixed width
-    plots_nb.add(rhtab, text="Rhombicity")
+    plots_nb.add(rhtab, text="📊 Rhombicity")
 
     # Prevent the tab frame from resizing to the requested size of its children.
     rhtab.grid_propagate(False)
@@ -472,7 +472,7 @@ def build_app():
     rh_dchi_entry.bind("<Return>", lambda e: _apply_dchi_rh())
 
     # Apply btn
-    ttk.Button(rh_top, text="⟳ Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
+    ttk.Button(rh_top, text="🔄 Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
 
     # Rhombicity ON/OFF toggle checkbox
     state.setdefault("rh_calc_enabled", False)
@@ -518,14 +518,14 @@ def build_app():
                 placeholder_text=ph,
             )
 
-    ttk.Button(rh_top, text="Calc χ(xx,yy,zz)", command=_calc_chi_tensor_from_ui) \
+    ttk.Button(rh_top, text="🧮 Calc χ(xx,yy,zz)", command=_calc_chi_tensor_from_ui) \
         .pack(side="left", padx=(4, 0))
 
     # --------------------------
     # --- Fitting tab UI -------
     # --------------------------
     fittab = ttk.Frame(plots_nb)
-    plots_nb.add(fittab, text="Fitting")
+    plots_nb.add(fittab, text="🔍 Fitting")
 
     # left(Settings), right(Protons)
     fit_top = ttk.Frame(fittab)
@@ -706,11 +706,11 @@ def build_app():
 
     btns = ttk.Frame(fittab);
     btns.pack(fill=tk.X, pady=4)
-    ttk.Button(btns, text="⟳ Refresh",
+    ttk.Button(btns, text="🔄 Refresh",
                command=lambda: populate_fitting_controls(state)).pack(side=tk.LEFT, padx=3)
-    ttk.Button(btns, text="Run fit",
+    ttk.Button(btns, text="🧮 Run fit",
                command=lambda: run_fit_from_ui(state)).pack(side=tk.LEFT, padx=3)
-    ttk.Button(btns, text="Apply to plot",
+    ttk.Button(btns, text="⚙️ Apply to plot",
                command=lambda: apply_fit_to_views(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(btns, text="💾 Export plot",
                command=lambda: export_fit_plot(state)).pack(side=tk.RIGHT, padx=3)
@@ -798,8 +798,8 @@ def build_app():
 
     # Update/Reset
     bf = ttk.Frame(input_frame); bf.pack(pady=3)
-    ttk.Button(bf, text="⟳ Update", command=lambda: state['update_graph']()).pack(side=tk.LEFT, padx=2)
-    ttk.Button(bf, text="Reset", command=lambda: reset_values(state)).pack(side=tk.LEFT, padx=2)
+    ttk.Button(bf, text="🔄 Update", command=lambda: state['update_graph']()).pack(side=tk.LEFT, padx=2)
+    ttk.Button(bf, text="↺ Reset", command=lambda: reset_values(state)).pack(side=tk.LEFT, padx=2)
 
     # Frame - align middle
     for f in (tf, prf, pif, prt, bf):
@@ -939,7 +939,7 @@ def build_app():
 
     # File load
     ttk.Button(input_frame,
-               text="Load xyz File",
+               text="📂 Load xyz File",
                command=lambda: load_xyz_file(state)
                ).pack(anchor="center", pady=3)
 
