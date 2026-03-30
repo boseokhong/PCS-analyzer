@@ -5,6 +5,19 @@ The following code requires the numpy, matplotlib, pandas, and openpyxl module p
 A tool for PCS analysis and 2D polar contour visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
 
+v.1.3.0 updates
+- Separated 2D PCS polar plot from main window
+- G_i vs delta_PCS Plot : better interaction and result box
+- Table ↔ plot select/highlight interaction
+- 3D molecular, Projection plots updated
+- Fitting tab : [Mode C] 8-parameter fitting added
+- Advanced Fitting Tab added
+- Conformer search and fitting app added
+
+-----------------
+Version history
+-----------------
+
 v.0.1 updates
 -Excel export: x, y cartesian coordinates are calculated, and each column are separated by PCS values.
 
@@ -57,14 +70,6 @@ v.1.2.0 updates
 -Improved xyz loader: more robust and now supports ORCA .out .log files
 -Bug fixes and code refactoring
 
-v.2.0.0 updates
-- Separated PCS polar plot from main window
-- G_i vs delta_PCS Plot : better interaction and result box
-- Table ↔ plot select/highlight interaction
-- 2D plor, 3D molecular, Projection plots updated
-- Fitting tab : [Mode C] added
-- Advanced Fitting Tab
-- Conformer search and fitting app
 
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
