@@ -114,7 +114,7 @@ def _build_result_panel(parent, state: dict, key_prefix: str, text_height: int =
         summary_frame,
         height=text_height,
         wrap="none",
-        font=("Courier", 9),
+        font=("Consolas", 9),
     )
     state[text_key].pack(fill="both", expand=True)
 
@@ -240,21 +240,21 @@ def _build_multiconformer_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         btn_row,
-        text="Load XYZ",
+        text="📂 Load XYZ",
         command=lambda: _mc_load_conformer_xyz(state),
+        width=12,
+    ).pack(side="left", padx=4)
+
+    ttk.Button(
+        btn_row,
+        text="❌ Clear",
+        command=lambda: _mc_clear_conformers(state),
         width=10,
     ).pack(side="left", padx=4)
 
     ttk.Button(
         btn_row,
-        text="Clear",
-        command=lambda: _mc_clear_conformers(state),
-        width=8,
-    ).pack(side="left", padx=4)
-
-    ttk.Button(
-        btn_row,
-        text="Run Fit",
+        text="▶▶ Run Fit",
         command=lambda: _mc_run_threaded(state),
         width=10,
     ).pack(side="right")
@@ -284,9 +284,9 @@ def _build_multiconformer_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         opt_row,
-        text="Apply to Main",
+        text="✅ Apply to Main",
         command=lambda: _mc_apply_to_main(state),
-        width=12,
+        width=14,
     ).pack(side="right")
 
     list_box = ttk.LabelFrame(top, text="Conformers", padding=4)
@@ -517,16 +517,16 @@ def _build_joint_pcs_rdc_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         file_row,
-        text="Load RDC CSV",
+        text="📂 Load RDC CSV",
         command=lambda: _rdc_load_csv(state),
-        width=12,
+        width=14,
     ).pack(side="left")
 
     ttk.Button(
         file_row,
-        text="Export Template",
+        text="💾 Export Template",
         command=_export_rdc_template,
-        width=14,
+        width=16,
     ).pack(side="left", padx=(6, 0))
 
     state["advfit_rdc_file_label"] = ttk.Label(
@@ -558,14 +558,14 @@ def _build_joint_pcs_rdc_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         param_row,
-        text="Apply to Main",
+        text="✅ Apply to Main",
         command=lambda: _rdc_apply_to_main(state),
-        width=12,
+        width=14,
     ).pack(side="right", padx=(4, 0))
 
     ttk.Button(
         param_row,
-        text="Run Fit",
+        text="▶▶ Run Fit",
         command=lambda: _rdc_run_threaded(state),
         width=10,
     ).pack(side="right")
@@ -764,16 +764,16 @@ def _build_pre_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         file_row,
-        text="Load PRE CSV",
+        text="📂 Load PRE CSV",
         command=lambda: _pre_load_csv(state),
-        width=12,
+        width=14,
     ).pack(side="left")
 
     ttk.Button(
         file_row,
-        text="Export Template",
+        text="💾 Export Template",
         command=_export_pre_template,
-        width=14,
+        width=16,
     ).pack(side="left", padx=(6, 0))
 
     state["advfit_pre_file_label"] = ttk.Label(
@@ -818,7 +818,7 @@ def _build_pre_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         param_row,
-        text="Run Fit",
+        text="▶▶ Run Fit",
         command=lambda: _pre_run_threaded(state),
         width=10,
     ).pack(side="right")
@@ -985,13 +985,6 @@ def _build_multilanthanide_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         row1,
-        text="Add CSV",
-        command=lambda: _ml_add_csv(state),
-        width=10,
-    ).pack(side="left")
-
-    ttk.Button(
-        row1,
         text="Use Current δ_Exp",
         command=lambda: _ml_add_current_dataset(state),
         width=16,
@@ -999,14 +992,21 @@ def _build_multilanthanide_tab(state: dict, nb: ttk.Notebook):
 
     ttk.Button(
         row1,
-        text="Clear",
+        text="📂 Add CSV",
+        command=lambda: _ml_add_csv(state),
+        width=10,
+    ).pack(side="left")
+
+    ttk.Button(
+        row1,
+        text="❌ Clear",
         command=lambda: _ml_clear_datasets(state),
-        width=8,
+        width=10,
     ).pack(side="left", padx=4)
 
     ttk.Button(
         row1,
-        text="Run Fit",
+        text="▶▶ Run Fit",
         command=lambda: _ml_run_threaded(state),
         width=10,
     ).pack(side="right")

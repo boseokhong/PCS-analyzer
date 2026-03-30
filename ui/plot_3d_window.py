@@ -469,7 +469,7 @@ def open_3d_plot_window(state):
 
     ttk.Button(
         control,
-        text="🔄 Refresh",
+        text="⟳ Refresh",
         command=lambda: _draw_3d_plot(state),
     ).pack(side=tk.RIGHT)
 

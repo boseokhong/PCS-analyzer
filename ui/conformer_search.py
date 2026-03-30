@@ -1606,9 +1606,9 @@ class ConformerSearchGUI:
         # -- Action buttons row --
         btn_row = ttk.Frame(p)
         btn_row.pack(fill="x", padx=8, pady=4)
-        ttk.Button(btn_row, text="View structure",
+        ttk.Button(btn_row, text="🔍 View structure",
                    command=self._show_structure_plot).pack(side="left", padx=(0, 4))
-        ttk.Button(btn_row, text="Select candidate…",
+        ttk.Button(btn_row, text="\u2714 Select candidate…",
                    command=self._apply_selected).pack(side="left", padx=(0, 4))
         ttk.Button(btn_row, text="💾 Save XYZ…",
                    command=self._save_xyz).pack(side="left", padx=(0, 4))
@@ -1618,7 +1618,7 @@ class ConformerSearchGUI:
                    command=self._show_plot).pack(side="left")
 
         self._result_box = scrolledtext.ScrolledText(
-            p, font=("Courier", 9), state="disabled")
+            p, font=("Consolas", 9), state="disabled")
         self._result_box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
     # ── Actions ───────────────────────────────────────────────────────────────
@@ -1713,7 +1713,7 @@ class ConformerSearchGUI:
                       font=("default", 9, "bold")).pack(side="left")
             for val in xyz:
                 ttk.Label(row, text=f"{val:+8.3f}", width=9,
-                          anchor="e", font=("Courier", 8)).pack(side="left")
+                          anchor="e", font=("Consolas", 8)).pack(side="left")
             ttk.Label(row, text=", ".join(nbs[:8]) + ("…" if len(nbs) > 8 else ""),
                       font=("default", 8), foreground="#555"
                       ).pack(side="left", padx=(4, 0))

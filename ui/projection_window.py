@@ -77,7 +77,7 @@ def open_projection_window(state):
 
     ttk.Button(
         control,
-        text="🔄 Refresh",
+        text="⟳ Refresh",
         command=lambda: _draw_projection_plot(state),
     ).pack(side=tk.RIGHT, padx=(6, 0))
 

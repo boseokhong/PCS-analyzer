@@ -98,6 +98,14 @@ def open_nmr_window(state):
     # Push layers (PCS/OBS/DIA/PARA) based on state flags
     push_layers_to_nmr_if_open(state)
 
+# Cartesian plot helper
+def _on_tree_select_update_cartesian(state):
+    """Refresh Cartesian plot highlight when the main table selection changes."""
+    try:
+        plot_cartesian_graph(state)
+    except Exception:
+        pass
+
 # conformer search helper
 def open_conformer_search(state):
     import csv
@@ -513,6 +521,7 @@ def _on_tree_select_update_views(state):
     _on_tree_select_update_spectrum(state)
     _on_tree_select_update_3d(state)
     _on_tree_select_update_pcs(state)
+    _on_tree_select_update_cartesian(state)
 
 def build_app():
     state = {}
@@ -607,7 +616,7 @@ def build_app():
         table_btns, text="📝 Paste δ_Exp",
                command=lambda: import_delta_exp_from_clipboard(state, plot_cartesian_graph)).pack(side=tk.LEFT, padx=6)
     ttk.Button(
-        table_btns, text="↺ Undo",
+        table_btns, text="⟲ Undo",
                command=lambda: undo_last_delta_import(state, plot_cartesian_graph)).pack(side=tk.LEFT)
     ttk.Button(
         table_btns, text="❌ Clear δ_Exp",
@@ -628,11 +637,37 @@ def build_app():
     cartesian_tab = ttk.Frame(plots_nb)
     plots_nb.add(cartesian_tab, text="📈 Plot")
 
-    cartesian_figure = plt.Figure(figsize=(4, 3), dpi=100);
+    plot_body = ttk.Frame(cartesian_tab)
+    plot_body.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+
+    plot_body.columnconfigure(0, weight=5)
+    plot_body.columnconfigure(1, weight=2)
+    plot_body.rowconfigure(0, weight=1)
+
+    plot_left = ttk.Frame(plot_body)
+    plot_left.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+
+    plot_right = ttk.Frame(plot_body)
+    plot_right.grid(row=0, column=1, sticky="nsew")
+
+    cartesian_figure = plt.Figure(figsize=(4, 3), dpi=100)
     state['cartesian_figure'] = cartesian_figure
-    cartesian_canvas = FigureCanvasTkAgg(cartesian_figure, master=cartesian_tab)
+
+    cartesian_canvas = FigureCanvasTkAgg(cartesian_figure, master=plot_left)
     cartesian_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
     state['cartesian_canvas'] = cartesian_canvas
+
+    state["cartesian_click_cid"] = None
+    state["cartesian_plot_rows"] = []
+
+    ttk.Label(plot_right, text="Plot Results").pack(anchor="w", pady=(0, 4))
+
+    plot_result_box = tk.Text(plot_right, height=12, width=34, wrap="word", font=("Consolas", 9))
+    plot_result_box.pack(fill=tk.BOTH, expand=True)
+    plot_result_box.insert("1.0", "Plot analysis will appear here.")
+    plot_result_box.configure(state="disabled")
+
+    state["plot_result_box"] = plot_result_box
 
     # --------------------------
     # --- Diagnostic tab UI ---
@@ -647,7 +682,7 @@ def build_app():
 
     ttk.Button(
         diag_btnrow,
-        text="🔄 Update Diagnostic",
+        text="⟳ Update Diagnostic",
         command=lambda: update_diagnostic_panel(state)
     ).pack(side=tk.LEFT)
 
@@ -663,7 +698,7 @@ def build_app():
     ).pack(side=tk.LEFT, padx=10)
 
     # 2) summary box (TOP)
-    state["diag_result_box"] = tk.Text(diagtab, font=("Courier", 9), height=6)
+    state["diag_result_box"] = tk.Text(diagtab, font=("Consolas", 9), height=6)
     state["diag_result_box"].pack(fill=tk.X, padx=6, pady=(0, 6))
 
     # 3) figures container (BOTTOM)
@@ -725,7 +760,7 @@ def build_app():
     rh_zrow = ttk.Frame(rhtab)
     rh_zrow.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 6))
 
-    ttk.Label(rh_zrow, text="Rotate around Z-axis (degrees):").pack(side="left", padx=(0, 6))
+    ttk.Label(rh_zrow, text="Rotate around Z-axis (°):").pack(side="left", padx=(0, 6))
 
     # z state vars
     state.setdefault("angle_z_var", tk.DoubleVar(value=0.0))
@@ -819,7 +854,7 @@ def build_app():
     rh_dchi_entry.bind("<Return>", lambda e: _apply_dchi_rh())
 
     # Apply btn
-    ttk.Button(rh_top, text="🔄 Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
+    ttk.Button(rh_top, text="⟳ Update", command=_apply_dchi_rh).pack(side="left", padx=(6, 12))
 
     # Rhombicity ON/OFF toggle checkbox
     state.setdefault("rh_calc_enabled", False)
@@ -1053,11 +1088,11 @@ def build_app():
 
     btns = ttk.Frame(fittab);
     btns.pack(fill=tk.X, pady=4)
-    ttk.Button(btns, text="🔄 Refresh",
+    ttk.Button(btns, text="⟳ Refresh",
                command=lambda: populate_fitting_controls(state)).pack(side=tk.LEFT, padx=3)
-    ttk.Button(btns, text="🧮 Run fit",
+    ttk.Button(btns, text="▶▶ Run fit",
                command=lambda: run_fit_from_ui(state)).pack(side=tk.LEFT, padx=3)
-    ttk.Button(btns, text="⚙️ Apply to plot",
+    ttk.Button(btns, text="✅ Apply to plot",
                command=lambda: apply_fit_to_views(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(btns, text="💾 Export plot",
                command=lambda: export_fit_plot(state)).pack(side=tk.RIGHT, padx=3)
@@ -1094,7 +1129,7 @@ def build_app():
     fit_right = ttk.Frame(fit_body)
     fit_right.grid(row=0, column=1, sticky="nsew")
 
-    state['fit_result_box'] = tk.Text(fit_left, height=10, font=("Courier", 9))
+    state['fit_result_box'] = tk.Text(fit_left, height=10, font=("Consolas", 9))
     state['fit_result_box'].pack(fill=tk.BOTH, expand=True)
 
     fit_fig = Figure(figsize=(6, 3), dpi=50)
@@ -1130,7 +1165,7 @@ def build_app():
                command=lambda: open_conformer_search(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(cs_btns, text="✅ Apply candidate",
                command=lambda: apply_conformer_preview(state)).pack(side=tk.LEFT, padx=3)
-    ttk.Button(cs_btns, text="↺ Revert",
+    ttk.Button(cs_btns, text="⟲ Revert",
                command=lambda: revert_conformer_to_original(state)).pack(side=tk.LEFT, padx=3)
     ttk.Button(cs_btns, text="🗑 Discard",
                command=lambda: discard_conformer_preview(state)).pack(side=tk.LEFT, padx=3)
@@ -1186,8 +1221,8 @@ def build_app():
 
     # Update/Reset
     bf = ttk.Frame(input_frame); bf.pack(pady=3)
-    ttk.Button(bf, text="🔄 Update", command=lambda: state['update_graph']()).pack(side=tk.LEFT, padx=2)
-    ttk.Button(bf, text="↺ Reset", command=lambda: reset_values(state)).pack(side=tk.LEFT, padx=2)
+    ttk.Button(bf, text="⟳ Update", command=lambda: state['update_graph']()).pack(side=tk.LEFT, padx=2)
+    ttk.Button(bf, text="❌ Reset", command=lambda: reset_values(state)).pack(side=tk.LEFT, padx=2)
 
     # Frame - align middle
     for f in (tf, prf, pif, prt, bf):
@@ -1378,7 +1413,7 @@ def build_app():
     _sep(input_frame)
 
     # Angle controls
-    ttk.Label(input_frame, text="Rotate around X-axis (degrees):").pack()
+    ttk.Label(input_frame, text="Rotate around X-axis (°):").pack()
     axf = ttk.Frame(input_frame); axf.pack(fill=tk.X)
     angle_x_var = tk.DoubleVar(); state['angle_x_var']=angle_x_var
     angle_x_slider = tk.Scale(axf, from_=-180, to=180, orient=tk.HORIZONTAL, variable=angle_x_var, resolution=0.1, command=lambda v: on_angle_slider(state, 'x', v), bg="#F5F6FA", activebackground="#F5F6FA", highlightthickness=0)
@@ -1387,7 +1422,7 @@ def build_app():
     angle_x_entry.bind('<Return>', lambda e: on_angle_entry_commit(state, 'x'))
     angle_x_entry.bind('<FocusOut>', lambda e: on_angle_entry_commit(state, 'x'))
 
-    ttk.Label(input_frame, text="Rotate around Y-axis (degrees):").pack()
+    ttk.Label(input_frame, text="Rotate around Y-axis (°):").pack()
     ayf = ttk.Frame(input_frame); ayf.pack(fill=tk.X)
     angle_y_var = tk.DoubleVar(); state['angle_y_var']=angle_y_var
     angle_y_slider = tk.Scale(ayf, from_=-180, to=180, orient=tk.HORIZONTAL, variable=angle_y_var, resolution=0.1, command=lambda v: on_angle_slider(state,'y',v), bg="#F5F6FA", activebackground="#F5F6FA", highlightthickness=0)

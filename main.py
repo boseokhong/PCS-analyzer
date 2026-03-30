@@ -64,6 +64,7 @@ v.2.0.0 updates
 - Table select interaction
 - Advanced Fitting Tab
 - Conformer search and fitting app
+- Plot tab : better interaction
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com>
