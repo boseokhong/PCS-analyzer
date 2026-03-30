@@ -37,6 +37,9 @@ from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
 from ui.projection_window import open_projection_window
 from ui.pcs_plot_window import open_pcs_plot_popup
 
+from ui.advanced_fitting_tab import build_advanced_fitting_tab
+from ui.conformer_search import run_conformer_search_gui
+
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
 
@@ -94,6 +97,340 @@ def open_nmr_window(state):
 
     # Push layers (PCS/OBS/DIA/PARA) based on state flags
     push_layers_to_nmr_if_open(state)
+
+# conformer search helper
+def open_conformer_search(state):
+    import csv
+    import os
+    import tempfile
+
+    atom_data = state.get("atom_data_raw") or state.get("atom_data") or []
+    atom_ids = state.get("atom_ids_raw") or list(range(1, len(atom_data) + 1))
+
+    if not atom_data or not atom_ids:
+        state["messagebox"].showwarning("Conformer Search", "No structure loaded.")
+        return
+
+    delta_exp = state.get("delta_exp_values", {}) or {}
+    if not delta_exp:
+        state["messagebox"].showwarning(
+            "Conformer Search",
+            "No δ_Exp data found. Please import δ_Exp first."
+        )
+        return
+
+    # Keep original structure once
+    if state.get("atom_data_raw") is None and state.get("atom_data") is not None:
+        state["atom_data_raw"] = list(state["atom_data"])
+
+    tmpdir = tempfile.gettempdir()
+
+    # ---- temporary XYZ for conformer_search ----
+    # ── 좌표계 주의 ──────────────────────────────────────────────────────────
+    # atom_data_raw는 load_structure()가 반환한 절대 좌표 (metal 원점 이동 전).
+    # metal_xyz(x0, y0, z0)도 동일 좌표계의 절대 위치.
+    # conformer_search 내부 calc_pcs()에서 coords - metal을 직접 계산하므로
+    # 이 두 값은 반드시 같은 좌표계(절대)여야 함.
+    # ※ atom_data_eff / filter_atoms()의 좌표는 metal 원점 이동 후이므로 절대 사용 금지.
+    xyz_path = os.path.join(tmpdir, "pcs_analyzer_conformer_input.xyz")
+    with open(xyz_path, "w", encoding="utf-8") as f:
+        f.write(f"{len(atom_data)}\n")
+        f.write("PCS Analyzer export for conformer search\n")
+        for atom, x, y, z in atom_data:
+            f.write(f"{atom} {float(x):.8f} {float(y):.8f} {float(z):.8f}\n")
+
+    # ---- temporary PCS CSV (Ref, δ_exp) ----
+    pcs_path = os.path.join(tmpdir, "pcs_analyzer_conformer_pcs.csv")
+    with open(pcs_path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        w.writerow(["Ref", "δ_exp"])
+        for rid in atom_ids:
+            if rid in delta_exp:
+                w.writerow([rid, float(delta_exp[rid])])
+
+    try:
+        dchi_ax = float(state["tensor_entry"].get() or 0.0)
+    except Exception:
+        dchi_ax = float(state.get("tensor", 0.0) or 0.0)
+
+    try:
+        dchi_rh = float(state.get("rh_dchi_rh", 0.0) or 0.0)
+    except Exception:
+        dchi_rh = 0.0
+
+    metal_xyz = (
+        float(state.get("x0", 0.0)),
+        float(state.get("y0", 0.0)),
+        float(state.get("z0", 0.0)),
+    )
+
+    # Best simple fallback:
+    # use explicit metal_ref_id if available, otherwise 1
+    metal_idx_1b = int(state.get("metal_ref_id", 1))
+
+    # Euler angles:
+    # start simple with current UI rotation if present, else 0,0,0
+    try:
+        euler_deg = (
+            float(state["angle_x_var"].get()) if "angle_x_var" in state else 0.0,
+            float(state["angle_y_var"].get()) if "angle_y_var" in state else 0.0,
+            float(state["angle_z_var"].get()) if "angle_z_var" in state else 0.0,
+        )
+    except Exception:
+        euler_deg = (0.0, 0.0, 0.0)
+
+    def _on_preview_result(payload):
+        state["conformer_preview"] = payload
+        state["conformer_preview_coords"] = payload["coords_opt"]
+        state["conformer_preview_elements"] = payload["elements"]
+        state["conformer_preview_report"] = payload["report"]
+        state["conformer_applied"] = False
+
+        try:
+            box = state.get("conformer_result_box")
+            if box is not None:
+                box.delete("1.0", "end")
+                box.insert("end", payload["report"])
+        except Exception:
+            pass
+
+        try:
+            state["conformer_status_var"].set(
+                f"Done! | RMSD={payload['result']['rmsd']:.4f} ppm"
+            )
+        except Exception:
+            pass
+
+        try:
+            from ui.plot_3d_window import _draw_3d_plot
+            _draw_3d_plot(state)
+        except Exception:
+            pass
+
+        state["messagebox"].showinfo(
+            "Conformer Search",
+            "Preview result received.\nReview the result, then click 'Apply Conformer Preview'."
+        )
+
+    new_initial_data = {
+        "xyz_path": xyz_path,
+        "pcs_path": pcs_path,
+        "metal_idx_1b": metal_idx_1b,
+        "metal_xyz": metal_xyz,
+        "dchi_ax": dchi_ax,
+        "dchi_rh": dchi_rh,
+        "euler_deg": euler_deg,
+    }
+
+    # embedded instance가 있으면 새 창 대신 데이터만 refresh
+    cs_app = state.get("conformer_search_app")
+    if cs_app is not None:
+        cs_app.initial_data = new_initial_data
+        cs_app._prefill_from_initial_data()
+        cs_app._auto_detect_if_ready()
+        try:
+            state["plots_nb"].select(state["conformer_tab"])
+        except Exception:
+            pass
+        state["conformer_status_var"].set(
+            "Update complete — Check Setup tab and run search")
+        return
+
+    # fallback: embedded app 없을 때만 Toplevel로 열기
+    run_conformer_search_gui(
+        master=state["root"],
+        on_preview_result=lambda payload: _conformer_preview_callback(state, payload),
+        initial_data=new_initial_data,
+    )
+
+def _conformer_preview_callback(state, payload):
+    """Shared result-receipt callback for both embedded and Toplevel modes."""
+    state["conformer_preview"] = payload
+    state["conformer_preview_coords"] = payload["coords_opt"]
+    state["conformer_preview_elements"] = payload["elements"]
+    state["conformer_preview_report"] = payload["report"]
+    state["conformer_applied"] = False
+
+    try:
+        result = payload["result"]
+        # Include candidate rank in the status if available.
+        rank_str = ""
+        report   = payload.get("report", "")
+        import re
+        m = re.search(r"Candidate #(\d+)\s*/\s*(\d+)", report)
+        if m:
+            rank_str = f" [#{m.group(1)}/{m.group(2)}]"
+        state["conformer_status_var"].set(
+            f"Preview ready{rank_str} | RMSD={result['rmsd']:.4f} ppm"
+            " — click '✅ Apply'"
+        )
+    except Exception:
+        pass
+
+    try:
+        from ui.plot_3d_window import _draw_3d_plot
+        _draw_3d_plot(state)
+    except Exception:
+        pass
+
+def apply_conformer_preview(state):
+    payload = state.get("conformer_preview")
+    if not payload:
+        state["messagebox"].showwarning("Conformer Preview", "No preview result available.")
+        return
+
+    coords = payload.get("coords_opt")
+    atom_data_src = state.get("atom_data_raw") or state.get("atom_data") or []
+
+    if coords is None or not atom_data_src:
+        state["messagebox"].showerror("Conformer Preview", "Missing preview coordinates.")
+        return
+
+    if len(coords) != len(atom_data_src):
+        state["messagebox"].showerror(
+            "Conformer Preview",
+            "Atom count mismatch between current structure and preview result."
+        )
+        return
+
+    # coords_opt는 conformer_search가 절대 좌표 기준으로 최적화한 결과.
+    # atom_data_raw(절대 좌표)에 덮어쓰는 것이므로 좌표계 일치함.
+    # atom_data_eff / filter_atoms()는 이후 apply_symavg_to_state()가 재계산.
+    new_atom_data = []
+    for (atom, _, _, _), (x, y, z) in zip(atom_data_src, coords):
+        new_atom_data.append((atom, float(x), float(y), float(z)))
+
+    # Keep raw only once
+    if state.get("atom_data_raw") is None and state.get("atom_data") is not None:
+        state["atom_data_raw"] = list(state["atom_data"])
+
+    state["atom_data_conformer"] = new_atom_data
+    state["atom_data_raw"] = list(new_atom_data)
+    state["atom_data"] = list(new_atom_data)
+    state["atom_ids_raw"] = list(range(1, len(new_atom_data) + 1))
+    state["conformer_applied"] = True
+    state["last_conformer_result"] = payload["result"]
+
+    try:
+        apply_symavg_to_state(state)
+    except Exception:
+        pass
+
+    # Put report into result box if available
+    try:
+        state["conformer_status_var"].set("Preview applied to current structure.")
+    except Exception:
+        pass
+
+    try:
+        box = state.get("conformer_result_box")
+        if box is not None:
+            box.delete("1.0", "end")
+            box.insert("end", payload["report"])
+    except Exception:
+        pass
+
+    # Refresh main app views
+    try:
+        state["update_graph"]()
+    except Exception:
+        pass
+
+    try:
+        state["plot_cartesian"](state)
+    except Exception:
+        try:
+            plot_cartesian_graph(state)
+        except Exception:
+            pass
+
+    try:
+        push_layers_to_nmr_if_open(state)
+    except Exception:
+        pass
+
+    try:
+        from ui.plot_3d_window import _draw_3d_plot
+        _draw_3d_plot(state)
+    except Exception:
+        pass
+
+    state["messagebox"].showinfo("Conformer Preview", "Preview coordinates applied.")
+
+def discard_conformer_preview(state):
+    state["conformer_preview"] = None
+    state["conformer_preview_coords"] = None
+    state["conformer_preview_elements"] = None
+    state["conformer_preview_report"] = ""
+    state["conformer_applied"] = False
+
+    try:
+        state["conformer_status_var"].set("Preview discarded.")
+    except Exception:
+        pass
+
+    try:
+        box = state.get("conformer_result_box")
+        if box is not None:
+            box.delete("1.0", "end")
+    except Exception:
+        pass
+
+    try:
+        from ui.plot_3d_window import _draw_3d_plot
+        _draw_3d_plot(state)
+    except Exception:
+        pass
+
+    state["messagebox"].showinfo("Conformer Preview", "Preview discarded.")
+
+def revert_conformer_to_original(state):
+    raw = state.get("atom_data_original")
+    if not raw:
+        state["messagebox"].showwarning("Conformer Preview", "No original structure stored.")
+        return
+
+    state["atom_data_raw"] = list(raw)
+    state["atom_data"] = list(raw)
+    state["atom_ids_raw"] = list(range(1, len(raw) + 1))
+    state["atom_data_conformer"] = None
+    state["conformer_applied"] = False
+
+    try:
+        apply_symavg_to_state(state)
+    except Exception:
+        pass
+
+    try:
+        state["update_graph"]()
+    except Exception:
+        pass
+
+    try:
+        state["plot_cartesian"](state)
+    except Exception:
+        try:
+            plot_cartesian_graph(state)
+        except Exception:
+            pass
+
+    try:
+        push_layers_to_nmr_if_open(state)
+    except Exception:
+        pass
+
+    try:
+        state["conformer_status_var"].set("Reverted to original structure.")
+    except Exception:
+        pass
+
+    try:
+        from ui.plot_3d_window import _draw_3d_plot
+        _draw_3d_plot(state)
+    except Exception:
+        pass
+
+    state["messagebox"].showinfo("Conformer Preview", "Reverted to original structure.")
 
 # select - table - plot
 def _on_tree_select_update_spectrum(state):
@@ -201,16 +538,24 @@ def build_app():
     state['projection_show_h_var'] =None
     state['projection_click_cid'] = None
     # 3D plot window
-    state["plot3d_popup"] = None
-    state["plot3d_figure"] = None
-    state["plot3d_canvas"] = None
-    state["plot3d_color_mode_var"] = None
-    state["plot3d_show_labels_var"] = None
-    state["plot3d_click_cid"] = None
-
+    state['plot3d_popup'] = None
+    state['plot3d_figure'] = None
+    state['plot3d_canvas'] = None
+    state['plot3d_color_mode_var'] = None
+    state['plot3d_show_labels_var'] = None
+    state['plot3d_click_cid'] = None
+    # conformer search - preview / apply state
+    state['conformer_preview'] = None
+    state['conformer_preview_coords'] = None
+    state['conformer_preview_elements'] = None
+    state['conformer_preview_report'] = ""
+    state['conformer_applied'] = False
+    state['atom_data_raw'] = None
+    state['atom_data_conformer'] = None
+    state['atom_data_original'] = None
 
     # Window size
-    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1180x910"); state['root'] = root
+    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1180x915"); state['root'] = root
     apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
 
     # Frames
@@ -318,7 +663,7 @@ def build_app():
     ).pack(side=tk.LEFT, padx=10)
 
     # 2) summary box (TOP)
-    state["diag_result_box"] = tk.Text(diagtab, height=6)
+    state["diag_result_box"] = tk.Text(diagtab, font=("Courier", 9), height=6)
     state["diag_result_box"].pack(fill=tk.X, padx=6, pady=(0, 6))
 
     # 3) figures container (BOTTOM)
@@ -375,7 +720,7 @@ def build_app():
             "Gi_ax", "Gi_rh", "δ_PCS(ax)", "δ_PCS(ax+rh)", "δ_Exp", "res(ax)", "res(ax+rh)")
 
     # ---------------------------
-    # NEW: Z-rotation row (between top and table)
+    # Z-rotation row (between top and table)
     # ---------------------------
     rh_zrow = ttk.Frame(rhtab)
     rh_zrow.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 6))
@@ -453,6 +798,8 @@ def build_app():
             rh_tree.insert("", "end", values=row)
         if hasattr(state["root"], "_stripe_treeview"):
             state["root"]._stripe_treeview(rh_tree)
+
+    state["rh_refresh_table"] = _rh_refresh_table
 
     def _apply_dchi_rh():
         s = state["rh_dchi_rh_var"].get().strip()
@@ -747,7 +1094,7 @@ def build_app():
     fit_right = ttk.Frame(fit_body)
     fit_right.grid(row=0, column=1, sticky="nsew")
 
-    state['fit_result_box'] = tk.Text(fit_left, height=10)
+    state['fit_result_box'] = tk.Text(fit_left, height=10, font=("Courier", 9))
     state['fit_result_box'].pack(fill=tk.BOTH, expand=True)
 
     fit_fig = Figure(figsize=(6, 3), dpi=50)
@@ -763,6 +1110,47 @@ def build_app():
     state['fit_corr_ax'] = fit_ax
     state['fit_corr_canvas'] = fit_canvas
 
+    # -------------------------------
+    # --- Advanced Fitting tab UI ---
+    # -------------------------------
+    build_advanced_fitting_tab(state, plots_nb)
+
+    # -------------------------------
+    # --- Conformer search tab UI ---
+    # -------------------------------
+    cstab = ttk.Frame(plots_nb)
+    plots_nb.add(cstab, text="🔍 Conformer Search")
+    state["conformer_tab"] = cstab
+
+    # ── 액션 바 ──────────────────────────────────────────────────────────────
+    cs_btns = ttk.Frame(cstab)
+    cs_btns.pack(fill=tk.X, padx=6, pady=(4, 2))
+
+    ttk.Button(cs_btns, text="🔄 Sync structure & PCS",
+               command=lambda: open_conformer_search(state)).pack(side=tk.LEFT, padx=3)
+    ttk.Button(cs_btns, text="✅ Apply candidate",
+               command=lambda: apply_conformer_preview(state)).pack(side=tk.LEFT, padx=3)
+    ttk.Button(cs_btns, text="↺ Revert",
+               command=lambda: revert_conformer_to_original(state)).pack(side=tk.LEFT, padx=3)
+    ttk.Button(cs_btns, text="🗑 Discard",
+               command=lambda: discard_conformer_preview(state)).pack(side=tk.LEFT, padx=3)
+
+    state["conformer_status_var"] = tk.StringVar(
+        value="Load XYZ and δ_Exp, then press the '🔄 Sync' button.")
+    ttk.Label(cs_btns, textvariable=state["conformer_status_var"],
+              foreground="gray").pack(side=tk.LEFT, padx=(10, 0))
+
+    # ── 4개 서브탭 직접 embed ────────────────────────────────────────────────
+    cs_embed_frame = ttk.Frame(cstab)
+    cs_embed_frame.pack(fill=tk.BOTH, expand=True)
+
+    cs_app = run_conformer_search_gui(
+        embed_in=cs_embed_frame,
+        on_preview_result=lambda payload: _conformer_preview_callback(state, payload),
+    )
+    state["conformer_search_app"] = cs_app
+    # _result_box는 ScrolledText(disabled) — _show_result()가 직접 씀
+    state["conformer_result_box"] = cs_app._result_box
 
     # Right inputs region
     input_frame = ttk.Frame(right_frame); input_frame.pack(fill=tk.Y, padx=10, pady=10); state['input_frame']=input_frame
@@ -1614,6 +2002,28 @@ def reset_values(state):
         for it in rh_tree.get_children():
             rh_tree.delete(it)
 
+    # conformer search reset
+    state['atom_data_raw'] = None
+    state['atom_data_eff'] = []
+    state['atom_ids_eff'] = []
+    state['ref_label_overrides'] = {}
+    state['symavg_pseudo_ref_ids'] = set()
+    state['symavg_records'] = []
+    state['metal_ref_id'] = None
+    state['atom_data_original'] = None
+    state['atom_data_conformer'] = None
+
+    state['conformer_preview'] = None
+    state['conformer_preview_coords'] = None
+    state['conformer_preview_elements'] = None
+    state['conformer_preview_report'] = ""
+    state['conformer_applied'] = False
+
+    if 'conformer_status_var' in state:
+        state['conformer_status_var'].set("Ready.")
+    if 'conformer_result_box' in state:
+        state['conformer_result_box'].delete("1.0", "end")
+
     update_graph(state)
 
     # (4) 가능하면 Rh 테이블도 "현재 상태"로 다시 채우기 (원하면 주석 해제)
@@ -1804,24 +2214,44 @@ def load_xyz_file(state):
 
     atom_data = load_structure(path)
 
+    # reset conformer search
+    state['conformer_preview'] = None
+    state['conformer_preview_coords'] = None
+    state['conformer_preview_elements'] = None
+    state['conformer_preview_report'] = ""
+    state['conformer_applied'] = False
+
+    if 'conformer_status_var' in state:
+        state['conformer_status_var'].set(
+            "Structure loaded. Click '🔄 Sync' after loading δ_Exp")
+
     # Keep raw for 3D plot
-    state["atom_data_raw"] = atom_data
-    state["atom_data"] = atom_data  # keep existing key for 3D viewer compatibility
+    state["atom_data_original"] = list(atom_data)
+    state["atom_data_raw"] = list(atom_data)
+    state["atom_data"] = list(atom_data)
     state["atom_ids_raw"] = list(range(1, len(atom_data) + 1))
 
     # Build effective (2D/table) data based on checkbox
     apply_symavg_to_state(state)
 
     target_atom = state['simpledialog'].askstring("Input center atom", "Enter the center atom (element) :")
+    if not target_atom:
+        return
     tgt = None
-    for atom, x, y, z in atom_data:
+    metal_ref_id = None
+
+    for idx, (atom, x, y, z) in enumerate(atom_data, start=1):
         if atom == target_atom:
             tgt = (x, y, z)
+            metal_ref_id = idx
             break
+
     if tgt is None:
         state['messagebox'].showerror("Error", f"Atom {target_atom} not found in the file.")
         return
+
     state['x0'], state['y0'], state['z0'] = tgt
+    state['metal_ref_id'] = metal_ref_id
 
     create_checklist(state)
     apply_symavg_to_state(state)

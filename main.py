@@ -62,6 +62,8 @@ v.2.0.0 updates
 - Separated PCS polar plot from main window
 - 2D, 3D, Projection plots updated
 - Table select interaction
+- Advanced Fitting Tab
+- Conformer search and fitting app
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com>

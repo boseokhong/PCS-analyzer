@@ -31,5 +31,35 @@ covalent_radii = {
     'Ta': 1.70, 'W': 1.62, 'Re': 1.51, 'Os': 1.44, 'Ir': 1.41, 'Pt': 1.36,
     'Au': 1.36, 'Hg': 1.32, 'Tl': 1.45, 'Pb': 1.46, 'Bi': 1.48, 'Po': 1.40,
     'At': 1.50, 'Rn': 1.50, 'Fr': 2.60, 'Ra': 2.21, 'Ac': 2.15, 'Th': 2.06,
-    'Pa': 2.00, 'U': 1.96, 'Np': 1.90, 'Pu': 1.87, 'Am': 1.80, 'Cm': 1.69
+    'Pa': 2.00, 'U': 1.96, 'Np': 1.90, 'Pu': 1.87, 'Am': 1.80, 'Cm': 1.69,
+    'default': 0.80,
+}
+
+# van der Waals radii
+VDW_RADII = {
+    "H": 1.20, "C": 1.70, "N": 1.55, "O": 1.52, "F": 1.47,
+    "P": 1.80, "S": 1.80, "Cl": 1.75, "Br": 1.85, "I": 1.98,
+    "He": 1.40, "Ne": 1.54, "Ar": 1.88, "Kr": 2.02, "Xe": 2.16,
+    "Li": 1.82, "Na": 2.27, "K": 2.75, "Rb": 3.03, "Cs": 3.43,
+    "Be": 1.53, "Mg": 1.73, "Ca": 2.31, "Sr": 2.49, "Ba": 2.68,
+    "Sc": 2.30, "Y": 2.40,
+    "La": 2.50, "Ce": 2.48, "Pr": 2.47, "Nd": 2.45, "Sm": 2.42,
+    "Eu": 2.40, "Gd": 2.38, "Tb": 2.37, "Dy": 2.35, "Ho": 2.33,
+    "Er": 2.32, "Tm": 2.30, "Yb": 2.28, "Lu": 2.27,
+    "Ac": 2.60, "Th": 2.55, "Pa": 2.43, "U": 2.41, "Np": 2.39,
+    "Pu": 2.43, "Am": 2.44, "Cm": 2.45,
+    "default": 1.70,
+}
+
+# Broad metal classification used by conformer search / graph logic
+METAL_ELEMENTS = {
+    "Li", "Na", "K", "Rb", "Cs", "Be", "Mg", "Ca", "Sr", "Ba",
+    "Sc", "Y",
+    "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy",
+    "Ho", "Er", "Tm", "Yb", "Lu",
+    "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm",
+    "Ti", "Zr", "Hf", "V", "Nb", "Ta", "Cr", "Mo", "W",
+    "Mn", "Tc", "Re", "Fe", "Ru", "Os", "Co", "Rh", "Ir",
+    "Ni", "Pd", "Pt", "Cu", "Ag", "Au", "Zn", "Cd", "Hg",
+    "Al", "Ga", "In", "Tl", "Sn", "Pb", "Bi",
 }
