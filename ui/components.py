@@ -16,7 +16,7 @@ from logic.xyz_loader import load_structure
 from logic.func_group_collapse import collapse_methyl_groups, collapse_cf3_groups
 
 from logic.plot_pcs import plot_graph
-from logic.plot_cartesian import plot_cartesian_graph
+from logic.plot_cartesian import plot_cartesian_graph, export_cartesian_plot
 from logic.table_utils import (
     update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui, calculate_tensor_components_ui_ax_rh,
     export_delta_exp_template, import_delta_exp_file, import_delta_exp_from_clipboard, undo_last_delta_import, clear_delta_exp
@@ -635,7 +635,7 @@ def build_app():
     # --- Cartesian tab UI ---
     # -------------------------
     cartesian_tab = ttk.Frame(plots_nb)
-    plots_nb.add(cartesian_tab, text="📈 Plot")
+    plots_nb.add(cartesian_tab, text="📈 Gᵢ vs PCS")
 
     plot_body = ttk.Frame(cartesian_tab)
     plot_body.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
@@ -661,6 +661,13 @@ def build_app():
     state["cartesian_plot_rows"] = []
 
     ttk.Label(plot_right, text="Plot Results").pack(anchor="w", pady=(0, 4))
+    state["plot_force_origin_var"] = tk.BooleanVar(value=False)
+    ttk.Checkbutton(
+        plot_right,
+        text="Force fit through origin",
+        variable=state["plot_force_origin_var"],
+        command=lambda: plot_cartesian_graph(state),
+    ).pack(anchor="w", pady=(0, 6))
 
     plot_result_box = tk.Text(plot_right, height=12, width=34, wrap="word", font=("Consolas", 9))
     plot_result_box.pack(fill=tk.BOTH, expand=True)
@@ -669,11 +676,13 @@ def build_app():
 
     state["plot_result_box"] = plot_result_box
 
+    ttk.Button(plot_right, text="💾 Export Plot & Summary", command=lambda: export_cartesian_plot(state)).pack(anchor="e", pady=(6, 0))
+
     # --------------------------
     # --- Diagnostic tab UI ---
     # --------------------------
     diagtab = ttk.Frame(plots_nb)
-    plots_nb.add(diagtab, text="📊 Diagnostic")
+    plots_nb.add(diagtab, text="📊 Rhombicity Check")
     state["diagtab"] = diagtab
 
     # 1) button row (TOP)
@@ -723,7 +732,7 @@ def build_app():
     # --- Rhombicity tab UI ----
     # --------------------------
     rhtab = ttk.Frame(plots_nb, width=560)  # Fixed width
-    plots_nb.add(rhtab, text="📊 Rhombicity")
+    plots_nb.add(rhtab, text="📊 Rhombicity Table")
 
     # Prevent the tab frame from resizing to the requested size of its children.
     rhtab.grid_propagate(False)
@@ -872,7 +881,7 @@ def build_app():
         text="Enable Δχ_rh",
         variable=state["rh_calc_enabled_var"],
         command=_on_toggle_rh_calc
-    ).pack(side="left", padx=(10, 0))
+    ).pack(side="right", padx=(10, 0))
 
     def _calc_chi_tensor_from_ui():
         ph = state.get("chi_placeholder_text")
@@ -901,7 +910,7 @@ def build_app():
             )
 
     ttk.Button(rh_top, text="🧮 Calc χ(xx,yy,zz)", command=_calc_chi_tensor_from_ui) \
-        .pack(side="left", padx=(4, 0))
+        .pack(side="right", padx=(4, 0))
 
     # --------------------------
     # --- Fitting tab UI -------
@@ -1129,7 +1138,7 @@ def build_app():
     fit_right = ttk.Frame(fit_body)
     fit_right.grid(row=0, column=1, sticky="nsew")
 
-    state['fit_result_box'] = tk.Text(fit_left, height=10, font=("Consolas", 9))
+    state['fit_result_box'] = tk.Text(fit_left, height=10, font=("Consolas", 9), wrap="none")
     state['fit_result_box'].pack(fill=tk.BOTH, expand=True)
 
     fit_fig = Figure(figsize=(6, 3), dpi=50)
@@ -1603,90 +1612,228 @@ def run_fit_from_ui(state):
     threading.Thread(target=_worker, daemon=True).start()
 
 def _show_fit_result(state, res):
+    import numpy as np
+
     box = state['fit_result_box']
     box.delete("1.0", "end")
 
-    # ratio threshold warning
-    state.setdefault("rh_ratio_warn_threshold", 0.5)  # ratio threshold 0.5
+    state.setdefault("rh_ratio_warn_threshold", 0.5)
 
     mode = res.get('mode')
+    per_point = list(res.get('per_point', []) or [])
+
+    atom_by_id = state.get("atom_by_id", {}) or {}
+    label_overrides = state.get("ref_label_overrides", {}) or {}
+
+    def atom_label(rid):
+        return label_overrides.get(rid, atom_by_id.get(rid, ""))
+
+    def add(line=""):
+        box.insert("end", line + "\n")
+
+    def sec(title, char="="):
+        bar = char * 78
+        add(bar)
+        add(title)
+        add(bar)
+
+    def fmt_float(v, nd=3, signed=False):
+        try:
+            v = float(v)
+            if np.isnan(v):
+                return "nan"
+            return f"{v:+.{nd}f}" if signed else f"{v:.{nd}f}"
+        except Exception:
+            return "n/a"
+
+    def fmt_sci(v, nd=3):
+        try:
+            v = float(v)
+            if np.isnan(v):
+                return "nan"
+            return f"{v:.{nd}e}"
+        except Exception:
+            return "n/a"
+
+    def fmt_list(vals):
+        if not vals:
+            return "-"
+        return ", ".join(str(v) for v in vals)
+
+    ref_w = max(3, max((len(str(rid)) for rid, *_ in per_point), default=3))
+    atom_w = max(4, min(18, max((len(str(atom_label(rid))) for rid, *_ in per_point), default=4)))
+
+    top_res = sorted(per_point, key=lambda x: abs(float(x[3])), reverse=True)[:5]
+
+    # ------------------------------------------------------------------
+    # Header
+    # ------------------------------------------------------------------
+    if mode == 'theta_alpha_multi':
+        title = "Mode A  |  Ligand-donor axis fit"
+        subtitle = f"Axis mode: {res.get('axis_mode', 'n/a')}"
+    elif mode == 'euler_global':
+        title = "Mode B  |  Global Euler fit"
+        subtitle = "Rigid-body rotation in the global frame"
+    elif mode == 'full_tensor':
+        title = "Mode C  |  Full tensor / metal-position fit"
+        subtitle = "Euler + metal position + tensor parameters"
+    else:
+        title = f"Unknown mode  |  {mode}"
+        subtitle = ""
+
+    sec(title, "=")
+    if subtitle:
+        add(subtitle)
+    add()
+
+    # ------------------------------------------------------------------
+    # Section 1: Optimized parameters
+    # ------------------------------------------------------------------
+    sec("Optimized parameters", "-")
 
     if mode == 'theta_alpha_multi':
-        box.insert("end", f"[Mode A] axis={res.get('axis_mode')}\n")
-        box.insert("end", f"Donors: {res['donor_ids']}\n")
-        box.insert("end", f"θ* = {res['theta']:.2f}°, α* = {res['alpha']:.2f}°\n")
+        add(f"Donor IDs               : {fmt_list(res.get('donor_ids', []))}")
+        add(f"θ*                      : {fmt_float(res.get('theta'), 2)}°")
+        add(f"α*                      : {fmt_float(res.get('alpha'), 2)}°")
 
     elif mode == 'euler_global':
-        box.insert("end", "[Mode B] Euler global\n")
-        box.insert("end", f"ax = {res['ax']:.2f}°, ay = {res['ay']:.2f}°, az = {res['az']:.2f}°\n")
+        add(f"ax                      : {fmt_float(res.get('ax'), 2)}°")
+        add(f"ay                      : {fmt_float(res.get('ay'), 2)}°")
+        add(f"az                      : {fmt_float(res.get('az'), 2)}°")
 
     elif mode == 'full_tensor':
-        box.insert("end", "[Mode C] Full tensor fit\n")
         if 'metal_pos' in res:
             mx, my, mz = res['metal_pos']
-            box.insert("end", f"Metal position = ({mx:.3f}, {my:.3f}, {mz:.3f})\n")
+            add(f"Metal position          : ({mx:.3f}, {my:.3f}, {mz:.3f})")
         if 'euler_deg' in res:
             ea, eb, eg = res['euler_deg']
-            box.insert("end", f"Euler angles = ({ea:.2f}°, {eb:.2f}°, {eg:.2f}°)\n")
+            add(f"Euler α, β, γ           : ({ea:.2f}°, {eb:.2f}°, {eg:.2f}°)")
 
-    else:
-        box.insert("end", f"[Unknown mode] {mode}\n")
-
-    # --- χ tensor parameters ---
-    box.insert("end", f"Δχ_ax = {res['delta_chi_ax']:.3e} (E-32 m³)\n")
+    add(f"Δχ_ax                   : {fmt_sci(res.get('delta_chi_ax'))}  (E-32 m³)")
 
     if 'delta_chi_rh' in res:
-        dchi_ax = res['delta_chi_ax']
-        dchi_rh = res['delta_chi_rh']
-        box.insert("end", f"Δχ_rh = {dchi_rh:.3e} (E-32 m³)\n")
-        if abs(dchi_ax) > 0:
+        dchi_ax = float(res.get('delta_chi_ax', np.nan))
+        dchi_rh = float(res.get('delta_chi_rh', np.nan))
+        add(f"Δχ_rh                   : {fmt_sci(dchi_rh)}  (E-32 m³)")
+
+        if np.isfinite(dchi_ax) and abs(dchi_ax) > 0:
             ratio = abs(dchi_rh / dchi_ax)
-            box.insert("end", f"|Δχ_rh / Δχ_ax| = {ratio:.3f}\n")
+            add(f"|Δχ_rh / Δχ_ax|         : {ratio:.3f}")
+
             thr = float(state.get("rh_ratio_warn_threshold", 0.5))
             if ratio > thr:
-                box.insert(
-                    "end",
-                    f"⚠ Warning: |Δχ_rh/Δχ_ax| exceeds {thr:.2f}. "
-                    "Rhombic fit may be unstable or φ-reference/convention may be ill-defined.\n"
-                )
+                add(f"Warning                 : |Δχ_rh/Δχ_ax| > {thr:.2f}")
+                add("                          Rhombic fit may be unstable or")
+                add("                          the φ-reference may be ill-defined.")
         else:
-            box.insert("end", "|Δχ_rh / Δχ_ax| = undefined (Δχ_ax = 0)\n")
+            add("|Δχ_rh / Δχ_ax|         : undefined (Δχ_ax = 0)")
 
-    # --- φ reference / z-rotation meaning (mode-dependent) ---
+    add()
+
+    # ------------------------------------------------------------------
+    # Section 2: Reference / frame information
+    # ------------------------------------------------------------------
+    sec("Reference / frame information", "-")
+
     if mode == 'theta_alpha_multi':
-        # In Mode A, the φ reference follows the user-defined z-rotation.
         try:
             az_ref = float(state.get('angle_z_var', 0.0).get())
-            box.insert("end", f"φ reference (user z-rotation) = {az_ref:.1f}°\n")
+            add(f"φ reference             : user z-rotation = {az_ref:.1f}°")
         except Exception:
-            pass
+            add("φ reference             : n/a")
 
     elif mode == 'euler_global':
-        # In Mode B, az is part of the fitted Euler angles.
-        box.insert("end", f"Euler z-angle (az) = {res['az']:.2f}°  (φ reference is defined by Euler convention)\n")
+        add("φ reference             : Euler convention")
+        add(f"z-angle reference       : az = {fmt_float(res.get('az'), 2)}°")
 
     elif mode == 'full_tensor':
-        # In Mode C, the Euler convention is defined by the fitted tensor orientation.
         if 'euler_deg' in res:
             _, _, eg = res['euler_deg']
-            box.insert("end", f"Euler z-angle = {eg:.2f}°  (tensor orientation from full-tensor fit)\n")
+            add("φ reference             : tensor-frame Euler convention")
+            add(f"z-angle reference       : γ = {eg:.2f}°")
+        else:
+            add("φ reference             : tensor-frame convention")
 
-    # --- fit quality ---
-    box.insert("end", f"RMSD = {res['rmsd']:.3f} ppm  (N = {res['n']})\n")
+    else:
+        add("φ reference             : n/a")
+
+    add()
+
+    # ------------------------------------------------------------------
+    # Section 3: Fit quality
+    # ------------------------------------------------------------------
+    sec("Fit quality", "-")
+
+    add(f"N points                : {res.get('n', 0)}")
+    add(f"RMSD                    : {fmt_float(res.get('rmsd'), 4)} ppm")
+
     r2 = res.get('r2', float('nan'))
     if not np.isnan(r2):
-        box.insert("end", f"R² = {r2:.4f}\n")
+        add(f"R²                      : {r2:.4f}")
+
     qf = res.get('q_factor', float('nan'))
     if not np.isnan(qf):
-        box.insert("end", f"Q-factor = {qf:.4f}\n")
+        add(f"Q-factor                : {qf:.4f}")
+
     chi2_n = res.get('chi2_n', float('nan'))
     if not np.isnan(chi2_n):
-        box.insert("end", f"χ²/N = {chi2_n:.4f} ppm²\n")
-    box.insert("end", "\n")
+        add(f"χ²/N                    : {chi2_n:.4f} ppm²")
 
-    box.insert("end", "Ref\tδ_exp\tδ_pred\tresid\n")
-    for rid, exp, pred, r in res['per_point']:
-        box.insert("end", f"{rid}\t{exp:.3f}\t{pred:.3f}\t{r:+.3f}\n")
+    add()
+
+    # ------------------------------------------------------------------
+    # Section 4: Largest residuals
+    # ------------------------------------------------------------------
+    sec("Largest residuals (top 5 by |resid|)", "-")
+
+    if top_res:
+        add(
+            f"{'Ref':>{ref_w}}   "
+            f"{'Atom':<{atom_w}}   "
+            f"{'δ_exp':>10}   "
+            f"{'δ_pred':>10}   "
+            f"{'resid':>10}"
+        )
+        add("-" * (ref_w + atom_w + 39))
+
+        for rid, exp, pred, r in top_res:
+            add(
+                f"{rid:>{ref_w}}   "
+                f"{str(atom_label(rid)):<{atom_w}.{atom_w}}   "
+                f"{exp:>10.3f}   "
+                f"{pred:>10.3f}   "
+                f"{r:>+10.3f}"
+            )
+    else:
+        add("No fitted points.")
+
+    add()
+
+    # ------------------------------------------------------------------
+    # Section 5: Full per-point results
+    # ------------------------------------------------------------------
+    sec("Per-point results", "-")
+
+    if per_point:
+        add(
+            f"{'Ref':>{ref_w}}   "
+            f"{'Atom':<{atom_w}}   "
+            f"{'δ_exp':>10}   "
+            f"{'δ_pred':>10}   "
+            f"{'resid':>10}"
+        )
+        add("-" * (ref_w + atom_w + 39))
+
+        for rid, exp, pred, r in per_point:
+            add(
+                f"{rid:>{ref_w}}   "
+                f"{str(atom_label(rid)):<{atom_w}.{atom_w}}   "
+                f"{exp:>10.3f}   "
+                f"{pred:>10.3f}   "
+                f"{r:>+10.3f}"
+            )
+    else:
+        add("No fitted points.")
 
 # Fitting function - correlation plot
 def update_fit_correlation_plot_from_result(state, res):
@@ -1821,8 +1968,18 @@ def on_save_plot_any(state):
 
     if ext == ".xlsx":
         pcs_values, theta_values, tensor, polar_data = recompute_plot_inputs(state)
-        from logic.export_utils import save_to_excel
-        save_to_excel(pcs_values, theta_values, tensor, fd, polar_data)
+        try:
+            from logic.export_utils import save_to_excel
+            save_to_excel(pcs_values, theta_values, tensor, fd, polar_data)
+        except ModuleNotFoundError as e:
+            if "openpyxl" in str(e):
+                state['messagebox'].showerror(
+                    "Export",
+                    "Excel export requires the 'openpyxl' package.\n\n"
+                    "Install it with:\npython -m pip install openpyxl"
+                )
+                return
+            raise
         state['messagebox'].showinfo("Export", f"Saved Excel:\n{fd}")
 
     elif ext == ".csv":
@@ -1877,8 +2034,19 @@ def on_save_plot_any(state):
         # 확장자 없으면 .xlsx로 저장
         fd_x = base + ".xlsx"
         pcs_values, theta_values, tensor, polar_data = recompute_plot_inputs(state)
-        from logic.export_utils import save_to_excel
-        save_to_excel(pcs_values, theta_values, tensor, fd_x, polar_data)
+        try:
+            from logic.export_utils import save_to_excel
+            save_to_excel(pcs_values, theta_values, tensor, fd_x, polar_data)
+        except ModuleNotFoundError as e:
+            if "openpyxl" in str(e):
+                state['messagebox'].showerror(
+                    "Export",
+                    "Excel export requires the 'openpyxl' package.\n\n"
+                    "Install it with:\n"
+                    "python -m pip install openpyxl"
+                )
+                return
+            raise
         state['messagebox'].showinfo("Export", f"No/unknown extension. Saved as Excel:\n{fd_x}")
 
 def on_save_table_any(state):
@@ -1900,9 +2068,18 @@ def on_save_table_any(state):
     rh_tree = state.get("rh_tree", None)
 
     if ext == ".xlsx":
-        # 메인 + Rhombicity(있으면)를 같은 xlsx에 시트로 저장
-        from logic.export_utils import export_tables_to_excel
-        export_tables_to_excel(state['tree'], fd, rh_tree=rh_tree)
+        try:
+            from logic.export_utils import export_tables_to_excel
+            export_tables_to_excel(state['tree'], fd, rh_tree=rh_tree)
+        except ModuleNotFoundError as e:
+            if "openpyxl" in str(e):
+                state['messagebox'].showerror(
+                    "Export",
+                    "Excel export requires the 'openpyxl' package.\n\n"
+                    "Install it with:\npython -m pip install openpyxl"
+                )
+                return
+            raise
         state['messagebox'].showinfo("Export", f"Saved Excel table:\n{fd}")
 
     elif ext == ".csv":
@@ -1917,8 +2094,18 @@ def on_save_table_any(state):
 
     else:
         fd_x = base + ".xlsx"
-        from logic.export_utils import export_tables_to_excel
-        export_tables_to_excel(state['tree'], fd_x, rh_tree=rh_tree)
+        try:
+            from logic.export_utils import export_tables_to_excel
+            export_tables_to_excel(state['tree'], fd_x, rh_tree=rh_tree)
+        except ModuleNotFoundError as e:
+            if "openpyxl" in str(e):
+                state['messagebox'].showerror(
+                    "Export",
+                    "Excel export requires the 'openpyxl' package.\n\n"
+                    "Install it with:\npython -m pip install openpyxl"
+                )
+                return
+            raise
         state['messagebox'].showinfo("Export", f"No/unknown extension. Saved as Excel:\n{fd_x}")
 
 def recompute_plot_inputs(state):

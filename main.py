@@ -58,13 +58,14 @@ v.1.2.0 updates
 -Bug fixes and code refactoring
 
 v.2.0.0 updates
-- Fitting [Mode C] added
 - Separated PCS polar plot from main window
-- 2D, 3D, Projection plots updated
-- Table select interaction
+- G_i vs delta_PCS Plot : better interaction and result box
+- Table ↔ plot select/highlight interaction
+- 2D plor, 3D molecular, Projection plots updated
+- Fitting tab : [Mode C] added
 - Advanced Fitting Tab
 - Conformer search and fitting app
-- Plot tab : better interaction
+
 
 2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com>
