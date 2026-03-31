@@ -19,7 +19,7 @@ from logic.plot_pcs import plot_graph
 from logic.plot_cartesian import plot_cartesian_graph, export_cartesian_plot
 from logic.table_utils import (
     update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui, calculate_tensor_components_ui_ax_rh,
-    export_delta_exp_template, import_delta_exp_file, import_delta_exp_from_clipboard, undo_last_delta_import, clear_delta_exp
+    export_delta_exp_template, import_delta_exp_file, import_delta_exp_from_clipboard, undo_last_delta_import, clear_delta_exp, classify_residual_tag
 )
 from logic.rotate_align import rotate_coordinates, rotate_euler
 from logic.chem_constants import CPK_COLORS
@@ -527,6 +527,10 @@ def build_app():
     state = {}
     # Tk and common modules
     state['tk'] = tk; state['ttk'] = ttk
+    # common state for (delta_EXP, delta_PCS) residual
+    state["residual_thr_ok"] = 0.10     #ppm
+    state["residual_thr_warn"] = 0.30   #ppm
+
     state['filedialog'] = filedialog; state['simpledialog'] = simpledialog; state['messagebox'] = messagebox
     state['FigureCanvas'] = FigureCanvasTkAgg; state['NavigationToolbar2Tk'] = NavigationToolbar2Tk
     # handle for the NMR spectrum window
@@ -567,6 +571,8 @@ def build_app():
     root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1180x915"); state['root'] = root
     apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
 
+    state["residual_color_enabled_var"] = tk.BooleanVar(value=False)
+
     # Frames
     main_frame = ttk.Frame(root)
     main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -602,6 +608,12 @@ def build_app():
     tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     state['tree']=tree
 
+    # Residual Thresholds related
+    tree.tag_configure("ok",   foreground="#2ca02c")
+    tree.tag_configure("warn", foreground="#ff7f0e")
+    tree.tag_configure("bad",  foreground="#d62728")
+    tree.tag_configure("none", foreground="#888888")
+
     table_btns = ttk.Frame(center_frame)
     table_btns.pack(side=tk.TOP, fill=tk.X, padx=3, pady=(4, 6))
     ttk.Button(
@@ -622,6 +634,39 @@ def build_app():
         table_btns, text="❌ Clear δ_Exp",
         command=lambda: clear_delta_exp(state, plot_cartesian_graph)
     ).pack(side=tk.LEFT, padx=6)
+
+    # Residual threshold legend
+    ttk.Separator(table_btns, orient="vertical").pack(side=tk.LEFT, fill=tk.Y, padx=8)
+
+    thr_box = ttk.Frame(table_btns)
+    thr_box.pack(side=tk.RIGHT, padx=(2, 0))
+
+    def _refresh_residual_colours():
+        try:
+            state["update_graph"]()
+        except Exception:
+            pass
+        try:
+            if "rh_refresh_table" in state:
+                state["rh_refresh_table"]()
+        except Exception:
+            pass
+
+    ttk.Checkbutton(
+        thr_box,
+        text="Color",
+        variable=state["residual_color_enabled_var"],
+        command=_refresh_residual_colours,
+    ).pack(side=tk.RIGHT)
+
+    ttk.Label(thr_box, text=">0.30 ppm").pack(side=tk.RIGHT, padx=(0, 4))
+    ttk.Label(thr_box, text="●", foreground="#d62728").pack(side=tk.RIGHT)
+    ttk.Label(thr_box, text="≤0.30").pack(side=tk.RIGHT, padx=(0, 4))
+    ttk.Label(thr_box, text="●", foreground="#ff7f0e").pack(side=tk.RIGHT)
+    ttk.Label(thr_box, text="≤0.10").pack(side=tk.RIGHT, padx=(0, 4))
+    ttk.Label(thr_box, text="●", foreground="#2ca02c").pack(side=tk.RIGHT)
+    ttk.Label(thr_box, text="Residual :").pack(side=tk.RIGHT, padx=(0, 4))
+
 
     _sep(center_frame, orient='horizontal', pady=6, fill='x')
 
@@ -807,6 +852,12 @@ def build_app():
 
     rh_tree = ttk.Treeview(rh_table_frame, columns=cols, show="headings", height=18)
 
+    # Rhombicity table residual thresholds
+    rh_tree.tag_configure("ok",   foreground="#2ca02c")
+    rh_tree.tag_configure("warn", foreground="#ff7f0e")
+    rh_tree.tag_configure("bad",  foreground="#d62728")
+    rh_tree.tag_configure("none", foreground="#888888")
+
     # Vertical and horizontal scrollbars
     rh_ys = ttk.Scrollbar(rh_table_frame, orient="vertical", command=rh_tree.yview)
     rh_xs = ttk.Scrollbar(rh_table_frame, orient="horizontal", command=rh_tree.xview)
@@ -834,12 +885,29 @@ def build_app():
         for it in rh_tree.get_children():
             rh_tree.delete(it)
         try:
-            rows = build_rh_table_rows(state, filter_atoms)  # filter_atoms는 기존 components.py 함수
+            rows = build_rh_table_rows(state, filter_atoms)
         except Exception as e:
             state["messagebox"].showerror("Rhombicity", str(e))
             return
+
+        use_axrh = bool(state.get("rh_calc_enabled", False))
+
         for row in rows:
-            rh_tree.insert("", "end", values=row)
+            residual = None
+            try:
+                # row layout:
+                # 0 Ref, 1 Atom, 2 r, 3 theta, 4 phi, 5 Gi_ax, 6 Gi_rh,
+                # 7 δ_PCS(ax), 8 δ_PCS(ax+rh), 9 δ_Exp, 10 res(ax), 11 res(ax+rh)
+                res_val = row[11] if use_axrh else row[10]
+                s = str(res_val).strip()
+                if s != "":
+                    residual = float(s)
+            except Exception:
+                residual = None
+
+            tags = classify_residual_tag(state, residual)
+            rh_tree.insert("", "end", values=row, tags=tags)
+
         if hasattr(state["root"], "_stripe_treeview"):
             state["root"]._stripe_treeview(rh_tree)
 
@@ -911,6 +979,15 @@ def build_app():
 
     ttk.Button(rh_top, text="🧮 Calc χ(xx,yy,zz)", command=_calc_chi_tensor_from_ui) \
         .pack(side="right", padx=(4, 0))
+
+    ttk.Label(rh_top, text=">0.30 ppm").pack(side=tk.RIGHT, padx=(0, 4))
+    ttk.Label(rh_top, text="●", foreground="#d62728").pack(side=tk.RIGHT)
+    ttk.Label(rh_top, text="≤0.30").pack(side=tk.RIGHT, padx=(0, 4))
+    ttk.Label(rh_top, text="●", foreground="#ff7f0e").pack(side=tk.RIGHT)
+    ttk.Label(rh_top, text="≤0.10").pack(side=tk.RIGHT, padx=(0, 4))
+    ttk.Label(rh_top, text="●", foreground="#2ca02c").pack(side=tk.RIGHT)
+    ttk.Label(rh_top, text="Residual :").pack(side=tk.RIGHT, padx=(0, 4))
+
 
     # --------------------------
     # --- Fitting tab UI -------
@@ -1499,8 +1576,9 @@ def build_app():
     # Export buttons
     sbf = ttk.Frame(cmdf); sbf.pack(side=tk.RIGHT, padx=15)
     ttk.Label(sbf, text="Export data ", font=("default",9,"bold")).grid(row=1, column=0, sticky="ew", pady=3)
-    ttk.Button(sbf, text="💾 Save plot",  command=lambda: on_save_plot_any(state)).grid( row=1, column=1, sticky="ew", padx=2, pady=1)
-    ttk.Button(sbf, text="💾 Save table", command=lambda: on_save_table_any(state)).grid(row=1, column=2, sticky="ew", padx=2, pady=1)
+    ttk.Button(sbf, text="💾 Save XYZ", command=lambda: on_save_visible_xyz(state)).grid(row=1, column=1, sticky="ew", padx=2, pady=1)
+    ttk.Button(sbf, text="💾 Save plot",  command=lambda: on_save_plot_any(state)).grid( row=1, column=2, sticky="ew", padx=2, pady=1)
+    ttk.Button(sbf, text="💾 Save table", command=lambda: on_save_table_any(state)).grid(row=1, column=3, sticky="ew", padx=2, pady=1)
 
     # Defaults
     state['delta_exp_values'] = {}
@@ -2107,6 +2185,104 @@ def on_save_table_any(state):
                 return
             raise
         state['messagebox'].showinfo("Export", f"No/unknown extension. Saved as Excel:\n{fd_x}")
+
+# Save .xyz file related helper
+def get_visible_xyz_rows(state):
+    """
+    Return the currently visible structure in the same metal-centered,
+    rotated coordinate frame used by the 2D/table pipeline.
+
+    Returns:
+        list of (element, x, y, z)
+    """
+    sel = {a for a, v in state['check_vars'].items() if v.get()}
+
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = state.get("atom_ids_eff") or state.get("atom_ids") or list(range(1, len(atom_data) + 1))
+
+    if not atom_data:
+        return []
+
+    abs_coords = np.array([[x, y, z] for a, x, y, z in atom_data], dtype=float)
+    metal = np.array([state['x0'], state['y0'], state['z0']], dtype=float)
+
+    fo = state.get('fit_override')
+    if fo:
+        mode = (fo.get('mode') or '').lower()
+
+        if mode == 'theta_alpha_multi':
+            id2idx = {rid: i for i, rid in enumerate(ids)}
+            donor_ids = fo.get('donor_ids') or []
+            if donor_ids:
+                donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
+                abs_coords = _angles_to_rotation_multi(
+                    points=abs_coords,
+                    metal=metal,
+                    donor_points=donor_pts,
+                    theta_deg=fo.get('theta', 0.0),
+                    alpha_deg=fo.get('alpha', 0.0),
+                    axis_mode=fo.get('axis_mode', 'bisector')
+                )
+
+        elif mode == 'euler_global':
+            ax = float(fo.get('ax', 0.0))
+            ay = float(fo.get('ay', 0.0))
+            az = float(fo.get('az', 0.0))
+            coords0 = abs_coords - metal
+            rot0 = rotate_euler(coords0, ax, ay, az)
+            abs_coords = rot0 + metal
+
+        elif mode == 'full_tensor':
+            euler_deg = fo.get('euler_deg', (0.0, 0.0, 0.0))
+            ax_e, ay_e, az_e = euler_deg
+
+            metal_pos = fo.get('metal_pos')
+            if metal_pos is not None:
+                metal = np.array(metal_pos, dtype=float)
+
+            coords0 = abs_coords - metal
+            rot0 = rotate_euler(coords0, ax_e, ay_e, az_e)
+            abs_coords = rot0 + metal
+
+    # metal-centered coordinates
+    coords0 = abs_coords - metal
+
+    ax = float(state['angle_x_var'].get())
+    ay = float(state['angle_y_var'].get())
+    az = float(state['angle_z_var'].get())
+    rotated = rotate_coordinates(coords0, ax, ay, az, (0, 0, 0))
+
+    rows = []
+    for (atom, *_), (x, y, z) in zip(atom_data, rotated):
+        if atom in sel:
+            rows.append((atom, float(x), float(y), float(z)))
+
+    return rows
+
+def on_save_visible_xyz(state):
+    rows = get_visible_xyz_rows(state)
+    if not rows:
+        state['messagebox'].showwarning("Export XYZ", "No visible structure data to save.")
+        return
+
+    fd = state['filedialog'].asksaveasfilename(
+        title="Save visible structure as XYZ",
+        defaultextension=".xyz",
+        filetypes=[("XYZ file", "*.xyz"), ("All files", "*.*")]
+    )
+    if not fd:
+        return
+
+    try:
+        with open(fd, "w", encoding="utf-8") as f:
+            f.write(f"{len(rows)}\n")
+            f.write("Visible structure from PCS Analyzer (metal-centered, rotated view)\n")
+            for atom, x, y, z in rows:
+                f.write(f"{atom:2s} {x: .8f} {y: .8f} {z: .8f}\n")
+
+        state['messagebox'].showinfo("Export XYZ", f"Saved visible XYZ:\n{fd}")
+    except Exception as e:
+        state['messagebox'].showerror("Export XYZ", f"Failed to save XYZ:\n{e}")
 
 def recompute_plot_inputs(state):
     tensor = state['tensor_entry'].get()

@@ -96,9 +96,14 @@ def apply_style(root, variant="light", accent="blue"):
 
     # Treeview stripe
     def stripe_treeview(tv: ttk.Treeview):
-        tv.tag_configure("oddrow", background="#f6f6f9" if variant=="light" else "#2a2a2e")
+        tv.tag_configure("oddrow", background="#f6f6f9" if variant == "light" else "#2a2a2e")
+
         for i, item in enumerate(tv.get_children("")):
-            tv.item(item, tags=("oddrow",) if i % 2 else ())
+            current_tags = list(tv.item(item, "tags") or [])
+            current_tags = [t for t in current_tags if t != "oddrow"]
+            if i % 2:
+                current_tags.append("oddrow")
+            tv.item(item, tags=tuple(current_tags))
 
     setattr(root, "_stripe_treeview", stripe_treeview)
     setattr(root, "_app_bg", bg)

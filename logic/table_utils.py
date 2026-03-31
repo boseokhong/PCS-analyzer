@@ -704,6 +704,41 @@ def update_molar_value(state, tensor):
     val = tensor * AVOGADRO_CONSTANT * 1e-32
     state['molar_value_label'].config(text=f"Δχ_mol_ax: {val:.2e} m³/mol")
 
+#================================================
+# residual thresholds related helper
+def get_residual_color_thresholds(state):
+    ok_thr = float(state.get("residual_thr_ok", 0.10))
+    warn_thr = float(state.get("residual_thr_warn", 0.30))
+    return ok_thr, warn_thr
+
+
+def classify_residual_tag(state, residual):
+    """
+    Return a Treeview tag tuple for residual colouring.
+    - ()      : colouring disabled
+    - ("none",): no residual available
+    - ("ok",) / ("warn",) / ("bad",)
+    """
+    enabled_var = state.get("residual_color_enabled_var")
+    enabled = bool(enabled_var.get()) if enabled_var is not None else True
+
+    if not enabled:
+        return ()
+
+    if residual is None:
+        return ("none",)
+
+    ok_thr, warn_thr = get_residual_color_thresholds(state)
+    a = abs(float(residual))
+
+    if a <= ok_thr:
+        return ("ok",)
+    elif a <= warn_thr:
+        return ("warn",)
+    return ("bad",)
+
+#================================================
+
 def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
     tree = state['tree']
     # 모든 행 비우기
@@ -728,6 +763,7 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
         geom_param = (3 * (np.cos(theta))**2 - 1) / (r**3) if r != 0 else 0.0
         geom_value = geom_param
         delta_pcs = (tensor * (geom_value * 1e4)) / (12 * np.pi)
+
         atom_by_id[ref_id] = str(atom)
         pcs_by_id[ref_id] = float(delta_pcs)
 
@@ -735,15 +771,27 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
         atom_disp = label_overrides.get(ref_id, atom)
 
         # Read/Write with Ref ID
-        delta_exp_str = ""
-        if ref_id in delta_exp_values:
-            v = delta_exp_values[ref_id]
-            delta_exp_str = f"{v:g}"
+        delta_exp = delta_exp_values.get(ref_id, None)
+        delta_exp_str = f"{delta_exp:g}" if delta_exp is not None else ""
 
-        item = tree.insert("", state['tk'].END, values=(
-            ref_id, atom_disp, f"{dx:.6f}", f"{dy:.6f}", f"{dz:.6f}",
-            f"{geom_param:.5f}", f"{delta_pcs: .2f}", delta_exp_str
-        ))
+        residual = None
+        if delta_exp is not None:
+            try:
+                residual = float(delta_pcs) - float(delta_exp)
+            except Exception:
+                residual = None
+
+        tags = classify_residual_tag(state, residual)
+
+        item = tree.insert(
+            "",
+            state['tk'].END,
+            values=(
+                ref_id, atom_disp, f"{dx:.6f}", f"{dy:.6f}", f"{dz:.6f}",
+                f"{geom_param:.6f}", f"{delta_pcs: .2f}", delta_exp_str
+            ),
+            tags=tags
+        )
         state['row_by_id'][ref_id] = item
 
     # push delta_pcs to NMR spectrum window if it exists

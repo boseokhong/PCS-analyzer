@@ -1,5 +1,5 @@
 # Pseudocontact Chemical Shift (PCS) Analyzer
-![version](https://img.shields.io/badge/version-1.3.0-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
+![version](https://img.shields.io/badge/version-1.3.1-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
 <img width="1409" height="919" alt="PCS Analyzer main interface" src="https://github.com/user-attachments/assets/e4a0b469-4a98-4552-803d-6cb8a3fbfdab" />
 <img width="2420" height="882" alt="PCS Analyzer additional views" src="https://github.com/user-attachments/assets/7981899a-5cc4-46a6-9462-152e7a0f38bb" />
@@ -23,7 +23,13 @@ Core use cases include:
 - donor-axis and Euler-based fitting strategies
 - advanced fitting and conformer-assisted refinement
 
-## New in v1.3.0
+## Recent Changes
+
+Release **v1.3.1**
+
+- fixed coordinate reference used in the Rhombicity analysis table
+- added residual-based text color highlighting for PCS tables
+- added export function to save the current visible structure as an `.xyz` file
 
 Release **v1.3.0** introduces several workflow and interface upgrades:
 
@@ -144,8 +150,7 @@ It is appropriate when simultaneous refinement of tensor magnitude, anisotropy, 
 ## Export
 
 PCS Analyzer supports export of:
-- PCS tables
-- `δ_Exp` templates
+- PCS tables / current visible structure (`.xyz`)
 - cartesian and PCS plots
 - fitting summaries
 - CSV / Excel tables
@@ -215,6 +220,11 @@ PCS Analyzer supports export of:
 - added **Mode C** 8-parameter fitting
 - added **Advanced Fitting** tab
 - added integrated **Conformer Search and Fitting** workflow
+
+**v1.3.1**
+- fixed coordinate reference used in the Rhombicity analysis table
+- added residual-based text color highlighting for PCS tables
+- added export function to save the current visible structure as an `.xyz` file
 
 </details>
 

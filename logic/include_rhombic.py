@@ -65,7 +65,7 @@ def build_rh_table_rows(state, filter_atoms_fn):
     if not ids:
         ids = list(range(1, len(rotated_coords) + 1))
 
-    metal = np.array([state["x0"], state["y0"], state["z0"]], float)
+    metal = np.zeros(3, dtype=float)
 
     r_arr, theta_arr, phi_arr, Gax_arr, Grh_arr = geom_factors_ax_rh(rotated_coords, metal)
 
