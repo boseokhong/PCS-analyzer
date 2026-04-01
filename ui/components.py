@@ -40,6 +40,8 @@ from ui.pcs_plot_window import open_pcs_plot_popup
 from ui.advanced_fitting_tab import build_advanced_fitting_tab
 from ui.conformer_search import run_conformer_search_gui
 
+from ui.plot_3d_pyvista import open_pyvista_field
+
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
 
@@ -1538,28 +1540,35 @@ def build_app():
 
     ttk.Button(
         opf,
-        text="3D structure",
-        command=lambda: open_3d_plot_window(state)
+        text="Projection",
+        command=lambda: open_projection_window(state)
     ).grid(row=1, column=1, sticky="ew", padx=2, pady=(0, 4))
 
     ttk.Button(
         opf,
-        text="Projection",
-        command=lambda: open_projection_window(state)
-    ).grid(row=2, column=0, sticky="ew", padx=2)
+        text="3D Structure",
+        command=lambda: open_3d_plot_window(state)
+    ).grid(row=2, column=0, sticky="ew", padx=2, pady=(0, 4))
 
     ttk.Button(
         opf,
-        text="NMR Spectrum",
+        text="3D PCS Plot",
+        command=lambda: open_pyvista_field(state),
+    ).grid(row=2, column=1, sticky="ew", padx=2, pady=(0, 4))
+
+    ttk.Button(
+        opf,
+        text="NMR Shift Viewer",
         command=lambda: open_nmr_window(state)
-    ).grid(row=2, column=1, sticky="ew", padx=2)
+    ).grid(row=3, column=0, columnspan=2, sticky="ew", padx=2, pady=(0, 0))
 
     _sep(input_frame)
 
     # Checklist
     ttk.Label(input_frame, text="Select elements to display", font=("default",9,"bold")).pack(pady=0)
     checklist_frame = ttk.Frame(input_frame); checklist_frame.pack(pady=3, fill=tk.BOTH, expand=True); state['checklist_frame']=checklist_frame
-    ttk.Label(input_frame, text="Rotation and atom selection can be\n applied after updating PCS information.", font=("Helvetica",8,"italic"), justify="center", anchor="center").pack(pady=0)
+    # Deleted message
+    # ttk.Label(input_frame, text="Rotation and atom selection can be\n applied after updating PCS information.", font=("Helvetica",8,"italic"), justify="center", anchor="center").pack(pady=0)
 
     _sep(input_frame)
 

@@ -38,12 +38,15 @@ def add_arrow3d(ax, x, y, z, dx, dy, dz, *args, **kwargs):
     ax.add_artist(arrow)
 
 
-def get_cpk_color(atom_label):
+def get_cpk_color(atom_label: str) -> str:
     if not atom_label:
         return CPK_COLORS["default"]
-    if len(atom_label) >= 2 and atom_label[:2] in CPK_COLORS:
-        return CPK_COLORS[atom_label[:2]]
-    return CPK_COLORS.get(atom_label[0], CPK_COLORS["default"])
+    s = str(atom_label).strip()
+    if len(s) >= 2 and s[1].islower():
+        el = s[:2]   # Cl, Br, Nd, Dy ...
+    else:
+        el = s[:1]   # C, H, N, O ...
+    return CPK_COLORS.get(el, CPK_COLORS["default"])
 
 
 def set_axes_equal(ax):
@@ -74,7 +77,7 @@ def calculate_bonds(atom_coords, atom_elements):
     for i in range(len(atom_coords)):
         for j in range(i + 1, len(atom_coords)):
             rsum = covalent_radii.get(atom_elements[i], 0.0) + covalent_radii.get(atom_elements[j], 0.0)
-            if distances[i, j] <= rsum * 1.1:
+            if distances[i, j] <= rsum * 1.03:
                 bonds.append((i, j))
     return bonds
 

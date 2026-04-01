@@ -5,6 +5,7 @@ The following code requires the numpy, matplotlib, pandas, and openpyxl module p
 A tool for PCS analysis and 2D polar contour visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
 v.1.3.1 updates
+- Added a PyVista-based 3D viewer for PCS fields and molecular structures.
 - Fixed coordinate reference used in the Rhombicity analysis table
 - Added residual-based text color highlighting for PCS tables
 - Added export function to save the current visible structure as an .xyz file

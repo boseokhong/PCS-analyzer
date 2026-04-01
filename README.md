@@ -6,11 +6,11 @@
 
 **PCS Analyzer** is a Python-based desktop application for the analysis, visualization, and fitting of pseudocontact chemical shifts (PCS) in paramagnetic molecular systems. The program is designed for interactive structure-based PCS interpretation and is particularly suited to small and medium-sized coordination complexes for which tensor-frame analysis, geometrical inspection, and rapid model comparison are essential.
 
-The software integrates molecular structure import, PCS contour visualization, tensor utilities, regression-based diagnostics, rhombicity analysis, fitting workflows, NMR-oriented data inspection, and conformer-based refinement in a unified graphical interface.
+The software integrates molecular structure import, 2D and 3D PCS visualization, tensor utilities, regression-based diagnostics, rhombicity analysis, fitting workflows, NMR-oriented data inspection, and conformer-based refinement in a unified graphical interface.
 
 > [!NOTE]
 > Required Python packages: `numpy`, `scipy`, `matplotlib`, `pandas`, and `openpyxl`  
-> Optional package: `ttkbootstrap` for enhanced GUI styling
+> Optional packages: `pyvista` for 3D PCS field / molecular visualization, and `ttkbootstrap` for enhanced GUI styling
 ---
 ## Overview
 
@@ -26,13 +26,12 @@ Core use cases include:
 ## Recent Changes
 
 Release **v1.3.1**
-
+- added a PyVista-based 3D viewer for PCS fields and molecular structures.
 - fixed coordinate reference used in the Rhombicity analysis table
 - added residual-based text color highlighting for PCS tables
 - added export function to save the current visible structure as an `.xyz` file
 
 Release **v1.3.0** introduces several workflow and interface upgrades:
-
 - separated the **2D PCS polar plot** from the main window into a dedicated viewer
 - improved the **G_i vs δ plot** with better point interaction and an expanded result/report box
 - added **bidirectional table ↔ plot selection/highlighting**
@@ -47,13 +46,15 @@ Release **v1.3.0** introduces several workflow and interface upgrades:
 - import molecular structures from `.xyz`
 - extract coordinates from ORCA `.out` and `.log` files
 - inspect and rotate coordinates in the current tensor frame
-- visualize structures in an interactive 3D molecular viewer
+- visualize molecular structures and PCS fields in interactive 3D viewers
 - inspect angular distributions in a projection viewer (`φ / cos(θ)` and Mollweide modes)
 
 ### 2. PCS visualization
 - display axial PCS contour maps in a dedicated **2D polar plot** window
 - overlay atomic positions directly onto PCS plots
 - support symmetry-averaged pseudo-points for methyl and CF3 groups
+- visualize PCS fields in a PyVista-based 3D viewer
+- support interactive 3D inspection of isosurfaces / slices for PCS field analysis
 - export PCS-related data and figures
 
 ### 3. Table-driven analysis and linked interaction
@@ -91,9 +92,10 @@ cd PCS-analyzer
 pip install numpy scipy matplotlib pandas openpyxl
 ```
 
-Optional GUI theme support:
+Optional 3D plot visualization / GUI theme support:
 
 ```bash
+pip install pyvista
 pip install ttkbootstrap
 ```
 
@@ -222,6 +224,7 @@ PCS Analyzer supports export of:
 - added integrated **Conformer Search and Fitting** workflow
 
 **v1.3.1**
+- added a PyVista-based 3D viewer for PCS fields and molecular structures.
 - fixed coordinate reference used in the Rhombicity analysis table
 - added residual-based text color highlighting for PCS tables
 - added export function to save the current visible structure as an `.xyz` file
