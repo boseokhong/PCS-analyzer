@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import numpy as np
 from typing import List, Tuple, Optional
 
 Atom = Tuple[str, float, float, float]
@@ -180,6 +181,7 @@ def _extract_orca_cartesian_blocks(text: str) -> List[Tuple[str, List[Atom]]]:
 
     return blocks
 
+# orca cartesian parse
 def parse_orca_out(file_path: str, *, which: str = "last") -> List[Atom]:
     """
     Parse ORCA .out/.log and return a coordinate block.
@@ -232,6 +234,96 @@ def parse_orca_out_all(file_path: str) -> List[List[Atom]]:
             out.append(atoms)
     return out
 
+# orca cartesian, susceptibility, temperature parse
+def _extract_orca_susceptibility_tensors(text: str) -> dict[float, np.ndarray]:
+    """
+    Extract temperature-dependent susceptibility tensors from ORCA output text.
+
+    Expected pattern:
+      TEMPERATURE/K: <value>
+      ...
+      Tensor in molecular frame
+      a11 a12 a13
+      a21 a22 a23
+      a31 a32 a33
+    """
+    lines = text.splitlines()
+
+    temp_re = re.compile(r"TEMPERATURE/K:\s*([0-9.+\-Ee]+)")
+    tensor_header_re = re.compile(r"Tensor in molecular frame", re.IGNORECASE)
+
+    tensors_by_temp: dict[float, np.ndarray] = {}
+    current_temp = None
+
+    for i, line in enumerate(lines):
+        m_temp = temp_re.search(line)
+        if m_temp:
+            try:
+                current_temp = float(m_temp.group(1))
+            except Exception:
+                current_temp = None
+            continue
+
+        if tensor_header_re.search(line):
+            if current_temp is None:
+                continue
+
+            try:
+                mat = []
+                for j in range(1, 4):
+                    row = [float(x) for x in lines[i + j].split()[:3]]
+                    if len(row) != 3:
+                        raise ValueError
+                    mat.append(row)
+
+                tensors_by_temp[current_temp] = np.array(mat, dtype=float)
+            except Exception:
+                continue
+
+    return tensors_by_temp
+
+def load_orca_data(file_path: str) -> dict:
+    """
+    Load ORCA structure + susceptibility tensors from one output file.
+
+    Returns:
+        {
+            "atoms": [(el,x,y,z), ...],
+            "tensors_by_temp": {temp: np.ndarray(3,3), ...},
+        }
+    """
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    atoms = parse_orca_out(file_path)
+    tensors_by_temp = _extract_orca_susceptibility_tensors(text)
+
+    return {
+        "atoms": atoms,
+        "tensors_by_temp": tensors_by_temp,
+    }
+
+def pick_orca_tensor_at_temperature(
+    tensors_by_temp: dict[float, np.ndarray],
+    temperature: float | None = None,
+) -> tuple[float, np.ndarray]:
+    """
+    Pick exact/nearest tensor by temperature.
+    If temperature is None, return the first available one.
+    """
+    if not tensors_by_temp:
+        raise ValueError("No susceptibility tensors found in ORCA output.")
+
+    temps = sorted(tensors_by_temp.keys())
+
+    if temperature is None:
+        t = temps[0]
+        return t, tensors_by_temp[t]
+
+    t = min(temps, key=lambda x: abs(x - float(temperature)))
+    return t, tensors_by_temp[t]
+
+# load structure
 def load_structure(file_path: str) -> List[Atom]:
     """
     Unified structure loader.
