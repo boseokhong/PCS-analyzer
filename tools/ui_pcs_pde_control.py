@@ -1,15 +1,6 @@
 # tools/ui_pcs_pde_control.py
 """
 Control panel GUI for the PCS-PDE viewer (FFT).
-
-New features
-------------
-- separated "Run computation" and "Open / Refresh Viewer"
-- multi-level PCS isosurface table
-- display toggles including atoms
-- camera preset
-- PNG export settings
-- save/load preset (JSON)
 """
 
 from __future__ import annotations
@@ -161,7 +152,9 @@ class StatusBar(ttk.Frame):
 
 class ControlPanel(ttk.Frame):
     DEFAULT_LEVEL_STYLES = [
-        {"ppm": 2.0, "pos_color": "#ff0000", "neg_color": "#0000ff", "style": "surface", "opacity": 0.30},
+        {"ppm": 0.5, "pos_color": "#ff0000", "neg_color": "#0000ff", "style": "mesh",    "opacity": 0.05},
+        {"ppm": 2.0, "pos_color": "#ff0000", "neg_color": "#0000ff", "style": "surface", "opacity": 0.18},
+        {"ppm": 5.0, "pos_color": "#ff0000", "neg_color": "#0000ff", "style": "surface", "opacity": 0.30},
     ]
 
     DEFAULTS: dict = {

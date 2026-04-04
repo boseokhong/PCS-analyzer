@@ -863,7 +863,7 @@ def _add_tensor_axes_lines(
         line = pv.Line(p1, p2, resolution=1)
         plotter.add_mesh(line, color=color, line_width=3)
 
-        label_pos = center + vec * (L * 1.02)
+        label_pos = center + vec * (L * 1.05)
         axis_name = ["x", "y", "z"][i]
         sign_txt = "+" if eigvals[i] >= 0 else "-"
 
@@ -1026,6 +1026,164 @@ def _global_max_abs_eigval_from_selected_temps(
     vmax = float(np.max(vals_all))
     return vmax if vmax > 1e-20 else 1.0
 
+def _filter_atom_rows(
+    rows,
+    atom_mode="all",          # all / H / heavy / element
+    element_text="",
+    min_abs_pcs=0.0,
+    min_abs_delta=0.0,
+    top_n_delta=0,
+):
+    filtered = []
+
+    allowed = {x.strip() for x in str(element_text).split(",") if x.strip()}
+
+    for row in rows:
+        atom = str(row.get("atom", "")).strip()
+        pde = row.get("pcs_pde")
+        point = row.get("pcs_point")
+        delta = row.get("delta")
+
+        if not (np.isfinite(pde) and np.isfinite(point)):
+            continue
+
+        if atom_mode == "H" and atom != "H":
+            continue
+        if atom_mode == "heavy" and atom == "H":
+            continue
+        if atom_mode == "element" and allowed and atom not in allowed:
+            continue
+
+        if abs(float(point)) < float(min_abs_pcs):
+            continue
+
+        if not np.isfinite(delta):
+            continue
+        if abs(float(delta)) < float(min_abs_delta):
+            continue
+
+        filtered.append(row)
+
+    if top_n_delta and int(top_n_delta) > 0:
+        filtered = sorted(
+            filtered,
+            key=lambda r: abs(float(r["delta"])) if np.isfinite(r["delta"]) else -1.0,
+            reverse=True,
+        )[: int(top_n_delta)]
+
+    return filtered
+
+def _build_plot_style_arrays(rows, color_mode="error", size_mode="error"):
+    atoms = [str(r["atom"]) for r in rows]
+    point = np.array([r["pcs_point"] for r in rows], dtype=float)
+    pde = np.array([r["pcs_pde"] for r in rows], dtype=float)
+    delta = np.array([r["delta"] for r in rows], dtype=float)
+
+    # ----- colors -----
+    if color_mode == "sign":
+        colors = ["red" if v >= 0 else "blue" for v in point]
+        color_values = None
+
+    elif color_mode == "element":
+        element_colors = {
+            "H": "#B0B0B0",
+            "C": "#444444",
+            "N": "#3050F8",
+            "O": "#FF0D0D",
+            "S": "#FFFF30",
+            "P": "#FF8000",
+            "F": "#90E050",
+            "Cl": "#1FF01F",
+            "Br": "#A62929",
+            "I": "#940094",
+        }
+        colors = [element_colors.get(a, "#888888") for a in atoms]
+        color_values = None
+
+    elif color_mode == "error":
+        color_values = np.abs(delta)
+        colors = None
+
+    else:
+        colors = "#1f77b4"
+        color_values = None
+
+    # ----- sizes -----
+    if size_mode == "error":
+        vals = np.abs(delta)
+        vmax = float(np.max(vals)) if len(vals) else 1.0
+        vmax = vmax if vmax > 1e-12 else 1.0
+        sizes = 24.0 + 90.0 * (vals / vmax)
+
+    elif size_mode == "pcs":
+        vals = np.abs(point)
+        vmax = float(np.max(vals)) if len(vals) else 1.0
+        vmax = vmax if vmax > 1e-12 else 1.0
+        sizes = 24.0 + 90.0 * (vals / vmax)
+
+    else:
+        sizes = np.full(len(rows), 34.0, dtype=float)
+
+    return point, pde, delta, colors, color_values, sizes
+
+def _label_top_outliers(ax, x, y, rows, top_n=5):
+    if top_n <= 0 or len(rows) == 0:
+        return
+
+    idx = np.argsort(
+        [abs(float(r["delta"])) if np.isfinite(r["delta"]) else -1.0 for r in rows]
+    )[::-1][: int(top_n)]
+
+    for i in idx:
+        lab = f"{rows[i]['ref']}:{rows[i]['atom']}"
+        ax.annotate(
+            lab,
+            (x[i], y[i]),
+            textcoords="offset points",
+            xytext=(4, 4),
+            fontsize=7,
+        )
+
+def _safe_float_or(default, value):
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _safe_int_or(default, value):
+    try:
+        return int(value)
+    except Exception:
+        return int(default)
+
+def _default_pcs_plot_settings(kind="compare"):
+    if kind == "residual":
+        return {
+            "atom_mode": "H",          # all / H / heavy / element
+            "element_text": "",
+            "min_abs_pcs": 0.0,
+            "min_abs_delta": 0.0,
+            "top_n_filter": 0,
+            "color_mode": "sign",      # error / sign / element / fixed
+            "size_mode": "error",      # error / pcs / fixed
+            "label_top_n": 5,
+            "show_band": True,
+            "band_ppm": 0.5,
+        }
+
+    return {
+        "atom_mode": "H",
+        "element_text": "",
+        "min_abs_pcs": 0.0,
+        "min_abs_delta": 0.0,
+        "top_n_filter": 0,
+        "color_mode": "error",
+        "size_mode": "error",
+        "label_top_n": 5,
+        "show_band": True,
+        "band_ppm": 0.5,
+    }
 
 class AppSession:
     orca_path: Optional[str] = None
@@ -1060,6 +1218,11 @@ class AppWindow(tk.Tk):
         self._build_statusbar()
         self._update_info()
 
+        # PDE vs PD pcs plot
+        self._pcs_plot_settings_compare = _default_pcs_plot_settings("compare")
+        self._pcs_plot_settings_residual = _default_pcs_plot_settings("residual")
+        self._pcs_plot_ctrl_win = None
+
     def _build_menu(self):
         menubar = tk.Menu(self)
 
@@ -1082,8 +1245,14 @@ class AppWindow(tk.Tk):
         menubar.add_cascade(label="Run", menu=run_menu)
 
         plots_menu = tk.Menu(menubar, tearoff=False)
-        plots_menu.add_command(label="PDE vs Point PCS", command=self._plot_pde_vs_point)
-        plots_menu.add_command(label="Residual (PDE - Point)", command=self._plot_pde_minus_point)
+        plots_menu.add_command(
+            label="PDE vs Point PCS",
+            command=lambda: self._open_pcs_plot_options(kind="compare"),
+        )
+        plots_menu.add_command(
+            label="Residual (PDE - Point)",
+            command=lambda: self._open_pcs_plot_options(kind="residual"),
+        )
         plots_menu.add_separator()
         plots_menu.add_command(label="Tensor spheroid", command=self._open_tensor_spheroid_options)
         menubar.add_cascade(label="Plots", menu=plots_menu)
@@ -1416,7 +1585,7 @@ class AppWindow(tk.Tk):
         except Exception as exc:
             messagebox.showerror("Export error", str(exc))
 
-    def _plot_pde_vs_point(self):
+    def _plot_pde_vs_point(self, plot_opts=None):
         if self._session.last_result is None:
             messagebox.showinfo("No result", "Run a computation first.")
             return
@@ -1428,9 +1597,41 @@ class AppWindow(tk.Tk):
 
         import matplotlib.pyplot as plt
 
-        x = np.array([r["pcs_point"] for r in rows], dtype=float)
-        y = np.array([r["pcs_pde"] for r in rows], dtype=float)
-        labels = [str(r["ref"]) for r in rows]
+        # -----------------------------
+        # Plot options
+        # -----------------------------
+        if plot_opts is None:
+            plot_opts = dict(self._pcs_plot_settings_compare)
+
+        atom_mode = plot_opts.get("atom_mode", "H")
+        element_text = plot_opts.get("element_text", "")
+        min_abs_pcs = float(plot_opts.get("min_abs_pcs", 0.0))
+        min_abs_delta = float(plot_opts.get("min_abs_delta", 0.0))
+        top_n_filter = int(plot_opts.get("top_n_filter", 0))
+        color_mode = plot_opts.get("color_mode", "error")
+        size_mode = plot_opts.get("size_mode", "error")
+        label_top_n = int(plot_opts.get("label_top_n", 5))
+        show_band = bool(plot_opts.get("show_band", True))
+        band_ppm = float(plot_opts.get("band_ppm", 0.5))
+
+        rows = _filter_atom_rows(
+            rows,
+            atom_mode=atom_mode,
+            element_text=element_text,
+            min_abs_pcs=min_abs_pcs,
+            min_abs_delta=min_abs_delta,
+            top_n_delta=top_n_filter,
+        )
+
+        if not rows:
+            messagebox.showinfo("No data", "No atoms remain after filtering.")
+            return
+
+        x, y, delta, colors, color_values, sizes = _build_plot_style_arrays(
+            rows,
+            color_mode=color_mode,
+            size_mode=size_mode,
+        )
 
         valid = np.isfinite(x) & np.isfinite(y)
         if not np.any(valid):
@@ -1439,40 +1640,66 @@ class AppWindow(tk.Tk):
 
         x = x[valid]
         y = y[valid]
-        labels = [lab for lab, ok in zip(labels, valid) if ok]
+        delta = delta[valid]
+        rows = [r for r, ok in zip(rows, valid) if ok]
 
-        diff = y - x
-        rmsd = float(np.sqrt(np.mean(diff ** 2)))
-        mae = float(np.mean(np.abs(diff)))
+        rmsd = float(np.sqrt(np.mean(delta ** 2)))
+        mae = float(np.mean(np.abs(delta)))
+        mean_signed = float(np.mean(delta))
+        max_abs = float(np.max(np.abs(delta)))
 
         lo = min(float(np.min(x)), float(np.min(y)))
         hi = max(float(np.max(x)), float(np.max(y)))
         span = hi - lo
         pad = 0.05 * span if span > 1e-12 else 1.0
 
-        fig, ax = plt.subplots(figsize=(5.4, 5.2))
-        ax.scatter(x, y, s=34)
+        fig, ax = plt.subplots(figsize=(5.8, 5.4))
 
-        ax.plot(
-            [lo - pad, hi + pad],
-            [lo - pad, hi + pad],
-            "--",
-            linewidth=1.0,
-            label="y = x",
-        )
+        if color_values is not None:
+            sc = ax.scatter(
+                x, y,
+                c=color_values,
+                s=sizes,
+                cmap="viridis",
+                edgecolors="black",
+                linewidths=0.3,
+            )
+            cbar = fig.colorbar(sc, ax=ax)
+            cbar.set_label("|PDE - Point| / ppm")
+        else:
+            ax.scatter(
+                x, y,
+                c=colors,
+                s=sizes,
+                edgecolors="black",
+                linewidths=0.3,
+            )
 
-        for xi, yi, lab in zip(x, y, labels):
-            ax.annotate(lab, (xi, yi), textcoords="offset points", xytext=(4, 4), fontsize=7)
+        xx = np.array([lo - pad, hi + pad], dtype=float)
+        ax.plot(xx, xx, "--", linewidth=1.0, label="y = x")
 
+        if show_band and band_ppm > 0:
+            ax.plot(xx, xx + band_ppm, ":", linewidth=0.9, label=f"±{band_ppm:g} ppm")
+            ax.plot(xx, xx - band_ppm, ":", linewidth=0.9)
+
+        _label_top_outliers(ax, x, y, rows, top_n=label_top_n)
+
+        ax.set_xlim(lo - pad, hi + pad)
+        ax.set_ylim(lo - pad, hi + pad)
         ax.set_xlabel("Point-dipole PCS / ppm")
         ax.set_ylabel("PDE PCS / ppm")
-        ax.set_title(f"PDE vs Point PCS\nRMSD = {rmsd:.4f} ppm   MAE = {mae:.4f} ppm")
+        ax.set_title(
+            "PDE vs Point PCS\n"
+            f"N = {len(rows)}   RMSD = {rmsd:.4f} ppm   "
+            f"MAE = {mae:.4f} ppm   mean Δ = {mean_signed:.4f} ppm   "
+            f"max|Δ| = {max_abs:.4f} ppm"
+        )
         ax.grid(True, alpha=0.3)
         ax.legend()
         fig.tight_layout()
         plt.show()
 
-    def _plot_pde_minus_point(self):
+    def _plot_pde_minus_point(self, plot_opts=None):
         if self._session.last_result is None:
             messagebox.showinfo("No result", "Run a computation first.")
             return
@@ -1484,9 +1711,41 @@ class AppWindow(tk.Tk):
 
         import matplotlib.pyplot as plt
 
-        x = np.array([r["pcs_point"] for r in rows], dtype=float)
-        d = np.array([r["delta"] for r in rows], dtype=float)
-        labels = [str(r["ref"]) for r in rows]
+        # -----------------------------
+        # Plot options
+        # -----------------------------
+        if plot_opts is None:
+            plot_opts = dict(self._pcs_plot_settings_residual)
+
+        atom_mode = plot_opts.get("atom_mode", "H")
+        element_text = plot_opts.get("element_text", "")
+        min_abs_pcs = float(plot_opts.get("min_abs_pcs", 0.0))
+        min_abs_delta = float(plot_opts.get("min_abs_delta", 0.0))
+        top_n_filter = int(plot_opts.get("top_n_filter", 0))
+        color_mode = plot_opts.get("color_mode", "sign")
+        size_mode = plot_opts.get("size_mode", "error")
+        label_top_n = int(plot_opts.get("label_top_n", 5))
+        show_band = bool(plot_opts.get("show_band", True))
+        band_ppm = float(plot_opts.get("band_ppm", 0.5))
+
+        rows = _filter_atom_rows(
+            rows,
+            atom_mode=atom_mode,
+            element_text=element_text,
+            min_abs_pcs=min_abs_pcs,
+            min_abs_delta=min_abs_delta,
+            top_n_delta=top_n_filter,
+        )
+
+        if not rows:
+            messagebox.showinfo("No data", "No atoms remain after filtering.")
+            return
+
+        x, _y, d, colors, color_values, sizes = _build_plot_style_arrays(
+            rows,
+            color_mode=color_mode,
+            size_mode=size_mode,
+        )
 
         valid = np.isfinite(x) & np.isfinite(d)
         if not np.any(valid):
@@ -1495,24 +1754,228 @@ class AppWindow(tk.Tk):
 
         x = x[valid]
         d = d[valid]
-        labels = [lab for lab, ok in zip(labels, valid) if ok]
+        rows = [r for r, ok in zip(rows, valid) if ok]
 
         rmsd = float(np.sqrt(np.mean(d ** 2)))
+        mae = float(np.mean(np.abs(d)))
+        mean_signed = float(np.mean(d))
         max_abs = float(np.max(np.abs(d)))
 
-        fig, ax = plt.subplots(figsize=(5.4, 5.2))
-        ax.scatter(x, d, s=34)
+        fig, ax = plt.subplots(figsize=(5.8, 5.4))
+
+        if color_values is not None:
+            sc = ax.scatter(
+                x, d,
+                c=color_values,
+                s=sizes,
+                cmap="viridis",
+                edgecolors="black",
+                linewidths=0.3,
+            )
+            cbar = fig.colorbar(sc, ax=ax)
+            cbar.set_label("|PDE - Point| / ppm")
+        else:
+            ax.scatter(
+                x, d,
+                c=colors,
+                s=sizes,
+                edgecolors="black",
+                linewidths=0.3,
+            )
+
         ax.axhline(0.0, linestyle="--", linewidth=1.0)
 
-        for xi, di, lab in zip(x, d, labels):
-            ax.annotate(lab, (xi, di), textcoords="offset points", xytext=(4, 4), fontsize=7)
+        if show_band and band_ppm > 0:
+            ax.axhline(+band_ppm, linestyle=":", linewidth=0.9)
+            ax.axhline(-band_ppm, linestyle=":", linewidth=0.9)
+
+        _label_top_outliers(ax, x, d, rows, top_n=label_top_n)
 
         ax.set_xlabel("Point-dipole PCS / ppm")
         ax.set_ylabel("PDE - Point / ppm")
-        ax.set_title(f"Residual plot\nRMSD = {rmsd:.4f} ppm   max|Δ| = {max_abs:.4f} ppm")
+        ax.set_title(
+            "Residual plot\n"
+            f"N = {len(rows)}   RMSD = {rmsd:.4f} ppm   "
+            f"MAE = {mae:.4f} ppm   mean Δ = {mean_signed:.4f} ppm   "
+            f"max|Δ| = {max_abs:.4f} ppm"
+        )
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
         plt.show()
+
+    def _open_pcs_plot_options(self, kind="compare"):
+        if self._session.last_result is None:
+            messagebox.showinfo("No result", "Run a computation first.")
+            return
+
+        old = getattr(self, "_pcs_plot_ctrl_win", None)
+        if old is not None:
+            try:
+                if old.winfo_exists():
+                    old.destroy()
+            except Exception:
+                pass
+
+        win = tk.Toplevel(self)
+        win.title("PCS plot options")
+        win.geometry("360x460")
+        win.resizable(True, True)
+        win.transient(self)
+        self._pcs_plot_ctrl_win = win
+
+        if kind == "residual":
+            settings = dict(self._pcs_plot_settings_residual)
+            title_txt = "Residual plot options"
+        else:
+            settings = dict(self._pcs_plot_settings_compare)
+            title_txt = "PDE vs Point plot options"
+
+        ttk.Label(
+            win,
+            text=title_txt,
+            font=("TkDefaultFont", 10, "bold"),
+        ).pack(anchor="w", padx=12, pady=(12, 8))
+
+        body = ttk.Frame(win, padding=(12, 4, 12, 12))
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(1, weight=1)
+
+        vars_ = {
+            "atom_mode": tk.StringVar(value=str(settings["atom_mode"])),
+            "element_text": tk.StringVar(value=str(settings["element_text"])),
+            "min_abs_pcs": tk.StringVar(value=str(settings["min_abs_pcs"])),
+            "min_abs_delta": tk.StringVar(value=str(settings["min_abs_delta"])),
+            "top_n_filter": tk.StringVar(value=str(settings["top_n_filter"])),
+            "color_mode": tk.StringVar(value=str(settings["color_mode"])),
+            "size_mode": tk.StringVar(value=str(settings["size_mode"])),
+            "label_top_n": tk.StringVar(value=str(settings["label_top_n"])),
+            "show_band": tk.BooleanVar(value=bool(settings["show_band"])),
+            "band_ppm": tk.StringVar(value=str(settings["band_ppm"])),
+        }
+
+        row = 0
+
+        ttk.Label(body, text="Atom set").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Combobox(
+            body,
+            textvariable=vars_["atom_mode"],
+            values=["all", "H", "heavy", "element"],
+            state="readonly",
+        ).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(body, text="Elements (comma-separated)").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Entry(body, textvariable=vars_["element_text"]).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(body, text="Min |PCS|").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Entry(body, textvariable=vars_["min_abs_pcs"]).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(body, text="Min |Δ|").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Entry(body, textvariable=vars_["min_abs_delta"]).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(body, text="Top N |Δ| only").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Entry(body, textvariable=vars_["top_n_filter"]).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(body, text="Color by").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Combobox(
+            body,
+            textvariable=vars_["color_mode"],
+            values=["error", "sign", "element", "fixed"],
+            state="readonly",
+        ).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(body, text="Size by").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Combobox(
+            body,
+            textvariable=vars_["size_mode"],
+            values=["error", "pcs", "fixed"],
+            state="readonly",
+        ).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(body, text="Label top N").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Entry(body, textvariable=vars_["label_top_n"]).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Checkbutton(
+            body,
+            text="Show tolerance band",
+            variable=vars_["show_band"],
+        ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 4))
+        row += 1
+
+        ttk.Label(body, text="Band (ppm)").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        ttk.Entry(body, textvariable=vars_["band_ppm"]).grid(row=row, column=1, sticky="ew", pady=4)
+        row += 1
+
+        info = ttk.Label(
+            body,
+            text=(
+                "For Atom set = element, enter values such as: H,N,O\n"
+                "Set Top N |Δ| only to 0 to show all atoms\n"
+                "Set Label top N to 0 to hide all labels"
+            ),
+            foreground="gray",
+            justify="left",
+            wraplength=300,
+        )
+        info.grid(row=row, column=0, columnspan=2, sticky="w", pady=(10, 8))
+        row += 1
+
+        def _collect():
+            out = {
+                "atom_mode": vars_["atom_mode"].get().strip(),
+                "element_text": vars_["element_text"].get().strip(),
+                "min_abs_pcs": _safe_float_or(0.0, vars_["min_abs_pcs"].get()),
+                "min_abs_delta": _safe_float_or(0.0, vars_["min_abs_delta"].get()),
+                "top_n_filter": _safe_int_or(0, vars_["top_n_filter"].get()),
+                "color_mode": vars_["color_mode"].get().strip(),
+                "size_mode": vars_["size_mode"].get().strip(),
+                "label_top_n": _safe_int_or(5, vars_["label_top_n"].get()),
+                "show_band": bool(vars_["show_band"].get()),
+                "band_ppm": _safe_float_or(0.5, vars_["band_ppm"].get()),
+            }
+            return out
+
+        def _apply_and_plot():
+            opts = _collect()
+            if kind == "residual":
+                self._pcs_plot_settings_residual = dict(opts)
+                self._plot_pde_minus_point(plot_opts=opts)
+            else:
+                self._pcs_plot_settings_compare = dict(opts)
+                self._plot_pde_vs_point(plot_opts=opts)
+
+        btns = ttk.Frame(body)
+        btns.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        btns.columnconfigure(0, weight=1)
+        btns.columnconfigure(1, weight=1)
+        btns.columnconfigure(2, weight=1)
+
+        ttk.Button(btns, text="Plot", command=_apply_and_plot).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        ttk.Button(btns, text="Reset", command=lambda: self._reset_pcs_plot_options(kind, vars_)).grid(row=0, column=1,
+                                                                                                       sticky="ew",
+                                                                                                       padx=4)
+        ttk.Button(btns, text="Close", command=win.destroy).grid(row=0, column=2, sticky="ew", padx=(4, 0))
+
+    def _reset_pcs_plot_options(self, kind, vars_):
+        defaults = _default_pcs_plot_settings(kind)
+
+        vars_["atom_mode"].set(str(defaults["atom_mode"]))
+        vars_["element_text"].set(str(defaults["element_text"]))
+        vars_["min_abs_pcs"].set(str(defaults["min_abs_pcs"]))
+        vars_["min_abs_delta"].set(str(defaults["min_abs_delta"]))
+        vars_["top_n_filter"].set(str(defaults["top_n_filter"]))
+        vars_["color_mode"].set(str(defaults["color_mode"]))
+        vars_["size_mode"].set(str(defaults["size_mode"]))
+        vars_["label_top_n"].set(str(defaults["label_top_n"]))
+        vars_["show_band"].set(bool(defaults["show_band"]))
+        vars_["band_ppm"].set(str(defaults["band_ppm"]))
 
     def _open_tensor_spheroid_options(self):
         if pv is None:

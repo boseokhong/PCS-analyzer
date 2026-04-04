@@ -49,7 +49,7 @@ def radius_for_element(el: str) -> float:
 def calculate_bonds(
     atom_coords: np.ndarray,
     atom_elements: list[str],
-    scale: float = 1.02,
+    scale: float = 1.05,
 ) -> list[tuple[int, int]]:
     """
     Detect covalent bonds by distance thresholding.
@@ -65,7 +65,7 @@ def calculate_bonds(
         List of N element symbols.
     scale :
         Tolerance factor on top of the sum of covalent radii.
-        Default 1.03 (3 % tolerance).
+        Default 1.10 (10 % tolerance).
 
     Returns
     -------

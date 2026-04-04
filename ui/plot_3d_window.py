@@ -77,7 +77,7 @@ def calculate_bonds(atom_coords, atom_elements):
     for i in range(len(atom_coords)):
         for j in range(i + 1, len(atom_coords)):
             rsum = covalent_radii.get(atom_elements[i], 0.0) + covalent_radii.get(atom_elements[j], 0.0)
-            if distances[i, j] <= rsum * 1.03:
+            if distances[i, j] <= rsum * 1.05:
                 bonds.append((i, j))
     return bonds
 
