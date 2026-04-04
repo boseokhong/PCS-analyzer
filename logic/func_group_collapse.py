@@ -138,7 +138,7 @@ def collapse_ax3_groups(
     label_prefix: str = "AX3",
     group_type: str = "ax3",
     require_center_nonligand_count: Optional[int] = None,
-    bond_scale: float = 1.10,
+    bond_scale: float = 1.03,
 ) -> Tuple[List[Tuple[str, float, float, float]], List[CollapseRecord], Set[int]]:
     """
     Collapse AX3 ligands (3 X) into one pseudo atom per detected group.
@@ -217,7 +217,7 @@ def collapse_methyl_groups(
     pseudo_element: str = "H",
     pseudo_label_prefix: str = "MeH",
     require_carbon_substituent_count: Optional[int] = 1,
-    bond_scale: float = 1.10,
+    bond_scale: float = 1.03,
 ) -> Tuple[List[Tuple[str, float, float, float]], List[CollapseRecord], Set[int]]:
     """
     Backward-compatible methyl collapse:
@@ -248,7 +248,7 @@ def collapse_cf3_groups(
     pseudo_label_prefix: str = "CF3F",
     # CF3 carbon typically has exactly one non-F neighbor (the substituent carbon)
     require_carbon_substituent_count: Optional[int] = 1,
-    bond_scale: float = 1.10,
+    bond_scale: float = 1.03,
 ) -> Tuple[List[Tuple[str, float, float, float]], List[CollapseRecord], Set[int]]:
     """
     Collapse CF3 fluorines: C(F)3 -> one pseudo-F.

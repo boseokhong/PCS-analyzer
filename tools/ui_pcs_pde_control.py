@@ -243,8 +243,8 @@ class ControlPanel(ttk.Frame):
         ppm: float = 2.0,
         pos_color: str = "#ff0000",
         neg_color: str = "#0000ff",
-        style_val: str = "surface",
-        opacity_val: float = 0.30,
+        style_val: str = "both",
+        opacity_val: float = 0.05,
     ):
         rowf = ttk.Frame(parent)
         rowf.pack(fill="x", pady=1)

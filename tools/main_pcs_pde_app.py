@@ -406,18 +406,57 @@ def _apply_camera_preset(plotter, preset: str):
     else:
         plotter.camera_position = "iso"
 
-def _save_tensor_plotter_png(plotter, path: str, *, dpi: int = 600, width_inch: float = 6.0, transparent: bool = False):
-    if plotter is None:
-        raise RuntimeError("No tensor spheroid viewer is open.")
+def _save_tensor_plotter_png(
+    path: str,
+    *,
+    atoms: list[tuple],
+    chi_r2: np.ndarray,
+    used_temp: float | None,
+    opts: dict,
+    metal_xyz: np.ndarray,
+    global_max_abs: float | None = None,
+    dpi: int = 600,
+    width_inch: float = 6.0,
+    transparent: bool = False,
+):
+    if pv is None:
+        raise RuntimeError("PyVista is not available.")
 
     target_px = int(round(float(width_inch) * int(dpi)))
-    img = plotter.screenshot(
-        filename=path,
-        window_size=(target_px, target_px),
-        transparent_background=bool(transparent),
-        return_img=False,
-    )
-    return img
+
+    off = pv.Plotter(off_screen=True, window_size=(target_px, target_px))
+    try:
+        _draw_tensor_spheroid_scene(
+            off,
+            atoms=atoms,
+            chi_r2=chi_r2,
+            used_temp=used_temp,
+            opts=opts,
+            metal_xyz=metal_xyz,
+            global_max_abs=global_max_abs,
+        )
+
+        # output-stable camera
+        try:
+            _apply_camera_preset(off, str(opts.get("camera_preset", "iso")))
+        except Exception:
+            pass
+
+        try:
+            off.camera.SetParallelProjection(True)
+        except Exception:
+            pass
+
+        off.screenshot(
+            filename=path,
+            transparent_background=bool(transparent),
+            return_img=False,
+        )
+    finally:
+        try:
+            off.close()
+        except Exception:
+            pass
 
 def _capture_plotter_camera_state(plotter) -> dict:
     """
@@ -1845,9 +1884,9 @@ class AppWindow(tk.Tk):
         def _save_png():
             if not _apply():
                 return
-            plotter = getattr(self, "_tensor_view_plotter", None)
-            if plotter is None:
-                messagebox.showinfo("No viewer", "Open the tensor spheroid viewer first.")
+
+            if self._session.orca is None:
+                messagebox.showinfo("No structure", "Load an ORCA output file first.")
                 return
 
             path = filedialog.asksaveasfilename(
@@ -1858,16 +1897,52 @@ class AppWindow(tk.Tk):
             if not path:
                 return
 
-            try:
-                try:
-                    _apply_camera_preset(plotter, str(self._tensor_view_opts["camera_preset"]))
-                    plotter.render()
-                except Exception:
-                    pass
+            used_temp = None
+            chi_r2 = None
 
+            if self._session.last_result is not None:
+                used_temp = self._session.last_result.get("temperature", self._session.temperature)
+                chi_r2 = self._session.last_result.get("chi_rank2", None)
+
+            if chi_r2 is None:
+                if self._session.chi is None:
+                    messagebox.showinfo("No tensor", "No converted tensor is available.")
+                    return
+                used_temp = self._session.temperature
+                chi_r2 = rank2_chi(np.asarray(self._session.chi, dtype=float))
+
+            chi_r2 = rank2_chi(np.asarray(chi_r2, dtype=float))
+            atoms = list(self._session.orca["atoms"])
+
+            if self._session.last_result is not None and self._session.last_result.get("metal_xyz") is not None:
+                metal_xyz = np.asarray(self._session.last_result["metal_xyz"], dtype=float)
+            else:
+                metal_idx = _guess_metal_index_from_atoms(atoms)
+                metal_xyz = np.asarray(atoms[metal_idx][1:], dtype=float)
+
+            global_max_abs = None
+            if str(self._tensor_view_opts.get("tensor_scaling_mode", "per_frame")).strip().lower() == "global":
+                try:
+                    sel_temps = _selected_temperatures_from_opts(
+                        self._session.orca["tensors_by_temp"],
+                        self._tensor_view_opts,
+                    )
+                    global_max_abs = _global_max_abs_eigval_from_selected_temps(
+                        self._session.orca["tensors_by_temp"],
+                        sel_temps,
+                    )
+                except Exception:
+                    global_max_abs = None
+
+            try:
                 _save_tensor_plotter_png(
-                    plotter,
                     path,
+                    atoms=atoms,
+                    chi_r2=chi_r2,
+                    used_temp=used_temp,
+                    opts=self._tensor_view_opts,
+                    metal_xyz=metal_xyz,
+                    global_max_abs=global_max_abs,
                     dpi=int(self._tensor_view_opts["png_dpi"]),
                     width_inch=float(self._tensor_view_opts["png_width_inch"]),
                     transparent=bool(self._tensor_view_opts["png_transparent"]),
