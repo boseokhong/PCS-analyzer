@@ -1,4 +1,4 @@
-# tools/logic_pcs_pde.py
+# logic/logic_pcs_pde.py
 """
 FFT PCS-PDE forward solver.
 

@@ -570,7 +570,7 @@ def build_app():
     state['atom_data_original'] = None
 
     # Window size
-    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1180x915"); state['root'] = root
+    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1190x915"); state['root'] = root
     apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
 
     state["residual_color_enabled_var"] = tk.BooleanVar(value=False)
@@ -1560,7 +1560,24 @@ def build_app():
         opf,
         text="NMR Shift Viewer",
         command=lambda: open_nmr_window(state)
-    ).grid(row=3, column=0, columnspan=2, sticky="ew", padx=2, pady=(0, 0))
+    ).grid(row=3, column=0, sticky="ew", padx=2, pady=(0, 4))
+
+    def open_pcs_workbench(state):
+        import subprocess
+        import sys
+        from pathlib import Path
+        from tkinter import messagebox
+        script = Path(__file__).resolve().parent.parent / "tools" / "pcs_workbench.py"
+        if not script.exists():
+            messagebox.showerror("PCS Workbench", f"File not found:\n{script}")
+            return
+        subprocess.Popen([sys.executable, str(script)])
+
+    ttk.Button(
+        opf,
+        text="PCS Workbench",
+        command=lambda: open_pcs_workbench(state)
+    ).grid(row=3, column=1, sticky="ew", padx=2, pady=(0, 4))
 
     _sep(input_frame)
 

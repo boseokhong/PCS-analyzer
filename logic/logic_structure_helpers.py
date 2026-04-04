@@ -1,4 +1,4 @@
-# tools/logic_structure_helpers.py
+# logic/logic_structure_helpers.py
 """
 Utility functions for molecular structure rendering.
 

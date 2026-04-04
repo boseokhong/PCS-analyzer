@@ -4,6 +4,10 @@ PCS analyzer
 The following code requires the numpy, matplotlib, pandas, and openpyxl module packages to run.
 A tool for PCS analysis and 2D polar contour visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
+v.1.3.2 updates
+- Added 'PCS Workbench' : ORCA susceptibility calculation, PDE-based PCS calculation (need spindens.3d)
+
+
 v.1.3.1 updates
 - Added a PyVista-based 3D viewer for PCS fields and molecular structures.
 - Fixed coordinate reference used in the Rhombicity analysis table

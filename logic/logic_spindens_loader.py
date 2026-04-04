@@ -1,4 +1,4 @@
-# tools/logic_spindens_loader.py
+# logic/logic_spindens_loader.py
 """
 Loader for ORCA simple-grid spin density files (.3d format).
 

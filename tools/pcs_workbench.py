@@ -1,6 +1,8 @@
-# tools/main_pcs_pde_app.py
+# tools/pcs_workbench.py
 """
-PCS-PDE Application — main entry point (FFT).
+PCS workbench — main entry point
+Supports both standalone launch and integration
+from the main PCS Analyzer interface.
 """
 
 from __future__ import annotations
@@ -20,16 +22,16 @@ except Exception:
     pv = None
 
 from logic.xyz_loader import load_orca_data, pick_orca_tensor_at_temperature
-from tools.logic_spindens_loader import load_spindens_3d
-from tools.ui_pcs_pde_control import ControlPanel, StatusBar
-from tools.ui_pcs_pde_viewer import (
+from logic.logic_spindens_loader import load_spindens_3d
+from ui.ui_pcs_pde_control import ControlPanel, StatusBar
+from ui.ui_pcs_pde_viewer import (
     compute_pcs_pde_result,
     open_or_refresh_pcs_pde_view,
     export_pcs_pde_png,
     close_pcs_pde_view,
     show_oblique_pcs_slice_plot,
 )
-from tools.logic_pcs_pde import rank2_chi, PYFFTW_AVAILABLE, PYFFTW_THREADS
+from logic.logic_pcs_pde import rank2_chi, PYFFTW_AVAILABLE, PYFFTW_THREADS
 
 AVOGADRO = 6.02214129e23
 
@@ -793,7 +795,7 @@ def _guess_metal_index_from_atoms(atoms: list[tuple]) -> int:
 
 
 def _add_tensor_molecule(plotter, atoms: list[tuple], show_atoms=True, show_bonds=True, show_labels=False):
-    from tools.logic_structure_helpers import get_cpk_color, radius_for_element, calculate_bonds
+    from logic.logic_structure_helpers import get_cpk_color, radius_for_element, calculate_bonds
 
     coords = np.array([[x, y, z] for _, x, y, z in atoms], dtype=float)
     elements = [el for el, *_ in atoms]
@@ -1202,7 +1204,7 @@ class AppWindow(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("PCS-PDE Viewer")
+        self.title("PCS Workbench")
         self.geometry("1040x760")
         self.minsize(760, 520)
 

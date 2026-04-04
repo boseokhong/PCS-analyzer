@@ -1,4 +1,4 @@
-# tools/ui_pcs_pde_viewer.py
+# ui/ui_pcs_pde_viewer.py
 """
 3D PyVista viewer for PCS-PDE results.
 
@@ -22,8 +22,8 @@ else:
 
 from scipy.ndimage import map_coordinates, gaussian_filter
 
-from tools.logic_structure_helpers import get_cpk_color, radius_for_element, calculate_bonds
-from tools.logic_pcs_pde import (
+from logic.logic_structure_helpers import get_cpk_color, radius_for_element, calculate_bonds
+from logic.logic_pcs_pde import (
     compute_pcs_field_from_density,
     rank2_chi,
     point_pcs_from_tensor,

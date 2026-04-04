@@ -1,4 +1,4 @@
-# tools/ui_pcs_pde_control.py
+# ui/ui_pcs_pde_control.py
 """
 Control panel GUI for the PCS-PDE viewer (FFT).
 """
