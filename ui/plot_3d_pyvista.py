@@ -223,12 +223,6 @@ def _add_atoms(
         sphere = pv.Sphere(radius=radius, center=xyz, theta_resolution=28, phi_resolution=28)
         plotter.add_mesh(sphere, color=color, smooth_shading=True, specular=0.25, ambient=0.18)
 
-        if selected_ref is not None and rid == selected_ref:
-            ring = pv.Sphere(
-                radius=radius * 1.28, center=xyz, theta_resolution=28, phi_resolution=28
-            )
-            plotter.add_mesh(ring, style="wireframe", color="magenta", line_width=2)
-
 
 def _add_labels(plotter, coords: np.ndarray, labels: list[str], ref_ids: list[int]) -> None:
     if len(coords) == 0:

@@ -21,12 +21,12 @@ try:
     pyfftw.config.NUM_THREADS = __import__("os").cpu_count()
     PYFFTW_AVAILABLE = True
     PYFFTW_THREADS = pyfftw.config.NUM_THREADS
-    print("[fft] pyfftw 사용 중")
+    print("[fft] using pyfftw")
 except ImportError:
     import numpy.fft as _fft
     PYFFTW_AVAILABLE = False
     PYFFTW_THREADS = 1
-    print("[fft] pyfftw 없음, numpy.fft 사용")
+    print("[fft] no pyfftw found, using numpy.fft")
 
 
 def rank2_chi(chi_tensor: np.ndarray) -> np.ndarray:

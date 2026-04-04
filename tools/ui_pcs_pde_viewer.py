@@ -1,20 +1,11 @@
+# tools/ui_pcs_pde_viewer.py
 """
 3D PyVista viewer for PCS-PDE results.
 
-FFT version:
-- zero padding
-- optional density normalization
-- cubic interpolation for nuclear PCS extraction
-- optional automatic contour rescaling for visualization when density
-  normalization is enabled
-
-Extended viewer features:
-- pretty atom rendering
-- tube bonds
-- density style: surface / mesh / both
-- PCS style: surface / mesh / both
-- oblique 2D PCS slice plotting for a plane defined by:
-    metal centre + z-axis + user vector
+Separated into:
+- compute_pcs_pde_result(): expensive FFT/PDE computation
+- open_or_refresh_pcs_pde_view(): render or refresh only
+- export_pcs_pde_png(): off-screen PNG export
 """
 
 from __future__ import annotations
@@ -37,6 +28,15 @@ from tools.logic_pcs_pde import (
     rank2_chi,
     point_pcs_from_tensor,
 )
+
+
+CAMERA_PRESETS = {
+    "iso": "iso",
+    "xy": "xy",
+    "xz": "xz",
+    "yz": "yz",
+}
+
 
 def _make_uniform_grid_from_ext(
     ext: np.ndarray,
@@ -81,12 +81,10 @@ def _interpolate_scalar_field_cubic_from_ext(
 
     interp_order = 3 if (nx >= 4 and ny >= 4 and nz >= 4) else 1
 
-    # 전체 좌표를 인덱스로 변환
     u = (pts[:, 0] - x_min) / dx_i
     v = (pts[:, 1] - y_min) / dy_i
     w = (pts[:, 2] - z_min) / dz_i
 
-    # 그리드 범위 밖은 nan 처리
     inside = (
         (u >= 0) & (u <= nx - 1) &
         (v >= 0) & (v <= ny - 1) &
@@ -96,7 +94,6 @@ def _interpolate_scalar_field_cubic_from_ext(
     out = np.full(len(pts), np.nan, dtype=float)
 
     if np.any(inside):
-        # map_coordinates에 한 번에 넘김 → prefilter 1회만 실행
         out[inside] = map_coordinates(
             fld,
             [u[inside], v[inside], w[inside]],
@@ -146,10 +143,6 @@ def _print_atom_pcs_tsv(rows: list[dict]) -> None:
         print(f"\n[PCS summary] n={int(valid.sum())}  RMSD={rmsd:.6f} ppm  max|Δ|={max_abs:.6f} ppm")
 
 
-# ---------------------------------------------------------------------------
-# 3D rendering helpers
-# ---------------------------------------------------------------------------
-
 def _add_bonds_tube(plotter, coords: np.ndarray, elements: list[str]) -> None:
     try:
         bonds = calculate_bonds(coords, elements)
@@ -187,20 +180,6 @@ def _add_atoms_pretty(
             specular=0.25,
             ambient=0.18,
         )
-
-        if selected_index is not None and i == selected_index:
-            ring = pv.Sphere(
-                radius=radius_for_element(el) * 1.28,
-                center=xyz,
-                theta_resolution=28,
-                phi_resolution=28,
-            )
-            plotter.add_mesh(
-                ring,
-                style="wireframe",
-                color="magenta",
-                line_width=2,
-            )
 
 
 def _add_labels(plotter, coords: np.ndarray, elements: list[str]) -> None:
@@ -301,11 +280,6 @@ def _add_isosurface_for_level(
     except Exception:
         pass
 
-
-# ---------------------------------------------------------------------------
-# Oblique 2D slice helpers
-# ---------------------------------------------------------------------------
-
 def _safe_unit_vector(v: np.ndarray, name: str) -> np.ndarray:
     arr = np.asarray(v, dtype=float).reshape(3)
     n = float(np.linalg.norm(arr))
@@ -358,10 +332,9 @@ def _parse_signed_contour_levels(text: str | None) -> np.ndarray | None:
     """
     Parse a comma-separated contour level string.
 
-    Examples
-    --------
-    "1,2,5,10" -> array([-10., -5., -2., -1., 1., 2., 5., 10.])
-    "" or None -> None
+    Example
+    -------
+    "1,2,5,10" -> [-10, -5, -2, -1, 1, 2, 5, 10]
     """
     if text is None:
         return None
@@ -385,6 +358,7 @@ def _parse_signed_contour_levels(text: str | None) -> np.ndarray | None:
     pos = vals
     return np.asarray(neg + pos, dtype=float)
 
+
 def show_oblique_pcs_slice_plot(
     *,
     atoms: list[tuple[str, float, float, float]],
@@ -403,28 +377,6 @@ def show_oblique_pcs_slice_plot(
     dpi: int = 600,
     transparent: bool = False,
 ):
-    """
-    Open a matplotlib 2D contour plot for a plane defined by:
-
-        metal centre + z-axis + user_vector
-
-    Parameters
-    ----------
-    atoms :
-        [(el, x, y, z), ...]
-    pcs_field :
-        3D PCS scalar field.
-    origin, spacing :
-        Grid definition for pcs_field.
-    metal_xyz :
-        Point through which the plane passes.
-    z_axis :
-        Axis that must lie in the plane.
-    user_vector :
-        Second direction defining the plane.
-    plane_tol_atoms :
-        Only atoms within this distance from the plane are shown.
-    """
     if pv is None:
         raise RuntimeError(f"PyVista import failed: {_PV_ERROR}")
 
@@ -435,6 +387,7 @@ def show_oblique_pcs_slice_plot(
         np.asarray(ext, dtype=float),
         np.asarray(pcs_field, dtype=float),
     )
+
     plane_normal, inplane_x, inplane_y = _build_oblique_plane_basis(z_axis, user_vector)
 
     slc = grid_pcs.slice(
@@ -459,7 +412,6 @@ def show_oblique_pcs_slice_plot(
 
     if custom_levs is not None:
         levs = custom_levs
-        vmax = float(np.max(np.abs(levs)))
     else:
         vmax = float(np.nanmax(np.abs(vals)))
         if not np.isfinite(vmax) or vmax <= 0:
@@ -467,13 +419,14 @@ def show_oblique_pcs_slice_plot(
         levs = np.linspace(-vmax, vmax, int(levels))
 
     fig, ax = plt.subplots(figsize=(8.0, 6.0))
+
     if cmap == "custom_blue_red":
         cmap_obj = LinearSegmentedColormap.from_list(
             "custom_blue_red",
             [
-                (0.0, "#0000FF"),  # negative
-                (0.5, "#FFFFFF"),  # zero
-                (1.0, "#FF0000"),  # positive
+                (0.0, "#0000FF"),
+                (0.5, "#FFFFFF"),
+                (1.0, "#FF0000"),
             ],
             N=256,
         )
@@ -488,8 +441,8 @@ def show_oblique_pcs_slice_plot(
         cmap=cmap_obj,
         extend="both",
     )
-    line_levs = levs[::2] if len(levs) >= 4 else levs
 
+    line_levs = levs[::2] if len(levs) >= 4 else levs
     ax.tricontour(
         x2d,
         y2d,
@@ -534,7 +487,6 @@ def show_oblique_pcs_slice_plot(
                 zorder=5,
             )
 
-    # Metal origin marker
     ax.scatter(
         [0.0],
         [0.0],
@@ -549,15 +501,15 @@ def show_oblique_pcs_slice_plot(
     ax.set_xlabel("orthogonal to z-axis (Å)")
     ax.set_ylabel("z-axis direction (Å)")
     ax.set_title(title)
-    #legend control
+
     cbar = fig.colorbar(
         cf,
         ax=ax,
         label="PCS (ppm)",
-        fraction=0.05,  # colorbar thickness
-        pad=0.03,  # distance from plot
-        shrink=0.90,  # overall height
-        aspect=30,  # long/thin ratio
+        fraction=0.05,
+        pad=0.03,
+        shrink=0.90,
+        aspect=30,
     )
     cbar.ax.tick_params(labelsize=9)
     cbar.set_label("PCS (ppm)", fontsize=10)
@@ -587,12 +539,7 @@ def show_oblique_pcs_slice_plot(
         "atom_rows": atom_rows,
     }
 
-
-# ---------------------------------------------------------------------------
-# Main 3D viewer
-# ---------------------------------------------------------------------------
-
-def show_pcs_pde_view(
+def compute_pcs_pde_result(
     atoms: list,
     origin: np.ndarray,
     spacing: tuple[float, float, float],
@@ -606,71 +553,18 @@ def show_pcs_pde_view(
     if pv is None:
         raise RuntimeError(f"PyVista import failed: {_PV_ERROR}")
 
-    density_iso_frac = float(params.get("density_iso", 0.005))
-    pcs_level_neg_user = float(params.get("pcs_level_neg", -2.0))
-    pcs_level_pos_user = float(params.get("pcs_level_pos", 2.0))
-
-    show_bonds = bool(params.get("show_bonds", True))
-    show_density = bool(params.get("show_density", True))
-    show_pcs = bool(params.get("show_pcs", True))
-    show_labels = bool(params.get("show_labels", False))
-    show_grid = bool(params.get("show_grid", False))
-    show_outline = bool(params.get("show_outline", False))
-
-    background = str(params.get("background_color", "white"))
-
-    fft_pad_factor = int(params.get("fft_pad_factor", 2))
-    normalize_density = bool(params.get("normalize_density", True))
-    normalization_target = float(params.get("normalization_target", 1.0))
-    auto_scale_pcs_levels = bool(params.get("auto_scale_pcs_levels", True))
-
-    density_style = str(params.get("density_style", "both"))
-    density_color = str(params.get("density_color", "#27af91"))
-    density_opacity = float(params.get("density_opacity", 0.15))
-
-    pcs_style = str(params.get("pcs_style", "surface"))
-    pcs_pos_color = str(params.get("pcs_pos_color", "#ff0000"))
-    pcs_neg_color = str(params.get("pcs_neg_color", "#0000ff"))
-    pcs_opacity = float(params.get("pcs_opacity", 0.30))
-
-    ambient_light = float(params.get("ambient_light", 0.50))
-    smooth_pcs_display = bool(params.get("smooth_pcs_display", False))
-    smooth_pcs_sigma = float(params.get("smooth_pcs_sigma", 1.0))
-
     rho = np.asarray(rho, dtype=float)
     origin = np.asarray(origin, dtype=float)
     chi_tensor = np.asarray(chi_tensor, dtype=float)
 
-    chi_r2 = rank2_chi(chi_tensor)
+    fft_pad_factor = int(params.get("fft_pad_factor", 2))
+    normalize_density = bool(params.get("normalize_density", True))
+    normalization_target = float(params.get("normalization_target", 1.0))
 
-    print("[viewer] ─── Chi tensor summary ───")
-    if chi_raw is not None:
-        print(f"[viewer] χ raw from ORCA (cm^3*K/mol):\n{np.asarray(chi_raw, dtype=float)}")
-    if temperature is not None:
-        print(f"[viewer] temperature used: {float(temperature):.6g} K")
-    print(f"[viewer] χ converted  (Å³/molecule):\n{chi_tensor}")
-    print(f"[viewer] χ rank-2 traceless:\n{chi_r2}")
-    print(f"[viewer] Tr(χ_converted) = {np.trace(chi_tensor):.4e}")
-    print(f"[viewer] Tr(χ_rank2)     = {np.trace(chi_r2):.2e}  (≈0)")
+    chi_r2 = rank2_chi(chi_tensor)
 
     coords = np.array([[x, y, z] for _, x, y, z in atoms], dtype=float)
     elements = [el for el, *_ in atoms]
-
-    print("[viewer] ─── Grid / structure summary ───")
-    print(f"[viewer] rho shape: {rho.shape}")
-    print(f"[viewer] origin Å: {origin}")
-    print(f"[viewer] spacing Å: {spacing}")
-    print(f"[viewer] atom min Å: {coords.min(axis=0)}")
-    print(f"[viewer] atom max Å: {coords.max(axis=0)}")
-    print(f"[viewer] grid min Å: {origin}")
-    print(f"[viewer] grid max Å: {origin + np.array(spacing, dtype=float) * (np.array(rho.shape) - 1)}")
-
-    print("[viewer] ─── Starting PCS computation (FFT branch) ───")
-    print(f"[viewer] user PCS levels: [{pcs_level_neg_user}, {pcs_level_pos_user}]")
-    print(f"[viewer] fft_pad_factor: {fft_pad_factor}")
-    print(f"[viewer] normalize_density: {normalize_density}")
-    print(f"[viewer] normalization_target: {normalization_target}")
-    print(f"[viewer] auto_scale_pcs_levels: {auto_scale_pcs_levels}")
 
     pcs_field, source_term, origin_used, spacing_used, meta = compute_pcs_field_from_density(
         rho=rho,
@@ -682,58 +576,27 @@ def show_pcs_pde_view(
         normalization_target=normalization_target,
     )
 
-    print(f"[viewer] PCS min/max: {np.nanmin(pcs_field):.4f} / {np.nanmax(pcs_field):.4f} ppm")
-
     rho_used = np.asarray(meta.get("rho_used"), dtype=float)
     ext_used = np.asarray(meta["ext"], dtype=float)
-
-    rho_max = float(np.max(np.abs(rho_used)))
-    density_iso = max(rho_max * density_iso_frac, 1e-12)
-
-    print(f"[viewer] density_iso: {density_iso:.3e}")
-
-    scale_factor = 1.0
-    norm_info = meta.get("normalization_info")
-    if normalize_density and norm_info is not None:
-        scale_factor = float(norm_info["scale_factor"])
-
-    if auto_scale_pcs_levels and normalize_density:
-        pcs_level_neg_disp = pcs_level_neg_user * scale_factor
-        pcs_level_pos_disp = pcs_level_pos_user * scale_factor
-    else:
-        pcs_level_neg_disp = pcs_level_neg_user
-        pcs_level_pos_disp = pcs_level_pos_user
-
-    pcs_levels_display = [v for v in (pcs_level_neg_disp, pcs_level_pos_disp) if abs(v) > 1e-12]
-
-    print(f"[viewer] display PCS levels: {pcs_levels_display}")
-    if auto_scale_pcs_levels and normalize_density:
-        print(f"[viewer] contour levels scaled by normalization factor {scale_factor:.6f}")
 
     metal_idx = _guess_metal_index(elements)
     metal_xyz = coords[metal_idx]
 
-    import time
-
-    t0 = time.perf_counter()
     pcs_pde = _interpolate_scalar_field_cubic_from_ext(
         points=coords,
         field=pcs_field,
         ext=ext_used,
     )
-    print(f"[time] interpolate_scalar_field: {time.perf_counter() - t0:.2f}s")
 
-    t0 = time.perf_counter()
     pcs_point = point_pcs_from_tensor(
         points=coords,
         metal_xyz=metal_xyz,
         chi_tensor=chi_tensor,
     )
-    print(f"[time] point_pcs_from_tensor: {time.perf_counter() - t0:.2f}s")
 
     atom_rows = []
     for ref, (el, xyz, v_pde, v_point) in enumerate(
-            zip(elements, coords, pcs_pde, pcs_point), start=1
+        zip(elements, coords, pcs_pde, pcs_point), start=1
     ):
         delta = float(v_pde - v_point) if (np.isfinite(v_pde) and np.isfinite(v_point)) else np.nan
         atom_rows.append({
@@ -749,92 +612,13 @@ def show_pcs_pde_view(
 
     _print_atom_pcs_tsv(atom_rows)
 
-    t0 = time.perf_counter()
-    pl = pv.Plotter(title="PCS-PDE Viewer", window_size=(900, 900))
-    pl.set_background(background)
-    print(f"[time] pv.Plotter() init: {time.perf_counter() - t0:.2f}s")
-
-    t0 = time.perf_counter()
-    _add_atoms_pretty(pl, coords, elements, selected_index=metal_idx)
-    print(f"[time] add_atoms_pretty: {time.perf_counter() - t0:.2f}s")
-
-    t0 = time.perf_counter()
-    if show_bonds and len(coords) >= 2:
-        _add_bonds_tube(pl, coords, elements)
-    print(f"[time] add_bonds_tube: {time.perf_counter() - t0:.2f}s")
-
-    if show_labels:
-        _add_labels(pl, coords, elements)
-
-    t0 = time.perf_counter()
-    grid_rho = _make_uniform_grid_from_ext(ext_used, rho_used)
-    if smooth_pcs_display:
-        pcs_for_display = gaussian_filter(pcs_field, sigma=smooth_pcs_sigma)
-        print(f"[viewer] PCS display smoothing: gaussian sigma={smooth_pcs_sigma}")
-    else:
-        pcs_for_display = pcs_field
-    grid_pcs = _make_uniform_grid_from_ext(ext_used, pcs_for_display)
-    print(f"[time] make_uniform_grid (rho+pcs): {time.perf_counter() - t0:.2f}s")
-
-    if show_density:
-        t0 = time.perf_counter()
-        try:
-            rho_iso = grid_rho.contour(isosurfaces=[density_iso], scalars="values")
-            _add_single_isosurface_style(
-                pl,
-                rho_iso,
-                color=density_color,
-                style=density_style,
-                opacity=density_opacity,
-                ambient=ambient_light,
-                name_base="density_iso",
-            )
-        except Exception as exc:
-            print(f"[viewer] density contour failed: {exc}")
-        print(f"[time] density contour + add_mesh: {time.perf_counter() - t0:.2f}s")
-
-    if show_pcs and pcs_levels_display:
-        t0 = time.perf_counter()
-        abs_levels = sorted({abs(float(v)) for v in pcs_levels_display if abs(v) > 1e-12})
-        for idx, lv in enumerate(abs_levels):
-            _add_isosurface_for_level(
-                pl,
-                grid_pcs,
-                level_ppm=lv,
-                pos_color=pcs_pos_color,
-                neg_color=pcs_neg_color,
-                style=pcs_style,
-                opacity=pcs_opacity,
-                level_index=idx,
-                ambient=ambient_light,
-            )
-        print(f"[time] pcs contour + add_mesh: {time.perf_counter() - t0:.2f}s")
-
-    if show_outline:
-        pl.add_mesh(grid_rho.outline(), color="gray", line_width=1)
-
-    pl.add_axes()
-
-    if show_grid:
-        pl.show_grid()
-
-    try:
-        pl.camera_position = "iso"
-    except Exception:
-        pass
-
-    print("[viewer] opening window…")
-    t0 = time.perf_counter()
-    pl.show(auto_close=False)
-    print(f"[time] pl.show() (until window closed): {time.perf_counter() - t0:.2f}s")
-    print("[viewer] window closed")
-
     return {
         "pcs_field": pcs_field,
         "source_term": source_term,
         "origin": np.asarray(origin_used, dtype=float),
         "spacing": tuple(float(v) for v in spacing_used),
         "ext": np.asarray(ext_used, dtype=float),
+        "rho_used": rho_used,
         "metal_index": int(metal_idx),
         "metal_xyz": np.asarray(metal_xyz, dtype=float),
         "atom_rows": atom_rows,
@@ -845,12 +629,180 @@ def show_pcs_pde_view(
         "fft_pad_factor": int(fft_pad_factor),
         "normalize_density": bool(normalize_density),
         "normalization_target": float(normalization_target),
-        "normalization_info": norm_info,
+        "normalization_info": meta.get("normalization_info"),
         "density_before": meta.get("density_before"),
         "density_after": meta.get("density_after"),
-        "auto_scale_pcs_levels": bool(auto_scale_pcs_levels),
-        "pcs_level_neg_user": float(pcs_level_neg_user),
-        "pcs_level_pos_user": float(pcs_level_pos_user),
-        "pcs_level_neg_display": float(pcs_level_neg_disp),
-        "pcs_level_pos_display": float(pcs_level_pos_disp),
+        "atoms": list(atoms),
     }
+
+
+def _populate_pcs_pde_scene(
+    plotter,
+    result: dict,
+    params: dict,
+) -> None:
+    if pv is None:
+        raise RuntimeError(f"PyVista import failed: {_PV_ERROR}")
+
+    atoms = result["atoms"]
+    coords = np.array([[x, y, z] for _, x, y, z in atoms], dtype=float)
+    elements = [el for el, *_ in atoms]
+    metal_idx = int(result["metal_index"])
+
+    rho_used = np.asarray(result["rho_used"], dtype=float)
+    pcs_field = np.asarray(result["pcs_field"], dtype=float)
+    ext_used = np.asarray(result["ext"], dtype=float)
+
+    density_iso_frac = float(params.get("density_iso", 0.005))
+    show_atoms = bool(params.get("show_atoms", True))
+    show_bonds = bool(params.get("show_bonds", True))
+    show_density = bool(params.get("show_density", True))
+    show_pcs = bool(params.get("show_pcs", True))
+    show_labels = bool(params.get("show_labels", False))
+    show_grid = bool(params.get("show_grid", False))
+    show_outline = bool(params.get("show_outline", False))
+    background = str(params.get("background_color", "white"))
+
+    density_style = str(params.get("density_style", "both"))
+    density_color = str(params.get("density_color", "#27af91"))
+    density_opacity = float(params.get("density_opacity", 0.15))
+
+    ambient_light = float(params.get("ambient_light", 0.50))
+    smooth_pcs_display = bool(params.get("smooth_pcs_display", False))
+    smooth_pcs_sigma = float(params.get("smooth_pcs_sigma", 1.0))
+    camera_preset = str(params.get("camera_preset", "iso"))
+    level_styles = list(params.get("level_styles", []))
+
+    plotter.clear()
+    plotter.set_background(background)
+
+    if show_atoms:
+        _add_atoms_pretty(plotter, coords, elements, selected_index=metal_idx)
+
+    if show_bonds and len(coords) >= 2:
+        _add_bonds_tube(plotter, coords, elements)
+
+    if show_labels:
+        _add_labels(plotter, coords, elements)
+
+    grid_rho = _make_uniform_grid_from_ext(ext_used, rho_used)
+
+    if smooth_pcs_display:
+        pcs_for_display = gaussian_filter(pcs_field, sigma=smooth_pcs_sigma)
+    else:
+        pcs_for_display = pcs_field
+    grid_pcs = _make_uniform_grid_from_ext(ext_used, pcs_for_display)
+
+    rho_max = float(np.max(np.abs(rho_used)))
+    density_iso = max(rho_max * density_iso_frac, 1e-12)
+
+    if show_density:
+        try:
+            rho_iso = grid_rho.contour(isosurfaces=[density_iso], scalars="values")
+            _add_single_isosurface_style(
+                plotter,
+                rho_iso,
+                color=density_color,
+                style=density_style,
+                opacity=density_opacity,
+                ambient=ambient_light,
+                name_base="density_iso",
+            )
+        except Exception as exc:
+            print(f"[viewer] density contour failed: {exc}")
+
+    if show_pcs:
+        for idx, item in enumerate(level_styles):
+            try:
+                lv = abs(float(item["ppm"]))
+                if lv <= 0:
+                    continue
+                _add_isosurface_for_level(
+                    plotter,
+                    grid_pcs,
+                    level_ppm=lv,
+                    pos_color=str(item["pos_color"]),
+                    neg_color=str(item["neg_color"]),
+                    style=str(item["style"]),
+                    opacity=float(item["opacity"]),
+                    level_index=idx,
+                    ambient=ambient_light,
+                )
+            except Exception as exc:
+                print(f"[viewer] level render failed ({item}): {exc}")
+
+    if show_outline:
+        plotter.add_mesh(grid_rho.outline(), color="gray", line_width=1)
+
+    plotter.add_axes()
+
+    if show_grid:
+        plotter.show_grid()
+
+    try:
+        plotter.camera_position = CAMERA_PRESETS.get(camera_preset, "iso")
+    except Exception:
+        pass
+
+
+def open_or_refresh_pcs_pde_view(
+    result: dict,
+    params: dict,
+    *,
+    plotter=None,
+    window_size=(900, 900),
+):
+    if pv is None:
+        raise RuntimeError(f"PyVista import failed: {_PV_ERROR}")
+
+    try:
+        if plotter is not None:
+            _ = plotter.renderer.actors
+    except Exception:
+        plotter = None
+
+    created = False
+    if plotter is None:
+        plotter = pv.Plotter(title="PCS-PDE Viewer", window_size=window_size)
+        created = True
+
+    _populate_pcs_pde_scene(plotter, result, params)
+
+    if created:
+        plotter.show(auto_close=False)
+    else:
+        try:
+            plotter.render()
+            plotter.update()
+        except Exception:
+            pass
+
+    return plotter
+
+
+def close_pcs_pde_view(plotter):
+    if plotter is None:
+        return
+    try:
+        plotter.close()
+    except Exception:
+        pass
+
+
+def export_pcs_pde_png(
+    result: dict,
+    params: dict,
+    path: str,
+    *,
+    dpi: int = 600,
+    width_inch: float = 6.0,
+    transparent: bool = False,
+):
+    if pv is None:
+        raise RuntimeError(f"PyVista import failed: {_PV_ERROR}")
+
+    target_px = int(round(float(width_inch) * int(dpi)))
+    off = pv.Plotter(off_screen=True, window_size=(target_px, target_px))
+    _populate_pcs_pde_scene(off, result, params)
+    off.screenshot(path, transparent_background=bool(transparent))
+    off.close()
