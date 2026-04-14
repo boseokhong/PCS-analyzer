@@ -15,8 +15,8 @@ authors:
     orcid: 'https://orcid.org/0009-0005-5866-682X'
 identifiers:
   - type: doi
-    value: 10.5281/zenodo.14219440
+    value: 10.5281/zenodo.18752129
 repository-code: 'https://github.com/boseokhong/PCS-analyzer'
 license: BSD-3-Clause
-version: '1.1.0'
+version: '1.3.1'
 date-released: '2026-02-24'
