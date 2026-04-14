@@ -1,5 +1,5 @@
 # Pseudocontact Chemical Shift (PCS) Analyzer
-![version](https://img.shields.io/badge/version-1.3.1-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
+![version](https://img.shields.io/badge/version-1.3.2-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
 <img width="1409" height="919" alt="PCS Analyzer main interface" src="https://github.com/user-attachments/assets/e4a0b469-4a98-4552-803d-6cb8a3fbfdab" />
 <img width="2420" height="882" alt="PCS Analyzer additional views" src="https://github.com/user-attachments/assets/7981899a-5cc4-46a6-9462-152e7a0f38bb" />
@@ -10,7 +10,10 @@ The software integrates molecular structure import, 2D and 3D PCS visualization,
 
 > [!NOTE]
 > Required Python packages: `numpy`, `scipy`, `matplotlib`, `pandas`, and `openpyxl`  
-> Optional packages: `pyvista` for 3D PCS field / molecular visualization, and `ttkbootstrap` for enhanced GUI styling
+> Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, and `imageio`
+> - `pyvista` for 3D PCS field / molecular visualization, and `ttkbootstrap` for enhanced GUI styling
+> - `pyfftw` is optional. The code falls back to `numpy.fft` if it is not installed.
+> - `imageio` is required for GIF export [PyVista's `Plotter.open_gif()`].
 ---
 ## Overview
 
@@ -24,6 +27,18 @@ Core use cases include:
 - advanced fitting and conformer-assisted refinement
 
 ## Recent Changes
+
+Release **v1.3.2**
+- added **PCS Workbench**, a standalone workspace for FFT-based PDE PCS analysis from ORCA magnetic susceptibility tensors and spin-density grids `.3d`
+  - direct import of ORCA `.out` / `.log` files together with ORCA `.3d` spin-density files for PDE workflows
+  - temperature-resolved tensor selection, ORCA tensor conversion, and rank-2 traceless tensor handling
+  - configurable PDE options including zero-padding, density normalization, and contour auto-scaling
+  - PyVista-based PDE field visualization with multi-level PCS isosurfaces, spin-density surfaces, and slice display
+  - quantitative comparison between distributed PDE PCS and point-dipole PCS
+  - export of computed PDE results to `.png`, `.csv`, compressed **NumPy (`.npz`)**, and temperature-dependent `.gif`
+  - **oblique PCS slice plotting** for user-defined planes through the metal centre
+  - a **traceless tensor spheroid viewer**
+  - PDE field calculation follows the distributed PCS formalism of Charnock and Kuprov: *Phys. Chem. Chem. Phys.*, **2014**, DOI: `10.1039/C4CP03106G`
 
 Release **v1.3.1**
 - added a PyVista-based 3D viewer for PCS fields and molecular structures.
@@ -81,6 +96,17 @@ Release **v1.3.0** introduces several workflow and interface upgrades:
 - NMR spectrum viewer with layered `PCS`, `OBS`, `DIA`, and `PARA` displays
 - NMR analysis window for non-PCS-oriented inspection
 - integrated **Conformer Search and Fitting** with preview, apply, revert, and discard workflows
+
+### 7. PCS Workbench (distributed PCS / PDE)
+- standalone FFT-based distributed PCS workflow using ORCA susceptibility tensors and spin-density grids
+- comparison between distributed PDE PCS and point-dipole PCS
+- interactive 3D visualization of PDE fields with signed PCS isosurfaces and spin-density overlays
+- oblique PCS slice plotting for user-defined planes through the metal centre
+- tensor spheroid visualization with temperature-dependent `GIF` export
+- export of PDE fields, atom-wise comparison tables
+
+The PDE implementation follows the distributed PCS / Kuprov-equation framework (*PCCP*, 2014, DOI: `10.1039/C4CP03106G`).
+
 ---
 ## Installation
 
@@ -92,11 +118,10 @@ cd PCS-analyzer
 pip install numpy scipy matplotlib pandas openpyxl
 ```
 
-Optional 3D plot visualization / GUI theme support:
+Optional packages for 3D visualization, FFT acceleration, and GIF export:
 
 ```bash
-pip install pyvista
-pip install ttkbootstrap
+pip install ttkbootstrap pyvista vtk pyfftw imageio
 ```
 
 Run the program with:
@@ -228,6 +253,18 @@ PCS Analyzer supports export of:
 - fixed coordinate reference used in the Rhombicity analysis table
 - added residual-based text color highlighting for PCS tables
 - added export function to save the current visible structure as an `.xyz` file
+
+**v1.3.2**
+- added **PCS Workbench** for FFT-based distributed PCS / PDE analysis
+  - direct import of ORCA `.out` / `.log` files together with ORCA `.3d` spin-density files for PDE workflows
+  - temperature-resolved tensor selection, ORCA tensor conversion, and rank-2 traceless tensor handling
+  - configurable PDE options including zero-padding, density normalization, and contour auto-scaling
+  - PyVista-based PDE field visualization with multi-level PCS isosurfaces, spin-density surfaces, and slice display
+  - quantitative comparison between distributed PDE PCS and point-dipole PCS
+  - export of computed PDE results to `.png`, `.csv`, compressed **NumPy (`.npz`)**, and temperature-dependent `.gif`
+  - **oblique PCS slice plotting** for user-defined planes through the metal centre
+  - a **traceless tensor spheroid viewer**
+  - PDE field calculation follows the distributed PCS formalism of Charnock and Kuprov: *Phys. Chem. Chem. Phys.*, **2014**, DOI: `10.1039/C4CP03106G`
 
 </details>
 

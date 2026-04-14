@@ -2,11 +2,20 @@
 PCS analyzer
 
 The following code requires the numpy, matplotlib, pandas, and openpyxl module packages to run.
-A tool for PCS analysis and 2D polar contour visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
+(Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, and `imageio`)
+A tool for PCS analysis and 2D/3D visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
 v.1.3.2 updates
-- Added 'PCS Workbench' : ORCA susceptibility calculation, PDE-based PCS calculation (need spindens.3d)
-
+- added **PCS Workbench** for FFT-based distributed PCS / PDE analysis
+  - direct import of ORCA `.out` / `.log` files together with ORCA `.3d` spin-density files for PDE workflows
+  - temperature-resolved tensor selection, ORCA tensor conversion, and rank-2 traceless tensor handling
+  - configurable PDE options including zero-padding, density normalization, and contour auto-scaling
+  - PyVista-based PDE field visualization with multi-level PCS isosurfaces, spin-density surfaces, and slice display
+  - quantitative comparison between distributed PDE PCS and point-dipole PCS
+  - export of computed PDE results to `.png`, `.csv`, compressed **NumPy (`.npz`)**, and temperature-dependent `.gif`
+  - **oblique PCS slice plotting** for user-defined planes through the metal centre
+  - a **traceless tensor spheroid viewer**
+  - PDE field calculation follows the distributed PCS formalism of Charnock and Kuprov: *Phys. Chem. Chem. Phys.*, **2014**, DOI: `10.1039/C4CP03106G`
 
 v.1.3.1 updates
 - Added a PyVista-based 3D viewer for PCS fields and molecular structures.
@@ -81,7 +90,7 @@ v.1.2.0 updates
 
 
 
-2026.03. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
+2026.04. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
 <bshong66@gmail.com>
 <https://github.com/boseokhong/PCS-analyzer>
 '''

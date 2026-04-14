@@ -1293,10 +1293,17 @@ class AppWindow(tk.Tk):
 
     def _show_about(self):
         messagebox.showinfo(
-            "About PCS-PDE Viewer",
-            "PCS-PDE Viewer\n\n"
-            "FFT PDE comparison mode.\n"
-            "Tensor conversion :\n"
+            "About PCS Workbench",
+            "PCS Workbench\n\n"
+            "Distributed PCS field analysis from ORCA susceptibility tensors "
+            "and spin-density grids.\n\n"
+            "Method:\n"
+            "• FFT-based PDE solver for distributed PCS\n"
+            "• Point-dipole PCS comparison\n\n"
+            "Reference:\n"
+            "Kuprov–Charnock formalism\n"
+            "DOI: 10.1039/C4CP03106G\n\n"
+            "Tensor conversion used internally:\n"
             "χ = 4π × 1e24 × χ_raw / (N_A × T)"
         )
 
