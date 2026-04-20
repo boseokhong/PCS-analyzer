@@ -63,6 +63,30 @@ from logic.chem_constants import VDW_RADII, covalent_radii, METAL_ELEMENTS
 CLASH_FACTOR   = 0.65
 CLASH_PENALTY_K = 500.0   # ppm-equivalent penalty per clashing pair
 
+# Coordination penalty configuration
+# can override these values directly.
+DEFAULT_COORDINATION_CONFIG = {
+    "enabled": True,
+    "penalty_k": 1000.0,
+    "fallback_scale": 0.88,
+    "default_offset": 0.05,
+    "donor_offsets": {
+        "O": 0.00,
+        "N": 0.03,
+        "F": 0.00,
+        "P": 0.08,
+        "S": 0.10,
+        "Cl": 0.12,
+        "Br": 0.15,
+        "I": 0.18,
+        "As": 0.10,
+        "Se": 0.12,
+        "C": 0.02,
+    },
+}
+
+ANGULAR_PENALTY_K = 1e5
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MOLECULAR GRAPH
 # ─────────────────────────────────────────────────────────────────────────────
@@ -524,6 +548,97 @@ def fixed_atom_penalty(coords: np.ndarray,
     delta = coords[fixed_indices] - ref_coords[fixed_indices]
     return FIXED_PENALTY_K * float(np.sum(delta ** 2))
 
+def coordination_penalty(coords: np.ndarray,
+                         elements: List[str],
+                         metal_idx: int,
+                         coord_cfg: Optional[dict] = None) -> float:
+    """
+    Penalise unrealistically short metal–donor distances.
+    Uses a configurable automatic lower-bound model based on covalent radii.
+    """
+    cfg = get_coordination_config(coord_cfg)
+    if not cfg.get("enabled", True):
+        return 0.0
+
+    metal_el = elements[metal_idx]
+    metal_pos = coords[metal_idx]
+    dists = np.linalg.norm(coords - metal_pos, axis=1)
+
+    penalty_k = float(cfg.get("penalty_k", 1000.0))
+    penalty = 0.0
+
+    for i, (el, d) in enumerate(zip(elements, dists)):
+        if i == metal_idx or el == "H":
+            continue
+        if d > 4.5:
+            continue
+
+        dmin = get_coordination_min_distance(metal_el, el, cfg)
+        if d < dmin:
+            violation = dmin - d
+            penalty += (penalty_k * violation) ** 2
+
+    return penalty
+
+def angular_fixed_penalty(coords: np.ndarray,
+                          ref_unit_vecs: np.ndarray,
+                          fixed_indices: List[int],
+                          metal_pos: np.ndarray) -> float:
+    """
+    Penalise angular deviation of fixed atoms from their reference
+    metal-centred direction, while allowing radial relaxation.
+    """
+    if not fixed_indices or len(ref_unit_vecs) == 0:
+        return 0.0
+
+    current_vecs = coords[fixed_indices] - metal_pos
+    norms = np.linalg.norm(current_vecs, axis=1, keepdims=True)
+    norms = np.where(norms > 1e-9, norms, 1.0)
+    unit_vecs = current_vecs / norms
+    diff = unit_vecs - ref_unit_vecs
+    return ANGULAR_PENALTY_K * float(np.sum(diff ** 2))
+
+def get_coordination_config(user_config: Optional[dict] = None) -> dict:
+    """
+    Merge user-supplied coordination config onto defaults.
+    Designed so future JSON / settings-dialog configs can be passed in directly.
+    """
+    cfg = dict(DEFAULT_COORDINATION_CONFIG)
+    donor_offsets = dict(DEFAULT_COORDINATION_CONFIG.get("donor_offsets", {}))
+
+    if user_config:
+        for k, v in user_config.items():
+            if k != "donor_offsets":
+                cfg[k] = v
+        donor_offsets.update(user_config.get("donor_offsets", {}))
+
+    cfg["donor_offsets"] = donor_offsets
+    return cfg
+
+
+def get_donor_offset(donor_el: str, cfg: Optional[dict] = None) -> float:
+    cfg = get_coordination_config(cfg)
+    return float(cfg.get("donor_offsets", {}).get(
+        donor_el,
+        cfg.get("default_offset", 0.05)
+    ))
+
+
+def get_coordination_min_distance(
+    metal_el: str,
+    donor_el: str,
+    cfg: Optional[dict] = None,
+) -> float:
+    """
+    Automatic lower-bound estimate for a chemically reasonable M–donor distance.
+    Uses shared covalent radii + a small donor-type offset.
+    """
+    cfg = get_coordination_config(cfg)
+    r_m = covalent_radii.get(metal_el, covalent_radii["default"])
+    r_d = covalent_radii.get(donor_el, covalent_radii["default"])
+    scale = float(cfg.get("fallback_scale", 0.88))
+    return scale * (r_m + r_d) + get_donor_offset(donor_el, cfg)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OPTIMISER
 # ─────────────────────────────────────────────────────────────────────────────
@@ -552,17 +667,19 @@ class ConformerOptimiser:
     """
 
     def __init__(self,
-                 mol:          Molecule,
-                 rotatable:    List[Tuple[int, int]],
-                 obs_atoms:    List[int],
-                 obs_pcs:      np.ndarray,
-                 metal:        np.ndarray,
-                 dchi_ax:      float,
-                 dchi_rh:      float,
-                 euler_zyz:    Tuple[float, float, float],
-                 metal_idx:    Optional[int] = None,
-                 fixed_atoms:  Optional[Set[int]] = None,
-                 progress_cb   = None):
+                 mol: Molecule,
+                 rotatable: List[Tuple[int, int]],
+                 obs_atoms: List[int],
+                 obs_pcs: np.ndarray,
+                 metal: np.ndarray,
+                 dchi_ax: float,
+                 dchi_rh: float,
+                 euler_zyz: Tuple[float, float, float],
+                 metal_idx: Optional[int] = None,
+                 fixed_atoms: Optional[Set[int]] = None,
+                 progress_cb=None,
+                 constraint_mode: str = "angular",
+                 coordination_config: Optional[dict] = None):
 
         self.mol         = mol
         self.rotatable   = list(rotatable)
@@ -578,6 +695,21 @@ class ConformerOptimiser:
 
         self._bonded13   = _precompute_bonded_13(mol)
         self._ref_coords = mol.coords.copy()
+
+        if fixed_atoms and metal_idx is not None:
+            _fixed_list = sorted(fixed_atoms)
+            _metal_pos = mol.coords[metal_idx]
+            _vecs = mol.coords[_fixed_list] - _metal_pos
+            _norms = np.linalg.norm(_vecs, axis=1, keepdims=True)
+            _norms = np.where(_norms > 1e-9, _norms, 1.0)
+            self._fixed_unit_vecs = _vecs / _norms
+            self._fixed_list = _fixed_list
+        else:
+            self._fixed_unit_vecs = np.zeros((0, 3))
+            self._fixed_list = []
+
+        self.constraint_mode = str(constraint_mode).strip().lower()
+        self.coordination_config = get_coordination_config(coordination_config)
 
         # ── Pre-cache per-bond rotation data ──────────────────────────────
         # rotate_dihedral calls subtree_with_barriers (graph traversal) on
@@ -652,13 +784,38 @@ class ConformerOptimiser:
         return coords
 
     def _cost(self, x: np.ndarray) -> float:
-        coords   = self._apply_angles(x)
+        coords = self._apply_angles(x)
         pcs_pred = calc_pcs(coords[self.obs_atoms], self.metal,
                             self.dchi_ax, self.dchi_rh, self.euler_zyz)
-        resid    = pcs_pred - self.obs_pcs
-        cost     = float(np.dot(resid, resid))
-        cost    += clash_penalty(coords, self.mol.elements, self._bonded13)
-        cost    += fixed_atom_penalty(coords, self._ref_coords, self.fixed_atoms)
+        resid = pcs_pred - self.obs_pcs
+        cost = float(np.dot(resid, resid))
+
+        # common steric penalty
+        cost += clash_penalty(coords, self.mol.elements, self._bonded13)
+
+        if self.constraint_mode == "position":
+            cost += fixed_atom_penalty(coords, self._ref_coords, self.fixed_atoms)
+
+        elif self.constraint_mode == "angular":
+            if self.metal_idx is not None:
+                cost += coordination_penalty(
+                    coords,
+                    self.mol.elements,
+                    self.metal_idx,
+                    self.coordination_config,
+                )
+            if self._fixed_list and self.metal_idx is not None:
+                cost += angular_fixed_penalty(
+                    coords,
+                    self._fixed_unit_vecs,
+                    self._fixed_list,
+                    coords[self.metal_idx],
+                )
+
+        else:
+            # safe fallback
+            cost += fixed_atom_penalty(coords, self._ref_coords, self.fixed_atoms)
+
         return cost
 
     def run(self,
@@ -666,7 +823,10 @@ class ConformerOptimiser:
             de_maxiter: int = 600,
             de_popsize: int = 12,
             selected_bonds=None,
-            locked_bonds=None) -> dict:
+            locked_bonds=None,
+            n_candidates: int = 5,
+            dedup_tol_deg: float = 5.0,
+            return_mode: str = "top_n") -> dict:
         """
         Run two-stage optimization and return a result dict.
 
@@ -722,14 +882,15 @@ class ConformerOptimiser:
         if self.progress_cb:
             self.progress_cb("Stage 2 – L-BFGS-B local refinement…")
 
-        N_CANDIDATES = 5 # candidates number
+        n_candidates = max(1, int(n_candidates)) # candidates number
+        return_mode = str(return_mode).strip().lower()
         # Collect top-N starting points from DE population.
         # de_result.population / de_result.population_energies are available
         # when updating="deferred"; fall back to [x0] if not present.
         pop = getattr(de_result, "population", None) if use_global else None
         engs = getattr(de_result, "population_energies", None) if use_global else None
         if pop is not None and engs is not None:
-            order = np.argsort(engs)[:N_CANDIDATES]
+            order = np.argsort(engs)[:n_candidates]
             starts = [pop[i] for i in order]
         else:
             starts = [x0]
@@ -743,11 +904,15 @@ class ConformerOptimiser:
 
         # Sort by final cost, deduplicate near-identical solutions.
         candidates_raw.sort(key=lambda t: t[0])
-        candidates_raw = _deduplicate_candidates(candidates_raw, tol_deg=5.0)
-        candidates_raw = candidates_raw[:N_CANDIDATES]
+        candidates_raw = _deduplicate_candidates(candidates_raw, tol_deg=dedup_tol_deg)
+        candidates_raw = candidates_raw[:n_candidates]
 
         self.candidates = [self._make_result(x, selected_bonds, locked_bonds)
                            for _, x in candidates_raw]
+
+        if return_mode == "best":
+            self.candidates = self.candidates[:1]
+
         # Primary return = best candidate (backward-compatible)
         return self.candidates[0]
 
@@ -778,6 +943,46 @@ class ConformerOptimiser:
                 axis=1).max())
         else:
             max_fd = 0.0
+
+        # diagnostics
+        if self._fixed_list and self.metal_idx is not None:
+            metal_pos_opt = coords_opt[self.metal_idx]
+            cur_vecs = coords_opt[self._fixed_list] - metal_pos_opt
+            cur_norms = np.linalg.norm(cur_vecs, axis=1, keepdims=True)
+            cur_norms = np.where(cur_norms > 1e-9, cur_norms, 1.0)
+            cur_unit = cur_vecs / cur_norms
+            cos_ang = np.clip((cur_unit * self._fixed_unit_vecs).sum(axis=1), -1.0, 1.0)
+            ang_devs = np.degrees(np.arccos(cos_ang))
+            max_ang_dev = float(ang_devs.max())
+
+            ref_vecs = self._ref_coords[self._fixed_list] - self._ref_coords[self.metal_idx]
+            ref_dists = np.linalg.norm(ref_vecs, axis=1)
+            cur_dists = np.linalg.norm(cur_vecs, axis=1)
+            max_radial_change = float(np.max(np.abs(cur_dists - ref_dists)))
+        else:
+            max_ang_dev = 0.0
+            max_radial_change = 0.0
+
+        if self.metal_idx is not None:
+            metal_el = self.mol.elements[self.metal_idx]
+            metal_opt = coords_opt[self.metal_idx]
+            donor_dists = []
+            for i, el in enumerate(self.mol.elements):
+                if i == self.metal_idx or el == "H":
+                    continue
+                d = float(np.linalg.norm(coords_opt[i] - metal_opt))
+                if d < 4.5:
+                    dmin = get_coordination_min_distance(
+                        metal_el, el, self.coordination_config
+                    )
+                    donor_dists.append((i + 1, el, d, dmin, d < dmin))
+            min_donor_dist = min((d for _, _, d, _, _ in donor_dists), default=0.0)
+            coord_violations = [(ref, el, d, dmin)
+                                for ref, el, d, dmin, viol in donor_dists if viol]
+        else:
+            min_donor_dist = 0.0
+            coord_violations = []
+
         return dict(
             coords_opt        = coords_opt,
             angles_opt        = x_opt,
@@ -791,6 +996,12 @@ class ConformerOptimiser:
             fixed_displacement= max_fd,
             selected_bonds    = selected_bonds or [],
             locked_bonds      = locked_bonds or [],
+            max_angular_dev_deg = max_ang_dev,
+            max_radial_change   = max_radial_change,
+            min_donor_dist      = min_donor_dist,
+            coord_violations    = coord_violations,
+            constraint_mode     = self.constraint_mode,
+            coordination_config = self.coordination_config,
         )
 
 
@@ -874,14 +1085,33 @@ def format_report(result: dict, rotatable_bonds, mol, locked_bonds=None,
         "═" * 64,
         f"  CONFORMATIONAL SEARCH – PCS FIT REPORT{rank_str}",
         "═" * 64, "",
+        f"  Constraint model        : {result.get('constraint_mode', 'unknown')}",
         f"  Free rotatable bonds     : {len(rotatable_bonds)}",
         f"  Locked bonds (fixed-atom): {len(locked_bonds) if locked_bonds else 0}",
         f"  Atoms with δ_exp         : {len(result['per_atom'])}",
         f"  Steric clashes (final)   : {result['n_clashes']}",
     ]
+
     fd = result.get('fixed_displacement', 0.0)
     lines.append(f"  Max fixed-atom drift     : {fd:.4f} Å  "
                  f"{'✓ OK' if fd < 0.01 else '⚠ WARNING'}")
+
+    if 'max_angular_dev_deg' in result:
+        lines.append(f"  Max angular drift (fixed): {result.get('max_angular_dev_deg', 0.0):.3f}°")
+    if 'max_radial_change' in result:
+        lines.append(f"  Max radial change (fixed): {result.get('max_radial_change', 0.0):.3f} Å")
+
+    min_d = result.get('min_donor_dist', 0.0)
+    viols = result.get('coord_violations', [])
+    if min_d > 0:
+        lines.append(f"  Min M–donor distance     : {min_d:.3f} Å  "
+                     f"{'✓ OK' if not viols else f'⚠ {len(viols)} violation(s)'}")
+
+    if viols:
+        lines.append("  Coordination violations:")
+        for ref, el, d, dmin in viols:
+            lines.append(f"    Atom {ref}({el}): {d:.3f} Å < min {dmin:.3f} Å")
+
     lines += [
         "", "  FIT QUALITY", "  " + "─" * 44,
         f"  RMSD     = {result['rmsd']:.4f} ppm",
@@ -964,6 +1194,11 @@ class ConformerSearchGUI:
         self._progress_bar = None
         self._setup_summary_var = tk.StringVar(value="Search setup: 0 free bonds | 0 fixed atoms | 0 PCS points")
         self._applying_preset = False
+        self._constraint_mode_var = tk.StringVar(value="angular")
+        self._output_mode_var = tk.StringVar(value="top_n")
+        self._n_candidates_var = tk.StringVar(value="5")
+        self._dedup_tol_var = tk.StringVar(value="5.0")
+        self._search_model_hint_var = tk.StringVar(value="")
 
         self._build_ui()
         self._prefill_from_initial_data()
@@ -1217,9 +1452,40 @@ class ConformerSearchGUI:
         pad = dict(padx=8, pady=4)
         embedded = getattr(self, '_embedded', False)
 
+        # ── embedded: make the whole tab scrollable ────────────────────────────
+        if embedded:
+            outer = ttk.Frame(p)
+            outer.pack(fill="both", expand=True)
+
+            canvas = tk.Canvas(outer, bg="#f5f6fa", highlightthickness=0)
+            vsb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+            canvas.configure(yscrollcommand=vsb.set)
+
+            vsb.pack(side="right", fill="y")
+            canvas.pack(side="left", fill="both", expand=True)
+
+            content_parent = ttk.Frame(canvas)
+            window_id = canvas.create_window((0, 0), window=content_parent, anchor="nw")
+
+            content_parent.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+
+            # Optional: improve resizing so the inner frame follows canvas width
+            def _on_canvas_configure(event):
+                try:
+                    canvas.itemconfigure(window_id, width=event.width)
+                except Exception:
+                    pass
+
+            canvas.bind("<Configure>", _on_canvas_configure)
+        else:
+            content_parent = p
+
         if not embedded:
             # ── standalone/Toplevel:  ──────────────────────────────
-            sf = ttk.LabelFrame(p, text="Molecular structure (XYZ)", padding=6)
+            sf = ttk.LabelFrame(content_parent, text="Molecular structure (XYZ)", padding=6)
             sf.pack(fill="x", **pad)
             row = ttk.Frame(sf);
             row.pack(fill="x")
@@ -1237,7 +1503,7 @@ class ConformerSearchGUI:
                       ).pack(side="left", padx=6)
             ttk.Label(mr, text="← atom number in XYZ file").pack(side="left")
 
-            pf = ttk.LabelFrame(p, text="Experimental PCS  (CSV: Ref, δ_exp  [ppm])",
+            pf = ttk.LabelFrame(content_parent, text="Experimental PCS  (CSV: Ref, δ_exp  [ppm])",
                                 padding=6)
             pf.pack(fill="x", **pad)
             row2 = ttk.Frame(pf);
@@ -1248,7 +1514,7 @@ class ConformerSearchGUI:
             ttk.Button(row2, text="Browse…", command=self._load_pcs
                        ).pack(side="left", padx=(4, 0))
 
-            tf = ttk.LabelFrame(p, text="Tensor parameters  (×10⁻³² m³ / degrees)",
+            tf = ttk.LabelFrame(content_parent, text="Tensor parameters  (×10⁻³² m³ / degrees)",
                                 padding=6)
             tf.pack(fill="x", **pad)
             for row_items in [
@@ -1283,7 +1549,7 @@ class ConformerSearchGUI:
 
         # ── Summary imported-from-main summary ─────────────────────
         inf = ttk.LabelFrame(
-            p,
+            content_parent,
             text="Starting values imported from the main window",
             padding=10
         )
@@ -1332,7 +1598,7 @@ class ConformerSearchGUI:
         grid.columnconfigure(1, weight=1)
 
         # ── Optimization options:  ───────────────────────────────
-        of = ttk.LabelFrame(p, text="Optimization options", padding=10)
+        of = ttk.LabelFrame(content_parent, text="Optimization options", padding=10)
         of.pack(fill="x", **pad)
 
         r1 = ttk.Frame(of)
@@ -1395,8 +1661,98 @@ class ConformerSearchGUI:
             foreground="#777777",
         ).pack(anchor="w", pady=(6, 0))
 
+        # ── Search model ──────────────────────────────────────────────────────────
+        mf = ttk.LabelFrame(content_parent, text="Search model", padding=10)
+        mf.pack(fill="x", **pad)
+
+        ttk.Label(
+            mf,
+            text=("Choose how fixed atoms are treated and how many distinct conformer "
+                  "candidates should be kept."),
+            foreground="#555555",
+        ).pack(anchor="w", pady=(0, 4))
+
+        rsm1 = ttk.Frame(mf)
+        rsm1.pack(fill="x", pady=2)
+
+        ttk.Label(
+            rsm1,
+            text="Constraint model:",
+            font=("TkDefaultFont", 9, "bold"),
+        ).pack(side="left")
+
+        constraint_cb = ttk.Combobox(
+            rsm1,
+            textvariable=self._constraint_mode_var,
+            values=["position", "angular"],
+            state="readonly",
+            width=12,
+        )
+        constraint_cb.pack(side="left", padx=6)
+
+        ttk.Label(
+            rsm1,
+            text="position = keep fixed atoms near original XYZ / angular = keep metal-centered directions and allow radial relaxation",
+            foreground="#666666",
+        ).pack(side="left", padx=(10, 0))
+
+        rsm2 = ttk.Frame(mf)
+        rsm2.pack(fill="x", pady=(8, 0))
+
+        ttk.Label(
+            rsm2,
+            text="Output mode:",
+            font=("TkDefaultFont", 9, "bold"),
+        ).pack(side="left")
+
+        output_cb = ttk.Combobox(
+            rsm2,
+            textvariable=self._output_mode_var,
+            values=["best", "top_n"],
+            state="readonly",
+            width=12,
+        )
+        output_cb.pack(side="left", padx=6)
+
+        ttk.Label(rsm2, text="Top N").pack(side="left", padx=(12, 2))
+        n_entry = ttk.Entry(rsm2, textvariable=self._n_candidates_var, width=5)
+        n_entry.pack(side="left")
+
+        ttk.Label(rsm2, text="Min. angle difference [deg]").pack(side="left", padx=(12, 2))
+        dedup_entry = ttk.Entry(rsm2, textvariable=self._dedup_tol_var, width=6)
+        dedup_entry.pack(side="left")
+
+        ttk.Label(
+            mf,
+            textvariable=self._search_model_hint_var,
+            foreground="#777777",
+        ).pack(anchor="w", pady=(6, 0))
+
+        def _update_search_model_ui(*_):
+            mode = self._output_mode_var.get().strip().lower()
+            if mode == "best":
+                n_entry.configure(state="disabled")
+                dedup_entry.configure(state="disabled")
+            else:
+                n_entry.configure(state="normal")
+                dedup_entry.configure(state="normal")
+
+            c_mode = self._constraint_mode_var.get().strip().lower()
+            if c_mode == "position":
+                self._search_model_hint_var.set(
+                    "Position mode: fixed atoms stay close to their original XYZ positions."
+                )
+            else:
+                self._search_model_hint_var.set(
+                    "Angular mode: fixed atoms keep their metal-centered direction while bond-length relaxation is allowed."
+                )
+
+        self._output_mode_var.trace_add("write", _update_search_model_ui)
+        self._constraint_mode_var.trace_add("write", _update_search_model_ui)
+        _update_search_model_ui()
+
         # ── Action row ─────────────────────────────────────────────────────────
-        af = ttk.Frame(p)
+        af = ttk.Frame(content_parent)
         af.pack(fill="x", **pad)
 
         if not embedded:
@@ -1921,6 +2277,19 @@ class ConformerSearchGUI:
         except ValueError:
             de_maxiter, de_popsize = 600, 12
 
+        constraint_mode = self._constraint_mode_var.get().strip().lower()
+        output_mode = self._output_mode_var.get().strip().lower()
+
+        try:
+            n_candidates = max(1, int(self._n_candidates_var.get()))
+        except ValueError:
+            n_candidates = 5
+
+        try:
+            dedup_tol_deg = float(self._dedup_tol_var.get())
+        except ValueError:
+            dedup_tol_deg = 5.0
+
         use_global = self._use_global_var.get()
         self._status_var.set("Running optimization…")
         self._set_running_state(True, "Preparing optimization...")
@@ -1934,17 +2303,19 @@ class ConformerSearchGUI:
         def _run():
             try:
                 opt = ConformerOptimiser(
-                    mol         = self.mol,
-                    rotatable   = selected_bonds,
-                    obs_atoms   = atom_indices,
-                    obs_pcs     = np.array(pcs_values, float),
-                    metal       = metal,
-                    dchi_ax     = dchi_ax,
-                    dchi_rh     = dchi_rh,
-                    euler_zyz   = euler,
-                    metal_idx   = self.metal_idx,
-                    fixed_atoms = fixed_set,
-                    progress_cb = _progress,
+                    mol=self.mol,
+                    rotatable=selected_bonds,
+                    obs_atoms=atom_indices,
+                    obs_pcs=np.array(pcs_values, float),
+                    metal=metal,
+                    dchi_ax=dchi_ax,
+                    dchi_rh=dchi_rh,
+                    euler_zyz=euler,
+                    metal_idx=self.metal_idx,
+                    fixed_atoms=fixed_set,
+                    progress_cb=_progress,
+                    constraint_mode=constraint_mode,
+                    coordination_config=None,  # future: pass loaded JSON/settings dict here
                 )
                 opt.run(
                     use_global=use_global,
@@ -1952,6 +2323,9 @@ class ConformerSearchGUI:
                     de_popsize=de_popsize,
                     selected_bonds=selected_bonds,
                     locked_bonds=locked_bonds,
+                    n_candidates=n_candidates,
+                    dedup_tol_deg=dedup_tol_deg,
+                    return_mode=output_mode,
                 )
                 # opt.candidates is populated by run(); each dict already has selected/locked.
                 candidates = opt.candidates  # list[dict], sorted by RMSD
@@ -1975,8 +2349,11 @@ class ConformerSearchGUI:
         self.candidates = candidates
         self.result = candidates[0]  # backward-compat: best result
 
-        # -- Rebuild candidate selector radio buttons --
-        self._build_candidate_selector()
+        if len(candidates) <= 1:
+            self._candidate_selector_frame.pack_forget()
+        else:
+            self._candidate_selector_frame.pack(fill="x", padx=8, pady=(6, 2))
+            self._build_candidate_selector()
 
         # -- Show report for best candidate --
         self._display_candidate_report(0)
