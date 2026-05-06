@@ -6,11 +6,13 @@ The following code requires the numpy, matplotlib, pandas, and openpyxl module p
 A tool for PCS analysis and 2D/3D visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
 v.1.3.3 updates
+- added menu bar and settings
 - added Angular mode to Conformer Search for fixed-atom handling
     - kept Position mode as the legacy fitting mode introduced in v1.3.0
     - added a constraint-mode selector for switching between Position and Angular modes
     - Position mode keeps fixed atoms close to their original Cartesian coordinates and is suited for conservative scaffold-preserving searches
     - Angular mode preserves metal-centered donor directions while allowing radial relaxation and is suited for more flexible coordination-complex searches
+- Conformer search : False bond detection/skipped function added
 
 v.1.3.2 updates
 - added **PCS Workbench** for FFT-based distributed PCS / PDE analysis

@@ -26,77 +26,184 @@ def apply_style(root, variant="light", accent="blue"):
         except tk.TclError:
             pass
 
-    # 베이스 색/폰트
-    if used_bootstrap:
-        root.update_idletasks()
-        bg = root.cget("bg") or "#FFFFFF"
-        fg = style.lookup("TLabel", "foreground") or "#111111"
+    # -------------------------------------------------
+    # Base colors
+    # -------------------------------------------------
+    if variant == "light":
+        bg = "#F5F6FA"
+        fg = "#111111"
+
+        panel_bg = bg
+        input_bg = "#FFFFFF"
+        input_fg = "#111111"
+        input_disabled_bg = "#ECEEF2"
+
+        tree_bg = "#FFFFFF"
+        tree_fg = "#111111"
+        tree_odd_bg = "#EEF1F6"
+        tree_sel_bg = "#AFCBF3"
+        tree_sel_fg = "#111111"
+
+        scale_trough = "#FFFFFF"
+        scale_active = "#808080"
     else:
-        bg = "#F5F6FA" if variant == "light" else "#1f2125"
-        fg = "#111111" if variant == "light" else "#EEEEEE"
+        bg = "#1F2125"
+        fg = "#EEEEEE"
+
+        panel_bg = bg
+        input_bg = "#2B2F36"
+        input_fg = "#EEEEEE"
+        input_disabled_bg = "#3A3F46"
+
+        tree_bg = "#202428"
+        tree_fg = "#EEEEEE"
+        tree_odd_bg = "#25292E"
+        tree_sel_bg = "#58779B"
+        tree_sel_fg = "#FFFFFF"
+
+        scale_trough = "#2B2F36"
+        scale_active = "#A0A0A0"
+
+    if used_bootstrap:
+        try:
+            root.configure(bg=bg)
+        except Exception:
+            pass
+    else:
         root.configure(bg=bg)
 
     base_font = ("Segoe UI", 10)
-    WHITE = "#FFFFFF"
-    GRAY  = "#808080"   # 슬라이더 핸들(활성)용
 
+    # -------------------------------------------------
+    # Global defaults
+    # -------------------------------------------------
     style.configure(".", padding=0)
-    style.configure("TFrame", padding=6, background=bg)
-    style.configure("TLabelframe", background=bg)
-    style.configure("TLabelframe.Label", background=bg, foreground=fg)
-    style.configure("TLabel", padding=(2, 1), background=bg, foreground=fg)
-    style.configure("TNotebook", background=bg, tabposition="r")
-    style.configure("TNotebook.Tab", padding=(6, 1), background=bg, foreground=fg)
-    style.map("TNotebook.Tab", expand=[("selected", [1,1,1,0])])
 
-    style.configure("TButton", padding=(6, 1))
-    # Entry/Combobox: "흰색 배경"
-    style.configure("TEntry",
-                    padding=(4, 1),
-                    fieldbackground=WHITE,
-                    background=WHITE)
-    style.map("TEntry",
-              fieldbackground=[("disabled", "#F0F0F0")])
+    style.configure("TFrame", padding=6, background=panel_bg)
+    style.configure("TLabelframe", background=panel_bg)
+    style.configure("TLabelframe.Label", background=panel_bg, foreground=fg)
+    style.configure("TLabel", padding=(2, 1), background=panel_bg, foreground=fg)
 
-    style.configure("TCombobox",
-                    padding=(4, 1),
-                    fieldbackground=WHITE,
-                    background=WHITE)
+    style.configure("TNotebook", background=panel_bg)
+    style.configure("TNotebook.Tab", padding=(6, 2), background=panel_bg, foreground=fg)
+    style.map("TNotebook.Tab", expand=[("selected", [1, 1, 1, 0])])
 
-    style.map("TCombobox",
-              fieldbackground=[("readonly", WHITE)])
+    style.configure("TButton", padding=(6, 2))
 
+    # -------------------------------------------------
+    # Entry / Combobox
+    # -------------------------------------------------
+    style.configure(
+        "TEntry",
+        padding=(4, 1),
+        fieldbackground=input_bg,
+        background=input_bg,
+        foreground=input_fg,
+    )
+    style.map(
+        "TEntry",
+        fieldbackground=[("disabled", input_disabled_bg)],
+        foreground=[("disabled", "#888888" if variant == "light" else "#BBBBBB")],
+    )
 
-    style.configure("TCheckbutton",
-                    background=WHITE,
-                    foreground=fg)
-    style.configure("TRadiobutton",
-                    background=WHITE,
-                    foreground=fg)
+    style.configure(
+        "TCombobox",
+        padding=(4, 1),
+        fieldbackground=input_bg,
+        background=input_bg,
+        foreground=input_fg,
+    )
+    style.map(
+        "TCombobox",
+        fieldbackground=[("readonly", input_bg), ("disabled", input_disabled_bg)],
+        foreground=[("readonly", input_fg), ("disabled", "#888888" if variant == "light" else "#BBBBBB")],
+    )
 
+    # -------------------------------------------------
+    # Check / Radio
+    # -------------------------------------------------
+    disabled_fg = "#8A8F98" if variant == "light" else "#7C828A"
+    disabled_bg = panel_bg
+
+    style.configure("TCheckbutton", background=panel_bg, foreground=fg)
+    style.map(
+        "TCheckbutton",
+        background=[
+            ("disabled", disabled_bg),
+            ("active", panel_bg),
+            ("selected", panel_bg),
+        ],
+        foreground=[
+            ("disabled", disabled_fg),
+            ("active", fg),
+            ("selected", fg),
+        ],
+    )
+
+    style.configure("TRadiobutton", background=panel_bg, foreground=fg)
+    style.map(
+        "TRadiobutton",
+        background=[
+            ("disabled", disabled_bg),
+            ("active", panel_bg),
+            ("selected", panel_bg),
+        ],
+        foreground=[
+            ("disabled", disabled_fg),
+            ("active", fg),
+            ("selected", fg),
+        ],
+    )
+
+    # -------------------------------------------------
     # Treeview
-    style.configure("Treeview", rowheight=18, font=base_font)
-    style.configure("Treeview.Heading", padding=(2,1),
-                    font=(base_font[0], base_font[1], "bold"))
+    # -------------------------------------------------
+    style.configure(
+        "Treeview",
+        rowheight=18,
+        font=base_font,
+        background=tree_bg,
+        fieldbackground=tree_bg,
+        foreground=tree_fg,
+        borderwidth=0,
+    )
+    style.map(
+        "Treeview",
+        background=[("selected", tree_sel_bg)],
+        foreground=[("selected", tree_sel_fg)],
+    )
+    style.configure(
+        "Treeview.Heading",
+        padding=(2, 1),
+        font=(base_font[0], base_font[1], "bold"),
+    )
 
+    # -------------------------------------------------
+    # Scrollbar
+    # -------------------------------------------------
     try:
         style.configure("Vertical.TScrollbar", arrowsize=10)
         style.configure("Horizontal.TScrollbar", arrowsize=10)
     except tk.TclError:
         pass
 
+    # -------------------------------------------------
+    # Option database for tk widgets
+    # -------------------------------------------------
     root.option_add("*Font", base_font)
     root.option_add("*Entry.Font", base_font)
     root.option_add("*TCombobox*Listbox.Font", base_font)
 
-    root.option_add("*Scale.troughColor", WHITE)
-    root.option_add("*Scale.activeBackground", GRAY)
+    root.option_add("*Scale.troughColor", scale_trough)
+    root.option_add("*Scale.activeBackground", scale_active)
     root.option_add("*Scale.highlightThickness", 0)
     root.option_add("*Scale.sliderRelief", "raised")
 
-    # Treeview stripe
+    # -------------------------------------------------
+    # Treeview stripe helper
+    # -------------------------------------------------
     def stripe_treeview(tv: ttk.Treeview):
-        tv.tag_configure("oddrow", background="#f6f6f9" if variant == "light" else "#2a2a2e")
+        tv.tag_configure("oddrow", background=tree_odd_bg)
 
         for i, item in enumerate(tv.get_children("")):
             current_tags = list(tv.item(item, "tags") or [])

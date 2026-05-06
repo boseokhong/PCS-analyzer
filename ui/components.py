@@ -42,6 +42,10 @@ from ui.conformer_search import run_conformer_search_gui
 
 from ui.plot_3d_pyvista import open_pyvista_field
 
+from ui.settings_window import open_settings_window
+from logic.app_settings import load_app_state, save_app_state
+from ui.about_window import open_about_window
+
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
 
@@ -50,6 +54,40 @@ def _sep(parent, orient='horizontal', pady=8, fill='x'):
     s.pack(fill=fill, pady=pady)
     return s
 
+# slider theme related helper
+def _apply_scale_theme(scale_widget, state):
+    app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
+    app_fg = getattr(state["root"], "_app_fg", "#111111")
+    variant = state.get("app_settings", {}).get("theme_variant", "light")
+
+    trough = "#FFFFFF" if variant == "light" else "#2B2F36"
+
+    try:
+        scale_widget.configure(
+            bg=app_bg,
+            fg=app_fg,
+            activebackground=app_bg,
+            troughcolor=trough,
+            highlightbackground=app_bg,
+            highlightcolor=app_bg,
+            highlightthickness=0,
+            sliderrelief="raised",
+        )
+    except Exception:
+        pass
+
+# app setting helper - dpi
+def _get_export_dpi(state, fallback=600):
+    cfg = state.get("app_settings", {}) or {}
+    try:
+        dpi = int(cfg.get("export_default_dpi", fallback))
+        if dpi > 0:
+            return dpi
+    except Exception:
+        pass
+    return fallback
+
+# open nmr window
 def open_nmr_window(state):
     """Open (or focus) the NMR spectrum window and store the handle in state."""
     root = state['root']
@@ -525,8 +563,30 @@ def _on_tree_select_update_views(state):
     _on_tree_select_update_pcs(state)
     _on_tree_select_update_cartesian(state)
 
+def open_pcs_workbench(state):
+    import subprocess
+    import sys
+    from pathlib import Path
+    from tkinter import messagebox
+    script = Path(__file__).resolve().parent.parent / "tools" / "pcs_workbench.py"
+    if not script.exists():
+        messagebox.showerror("PCS Workbench", f"File not found:\n{script}")
+        return
+    subprocess.Popen([sys.executable, str(script)])
+
 def build_app():
     state = {}
+    # initialize: settings
+    persisted = load_app_state()
+
+    state["settings_window"] = None
+    state["about_window"] = None
+    state["recent_files"] = list(persisted.get("recent_files", []))
+    state["app_settings"] = dict(persisted.get("app_settings", {}))
+    state["rebuild_recent_files_menu"] = lambda: rebuild_recent_files_menu(state)
+    state["refresh_checklist_ui"] = lambda: create_checklist(state) if state.get("atom_data") else None
+    state["apply_scale_theme"] = lambda w: _apply_scale_theme(w, state)
+
     # Tk and common modules
     state['tk'] = tk; state['ttk'] = ttk
     # common state for (delta_EXP, delta_PCS) residual
@@ -570,8 +630,72 @@ def build_app():
     state['atom_data_original'] = None
 
     # Window size
-    root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1190x915"); state['root'] = root
-    apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
+    #root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1190x900"); state['root'] = root
+    root = tk.Tk()
+    root.title("PCS Analyzer")
+    state['root'] = root
+
+    saved_geo = persisted.get("main_window_geometry")
+    if state["app_settings"].get("remember_window_geometry", True) and saved_geo:
+        try:
+            root.geometry(saved_geo)
+        except Exception:
+            root.geometry("1200x880")
+    else:
+        root.geometry("1200x880")
+
+    #apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
+    apply_style(
+        root,
+        variant=state["app_settings"]["theme_variant"],
+        accent=state["app_settings"]["theme_accent"],
+    )
+
+    # close handler
+    def _on_main_close():
+        try:
+            save_app_state(state)
+        except Exception:
+            pass
+        root.destroy()
+
+    # menu bar
+    menubar = tk.Menu(root)
+    root.config(menu=menubar)
+    state["menubar"] = menubar
+
+    file_menu = tk.Menu(menubar, tearoff=0)
+    view_menu = tk.Menu(menubar, tearoff=0)
+    settings_menu = tk.Menu(menubar, tearoff=0)
+
+    menubar.add_cascade(label="File", menu=file_menu)
+    menubar.add_cascade(label="View", menu=view_menu)
+    menubar.add_cascade(label="Settings", menu=settings_menu)
+
+    file_menu.add_command(label="Load XYZ...", command=lambda: load_xyz_file(state))
+    recent_files_menu = tk.Menu(file_menu, tearoff=0)
+    state["recent_files_menu"] = recent_files_menu
+    file_menu.add_cascade(label="Recent files", menu=recent_files_menu)
+    rebuild_recent_files_menu(state)
+    file_menu.add_separator()
+    file_menu.add_command(label="Save current XYZ...", command=lambda: on_save_visible_xyz(state))
+    file_menu.add_command(label="Save plot data...", command=lambda: on_save_plot_any(state))
+    file_menu.add_command(label="Save table...", command=lambda: on_save_table_any(state))
+    file_menu.add_separator()
+    file_menu.add_command(label="Exit", command=_on_main_close)
+
+    view_menu.add_command(label="2D PCS Plot", command=lambda: open_pcs_plot_popup(state))
+    view_menu.add_command(label="Projection", command=lambda: open_projection_window(state))
+    view_menu.add_command(label="3D Structure", command=lambda: open_3d_plot_window(state))
+    view_menu.add_command(label="3D PCS Plot", command=lambda: open_pyvista_field(state))
+    view_menu.add_command(label="NMR Shift Viewer", command=lambda: open_nmr_window(state))
+    view_menu.add_separator()
+    view_menu.add_command(label="PCS Workbench", command=lambda: open_pcs_workbench(state))
+
+    settings_menu.add_command(label="Open settings...", command=lambda: open_settings_window(state))
+    settings_menu.add_separator()
+    settings_menu.add_command(label="About PCS Analyzer", command=lambda: open_about_window(state))
+
 
     state["residual_color_enabled_var"] = tk.BooleanVar(value=False)
 
@@ -600,7 +724,7 @@ def build_app():
     state['pcs_popup_click_cid'] = None
 
     # Table
-    table_frame = ttk.Frame(center_frame); table_frame.pack(side=tk.TOP, fill=tk.X, padx=3, pady=0)
+    table_frame = ttk.Frame(center_frame); table_frame.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(6, 0))
     columns = ('Ref','Atom','X','Y','Z','G_i','δ_PCS','δ_Exp');
     tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=12)
     for col in columns: tree.heading(col, text=col)
@@ -617,7 +741,7 @@ def build_app():
     tree.tag_configure("none", foreground="#888888")
 
     table_btns = ttk.Frame(center_frame)
-    table_btns.pack(side=tk.TOP, fill=tk.X, padx=3, pady=(4, 6))
+    table_btns.pack(side=tk.TOP, fill=tk.X, padx=8, pady=(6, 8))
     ttk.Button(
         table_btns, text="💾 Export δ_Exp Template",
         command=lambda: export_delta_exp_template(state)
@@ -675,7 +799,7 @@ def build_app():
     # --- tab ---
     # Plots notebook
     plots_nb = ttk.Notebook(center_frame)
-    plots_nb.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=3, pady=0)
+    plots_nb.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
     state['plots_nb'] = plots_nb
 
     # -------------------------
@@ -743,14 +867,10 @@ def build_app():
     ).pack(side=tk.LEFT)
 
     state["diag_fit_intercept_var"] = tk.BooleanVar(value=False)
-    tk.Checkbutton(
+    ttk.Checkbutton(
         diag_btnrow,
         variable=state["diag_fit_intercept_var"],
         text="Force b = 0 (through origin)",
-        bg="#F5F6FA",
-        activebackground="#F5F6FA",
-        highlightthickness=0,
-        relief="flat"
     ).pack(side=tk.LEFT, padx=10)
 
     # 2) summary box (TOP)
@@ -824,6 +944,8 @@ def build_app():
     azf = ttk.Frame(rh_zrow)
     azf.pack(side="left", fill="x", expand=True)
 
+    app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
+
     angle_z_slider = tk.Scale(
         azf,
         from_=-180, to=180,
@@ -831,13 +953,12 @@ def build_app():
         variable=state["angle_z_var"],
         resolution=0.1,
         command=lambda v: on_angle_slider(state, 'z', v),
-        bg="#F5F6FA",
-        activebackground="#F5F6FA",
-        highlightthickness=0
     )
+    _apply_scale_theme(angle_z_slider, state)
+    state["rh_angle_z_slider"] = angle_z_slider
     angle_z_slider.pack(side="left", fill="x", expand=True)
 
-    angle_z_entry = tk.Entry(azf, width=6)
+    angle_z_entry = ttk.Entry(azf, width=6)
     angle_z_entry.pack(side="left", padx=(6, 0))
     angle_z_entry.delete(0, tk.END)
     angle_z_entry.insert(0, f"{float(state['angle_z_var'].get()):.1f}")
@@ -1011,30 +1132,29 @@ def build_app():
     mode_row = ttk.Frame(settings_col)
     mode_row.pack(fill=tk.X, pady=4)
     state['fit_mode_var'] = tk.StringVar(value='theta_alpha_multi')
-    tk.Radiobutton(mode_row, text="[Mode A] Ligand-donor fit",
-                   variable=state['fit_mode_var'], value='theta_alpha_multi',
-                   command=lambda: switch_fit_mode(state),
-                   bg="#F5F6FA",
-                   activebackground="#F5F6FA",
-                   highlightthickness=0,
-                   relief="flat"
-                   ).pack(side=tk.LEFT)
-    tk.Radiobutton(mode_row, text="[Mode B] Euler fit",
-                   variable=state['fit_mode_var'], value='euler_global',
-                   command=lambda: switch_fit_mode(state),
-                   bg="#F5F6FA",
-                   activebackground="#F5F6FA",
-                   highlightthickness=0,
-                   relief="flat"
-                   ).pack(side=tk.LEFT, padx=10)
-    tk.Radiobutton(mode_row, text="[Mode C] 8-param fit",
-                   variable=state['fit_mode_var'], value='full_tensor',
-                   command=lambda: switch_fit_mode(state),
-                   bg="#F5F6FA",
-                   activebackground="#F5F6FA",
-                   highlightthickness=0,
-                   relief="flat"
-                   ).pack(side=tk.LEFT, padx=10)
+    ttk.Radiobutton(
+        mode_row,
+        text="[Mode A] Ligand-donor fit",
+        variable=state['fit_mode_var'],
+        value='theta_alpha_multi',
+        command=lambda: switch_fit_mode(state),
+    ).pack(side=tk.LEFT)
+
+    ttk.Radiobutton(
+        mode_row,
+        text="[Mode B] Euler fit",
+        variable=state['fit_mode_var'],
+        value='euler_global',
+        command=lambda: switch_fit_mode(state),
+    ).pack(side=tk.LEFT, padx=10)
+
+    ttk.Radiobutton(
+        mode_row,
+        text="[Mode C] 8-param fit",
+        variable=state['fit_mode_var'],
+        value='full_tensor',
+        command=lambda: switch_fit_mode(state),
+    ).pack(side=tk.LEFT, padx=10)
 
     # A/B anchor frame : inside settings_col
     state['fit_anchor'] = ttk.Frame(settings_col)
@@ -1140,38 +1260,22 @@ def build_app():
     opts = ttk.Frame(fittab);
     opts.pack(fill=tk.X, pady=4)
     state['fit_use_visible_var'] = tk.BooleanVar(value=False)
-    tk.Checkbutton(opts, text="Use visible atoms as rigid group",
+    ttk.Checkbutton(opts, text="Use visible atoms as rigid group",
                    variable=state['fit_use_visible_var'],
                    state="disabled",  # WIP!!!!
-                   bg="#F5F6FA",
-                   activebackground="#F5F6FA",
-                   highlightthickness=0,
-                   relief="flat"
                    ).pack(side=tk.LEFT)
     state['fit_dchi_var'] = tk.BooleanVar(value=True)
-    tk.Checkbutton(opts, text="Fit Δχ_ax",
+    ttk.Checkbutton(opts, text="Fit Δχ_ax",
                    variable=state['fit_dchi_var'],
-                   bg="#F5F6FA",
-                   activebackground="#F5F6FA",
-                   highlightthickness=0,
-                   relief="flat"
                    ).pack(side=tk.LEFT, padx=12)
 
     state['fit_dchi_rh_var'] = tk.BooleanVar(value=False)
-    tk.Checkbutton(opts, text="Fit Δχ_rh",
+    ttk.Checkbutton(opts, text="Fit Δχ_rh",
                     variable=state['fit_dchi_rh_var'],
-                    bg="#F5F6FA",
-                    activebackground="#F5F6FA",
-                    highlightthickness=0,
-                    relief="flat"
                     ).pack(side=tk.LEFT, padx=12)
     state['fit_global_search_var'] = tk.BooleanVar(value=False)
-    tk.Checkbutton(opts, text="Global search (DE)",
+    ttk.Checkbutton(opts, text="Global search (DE)",
                    variable=state['fit_global_search_var'],
-                   bg="#F5F6FA",
-                   activebackground="#F5F6FA",
-                   highlightthickness=0,
-                   relief="flat"
                    ).pack(side=tk.LEFT, padx=12)
 
     btns = ttk.Frame(fittab);
@@ -1186,11 +1290,9 @@ def build_app():
                command=lambda: export_fit_plot(state)).pack(side=tk.RIGHT, padx=3)
 
     state['fit_status_var'] = tk.StringVar(value="Ready.")
-    fit_status_label = tk.Label(btns,
+    fit_status_label = ttk.Label(btns,
                                 textvariable=state['fit_status_var'],
                                 font=("Helvetica", 8),
-                                fg="#777777",
-                                bg="#F5F6FA"
                                 )
     fit_status_label.pack(side=tk.LEFT, padx=(8, 0))
 
@@ -1281,30 +1383,26 @@ def build_app():
     # Δχ_ax
     tf = ttk.Frame(input_frame); tf.pack(pady=3)
     ttk.Label(tf, text="Δχ_ax values (E-32 m³):", font=("default",9,"bold")).pack(side=tk.LEFT)
-    tensor_entry = tk.Entry(tf, width=5); tensor_entry.pack(side=tk.LEFT, padx=5); state['tensor_entry']=tensor_entry
+    tensor_entry = ttk.Entry(tf, width=5); tensor_entry.pack(side=tk.LEFT, padx=5); state['tensor_entry']=tensor_entry
 
     # PCS range
     prf = ttk.Frame(input_frame); prf.pack(pady=3)
     ttk.Label(prf, text="PCS plot range (ppm)", font=("default",9,"bold")).pack(side=tk.TOP, pady=0)
     pef = ttk.Frame(prf); pef.pack(side=tk.TOP, pady=0)
-    ttk.Label(pef, text="Min:").pack(side=tk.LEFT); pcs_min_entry = tk.Entry(pef, width=5); pcs_min_entry.pack(side=tk.LEFT, padx=5)
-    ttk.Label(pef, text="/").pack(side=tk.LEFT); ttk.Label(pef, text="Max:").pack(side=tk.LEFT); pcs_max_entry = tk.Entry(pef, width=5); pcs_max_entry.pack(side=tk.LEFT, padx=5)
+    ttk.Label(pef, text="Min:").pack(side=tk.LEFT); pcs_min_entry = ttk.Entry(pef, width=5); pcs_min_entry.pack(side=tk.LEFT, padx=5)
+    ttk.Label(pef, text="/").pack(side=tk.LEFT); ttk.Label(pef, text="Max:").pack(side=tk.LEFT); pcs_max_entry = ttk.Entry(pef, width=5); pcs_max_entry.pack(side=tk.LEFT, padx=5)
     state['pcs_min_entry']=pcs_min_entry; state['pcs_max_entry']=pcs_max_entry
 
     # Interval
     pif = ttk.Frame(input_frame); pif.pack(pady=3)
     ttk.Label(pif, text="PCS plot interval (ppm):", font=("default",9,"bold")).pack(side=tk.LEFT)
-    pcs_interval_entry = tk.Entry(pif, width=5); pcs_interval_entry.pack(side=tk.LEFT, padx=5); state['pcs_interval_entry']=pcs_interval_entry
+    pcs_interval_entry = ttk.Entry(pif, width=5); pcs_interval_entry.pack(side=tk.LEFT, padx=5); state['pcs_interval_entry']=pcs_interval_entry
 
     # Toggle 0-90 / 0-180
     prt = ttk.Frame(input_frame); prt.pack(pady=0); ttk.Label(prt, text="Half/Quarter plot toggle", font=("default",9,"bold")).pack(side=tk.LEFT)
     plot_90_var = tk.BooleanVar(value=False); state['plot_90_var']=plot_90_var
-    tk.Checkbutton(prt, variable=plot_90_var,
+    ttk.Checkbutton(prt, variable=plot_90_var,
                    command=lambda: state['update_graph'](),
-                   bg="#F5F6FA",
-                   activebackground="#F5F6FA",
-                   highlightthickness=0,
-                   relief="flat"
                    ).pack(side=tk.LEFT)
 
     # Update/Reset
@@ -1324,7 +1422,7 @@ def build_app():
 
     ttk.Label(input_frame, text="χ_mol from Exp. (m³/mol):").pack()
 
-    chi_mol_entry = tk.Entry(input_frame)
+    chi_mol_entry = ttk.Entry(input_frame)
     chi_mol_entry.pack()
     state['chi_mol_entry'] = chi_mol_entry
 
@@ -1338,14 +1436,10 @@ def build_app():
     # ---- Auto-calc on/off ----
     state.setdefault("chi_auto_calc_var", tk.BooleanVar(value=True))
 
-    tk.Checkbutton(
+    ttk.Checkbutton(
         input_frame,
         text="Auto-calc (default: ON)",
         variable=state["chi_auto_calc_var"],
-        bg="#F5F6FA",
-        activebackground="#F5F6FA",
-        highlightthickness=0,
-        relief="flat"
     ).pack(pady=(2, 0))
 
     # ---- Placeholder (blank -> traceless) ----
@@ -1448,11 +1542,11 @@ def build_app():
 
     _sep(input_frame)
 
-    # File load
-    ttk.Button(input_frame,
-               text="📂 Load xyz File",
-               command=lambda: load_xyz_file(state)
-               ).pack(anchor="center", pady=3)
+    # # File load
+    # ttk.Button(input_frame,
+    #            text="📂 Load xyz File",
+    #            command=lambda: load_xyz_file(state)
+    #            ).pack(anchor="center", pady=3)
 
     # ---- Symmetry averaging (Me/CF3) ----
     state.setdefault("symavg_enabled_var", tk.BooleanVar(value=False))
@@ -1475,27 +1569,19 @@ def build_app():
         except Exception:
             pass
 
-    tk.Checkbutton(
+    ttk.Checkbutton(
         input_frame,
         text="Coordinate average (eg. CH₃)",
         variable=state["symavg_enabled_var"],
         command=_on_toggle_symavg,
-        bg="#F5F6FA",
-        activebackground="#F5F6FA",
-        highlightthickness=0,
-        relief="flat",
     ).pack(anchor="w", pady=(0, 0))
 
     state.setdefault("symavg_keep_original_var", tk.BooleanVar(value=False))
-    tk.Checkbutton(
+    ttk.Checkbutton(
         input_frame,
         text="Keep original atoms",
         variable=state["symavg_keep_original_var"],
         command=lambda: (_on_toggle_symavg()),
-        bg="#F5F6FA",
-        activebackground="#F5F6FA",
-        highlightthickness=0,
-        relief="flat"
     ).pack(anchor="w", pady=(0, 0))
 
     _sep(input_frame)
@@ -1504,18 +1590,41 @@ def build_app():
     ttk.Label(input_frame, text="Rotate around X-axis (°):").pack()
     axf = ttk.Frame(input_frame); axf.pack(fill=tk.X)
     angle_x_var = tk.DoubleVar(); state['angle_x_var']=angle_x_var
-    angle_x_slider = tk.Scale(axf, from_=-180, to=180, orient=tk.HORIZONTAL, variable=angle_x_var, resolution=0.1, command=lambda v: on_angle_slider(state, 'x', v), bg="#F5F6FA", activebackground="#F5F6FA", highlightthickness=0)
+    app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
+    angle_x_slider = tk.Scale(
+        axf,
+        from_=-180,
+        to=180,
+        orient=tk.HORIZONTAL,
+        variable=angle_x_var,
+        resolution=0.1,
+        command=lambda v: on_angle_slider(state, 'x', v),
+    )
+    _apply_scale_theme(angle_x_slider, state)
+    state["angle_x_slider"] = angle_x_slider
     angle_x_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
-    angle_x_entry = tk.Entry(axf, width=6); angle_x_entry.pack(side=tk.RIGHT, padx=5); angle_x_entry.insert(0,'0.0'); state['angle_x_entry']=angle_x_entry
+    angle_x_entry = ttk.Entry(axf, width=6); angle_x_entry.pack(side=tk.RIGHT, padx=5); angle_x_entry.insert(0,'0.0'); state['angle_x_entry']=angle_x_entry
     angle_x_entry.bind('<Return>', lambda e: on_angle_entry_commit(state, 'x'))
     angle_x_entry.bind('<FocusOut>', lambda e: on_angle_entry_commit(state, 'x'))
 
     ttk.Label(input_frame, text="Rotate around Y-axis (°):").pack()
     ayf = ttk.Frame(input_frame); ayf.pack(fill=tk.X)
     angle_y_var = tk.DoubleVar(); state['angle_y_var']=angle_y_var
-    angle_y_slider = tk.Scale(ayf, from_=-180, to=180, orient=tk.HORIZONTAL, variable=angle_y_var, resolution=0.1, command=lambda v: on_angle_slider(state,'y',v), bg="#F5F6FA", activebackground="#F5F6FA", highlightthickness=0)
+    app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
+
+    angle_y_slider = tk.Scale(
+        ayf,
+        from_=-180,
+        to=180,
+        orient=tk.HORIZONTAL,
+        variable=angle_y_var,
+        resolution=0.1,
+        command=lambda v: on_angle_slider(state, 'y', v),
+    )
+    _apply_scale_theme(angle_y_slider, state)
+    state["angle_y_slider"] = angle_y_slider
     angle_y_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
-    angle_y_entry = tk.Entry(ayf, width=6); angle_y_entry.pack(side=tk.RIGHT, padx=5); angle_y_entry.insert(0,'0.0'); state['angle_y_entry']=angle_y_entry
+    angle_y_entry = ttk.Entry(ayf, width=6); angle_y_entry.pack(side=tk.RIGHT, padx=5); angle_y_entry.insert(0,'0.0'); state['angle_y_entry']=angle_y_entry
     angle_y_entry.bind('<Return>', lambda e: on_angle_entry_commit(state, 'y'))
     angle_y_entry.bind('<FocusOut>', lambda e: on_angle_entry_commit(state, 'y'))
 
@@ -1562,16 +1671,16 @@ def build_app():
         command=lambda: open_nmr_window(state)
     ).grid(row=3, column=0, sticky="ew", padx=2, pady=(0, 4))
 
-    def open_pcs_workbench(state):
-        import subprocess
-        import sys
-        from pathlib import Path
-        from tkinter import messagebox
-        script = Path(__file__).resolve().parent.parent / "tools" / "pcs_workbench.py"
-        if not script.exists():
-            messagebox.showerror("PCS Workbench", f"File not found:\n{script}")
-            return
-        subprocess.Popen([sys.executable, str(script)])
+    # def open_pcs_workbench(state):
+    #     import subprocess
+    #     import sys
+    #     from pathlib import Path
+    #     from tkinter import messagebox
+    #     script = Path(__file__).resolve().parent.parent / "tools" / "pcs_workbench.py"
+    #     if not script.exists():
+    #         messagebox.showerror("PCS Workbench", f"File not found:\n{script}")
+    #         return
+    #     subprocess.Popen([sys.executable, str(script)])
 
     ttk.Button(
         opf,
@@ -1591,20 +1700,20 @@ def build_app():
 
     _sep(root, orient='horizontal', pady=0, fill='x')
 
-    # Command bar
-    cmdf = ttk.Frame(root)
-    cmdf.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
-    ttk.Label(cmdf, text="Command :").pack(side=tk.LEFT)
-    command_entry = tk.Entry(cmdf, width=50); command_entry.pack(side=tk.LEFT, padx=5); state['command_entry']=command_entry
-    ttk.Button(cmdf, text="Run", command=lambda: _pc(state)).pack(side=tk.LEFT, padx=5)
-    ttk.Button(cmdf, text="Exit", command=lambda: root.destroy()).pack(side=tk.RIGHT, padx=0)
-
-    # Export buttons
-    sbf = ttk.Frame(cmdf); sbf.pack(side=tk.RIGHT, padx=15)
-    ttk.Label(sbf, text="Export data ", font=("default",9,"bold")).grid(row=1, column=0, sticky="ew", pady=3)
-    ttk.Button(sbf, text="💾 Save XYZ", command=lambda: on_save_visible_xyz(state)).grid(row=1, column=1, sticky="ew", padx=2, pady=1)
-    ttk.Button(sbf, text="💾 Save plot",  command=lambda: on_save_plot_any(state)).grid( row=1, column=2, sticky="ew", padx=2, pady=1)
-    ttk.Button(sbf, text="💾 Save table", command=lambda: on_save_table_any(state)).grid(row=1, column=3, sticky="ew", padx=2, pady=1)
+    # # Command bar
+    # cmdf = ttk.Frame(root)
+    # cmdf.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
+    # ttk.Label(cmdf, text="Command :").pack(side=tk.LEFT)
+    # command_entry = tk.Entry(cmdf, width=50); command_entry.pack(side=tk.LEFT, padx=5); state['command_entry']=command_entry
+    # ttk.Button(cmdf, text="Run", command=lambda: _pc(state)).pack(side=tk.LEFT, padx=5)
+    # ttk.Button(cmdf, text="Exit", command=lambda: root.destroy()).pack(side=tk.RIGHT, padx=0)
+    #
+    # # Export buttons
+    # sbf = ttk.Frame(cmdf); sbf.pack(side=tk.RIGHT, padx=15)
+    # ttk.Label(sbf, text="Export data ", font=("default",9,"bold")).grid(row=1, column=0, sticky="ew", pady=3)
+    # ttk.Button(sbf, text="💾 Save XYZ", command=lambda: on_save_visible_xyz(state)).grid(row=1, column=1, sticky="ew", padx=2, pady=1)
+    # ttk.Button(sbf, text="💾 Save plot",  command=lambda: on_save_plot_any(state)).grid( row=1, column=2, sticky="ew", padx=2, pady=1)
+    # ttk.Button(sbf, text="💾 Save table", command=lambda: on_save_table_any(state)).grid(row=1, column=3, sticky="ew", padx=2, pady=1)
 
     # Defaults
     state['delta_exp_values'] = {}
@@ -1613,8 +1722,14 @@ def build_app():
     tree.bind("<Double-1>", lambda e: on_delta_entry_change(state, e, state['delta_exp_values'], plot_cartesian_graph))
     tree.bind("<<TreeviewSelect>>", lambda e: _on_tree_select_update_views(state))
 
-    state['root'].after(150, lambda: open_pcs_plot_popup(state))
+    # state['root'].after(150, lambda: open_pcs_plot_popup(state))
+    if state["app_settings"].get("open_2d_plot_on_start", True):
+        state['root'].after(150, lambda: open_pcs_plot_popup(state))
+
     state['root'].after(250, lambda: state['update_graph']())
+
+    root.protocol("WM_DELETE_WINDOW", _on_main_close)
+
     return state
 
 def switch_fit_mode(state):
@@ -2051,8 +2166,9 @@ def export_fit_plot(state):
     if not path:
         return
 
-    fig.savefig(path, dpi=600, bbox_inches="tight")
-    state['messagebox'].showinfo("Export", f"Saved fit plot:\n{path}")
+    dpi = _get_export_dpi(state, fallback=600)
+    fig.savefig(path, dpi=dpi, bbox_inches="tight")
+    state['messagebox'].showinfo("Export", f"Saved fit plot ({dpi} dpi):\n{path}")
 
 def on_save_plot_any(state):
     fd = state['filedialog'].asksaveasfilename(
@@ -2131,8 +2247,9 @@ def on_save_plot_any(state):
                 "Export", "No valid 2D PCS plot window is available."
             )
             return
-        canvas.print_figure(fd, dpi=600)
-        state['messagebox'].showinfo("Export", f"Saved PNG:\n{fd}")
+        dpi = _get_export_dpi(state, fallback=600)
+        canvas.print_figure(fd, dpi=dpi)
+        state['messagebox'].showinfo("Export", f"Saved PNG ({dpi} dpi):\n{fd}")
 
     else:
         # 확장자 없으면 .xlsx로 저장
@@ -2381,10 +2498,25 @@ def update_graph(state):
         pass
 
 def reset_values(state):
-    state['tensor_entry'].delete(0, tk.END); state['tensor_entry'].insert(0, '-2.0')
-    state['pcs_min_entry'].delete(0, tk.END); state['pcs_min_entry'].insert(0, '-10')
-    state['pcs_max_entry'].delete(0, tk.END); state['pcs_max_entry'].insert(0, '10')
-    state['pcs_interval_entry'].delete(0, tk.END); state['pcs_interval_entry'].insert(0, '0.5')
+    # state['tensor_entry'].delete(0, tk.END); state['tensor_entry'].insert(0, '-2.0')
+    # state['pcs_min_entry'].delete(0, tk.END); state['pcs_min_entry'].insert(0, '-10')
+    # state['pcs_max_entry'].delete(0, tk.END); state['pcs_max_entry'].insert(0, '10')
+    # state['pcs_interval_entry'].delete(0, tk.END); state['pcs_interval_entry'].insert(0, '0.5')
+    cfg = state.get("app_settings", {})
+
+    state['tensor_entry'].delete(0, tk.END)
+    state['tensor_entry'].insert(0, str(cfg.get("default_dchi_ax", -2.0)))
+
+    state['pcs_min_entry'].delete(0, tk.END)
+    state['pcs_min_entry'].insert(0, str(cfg.get("default_pcs_min", -10.0)))
+
+    state['pcs_max_entry'].delete(0, tk.END)
+    state['pcs_max_entry'].insert(0, str(cfg.get("default_pcs_max", 10.0)))
+
+    state['pcs_interval_entry'].delete(0, tk.END)
+    state['pcs_interval_entry'].insert(0, str(cfg.get("default_pcs_interval", 0.5)))
+
+
     state['angle_x_var'].set(0); state['angle_y_var'].set(0);
 
     state.get('delta_exp_values', {}).clear()
@@ -2620,13 +2752,105 @@ def apply_symavg_to_state(state):
     state["symavg_records"] = records_all
     state["ref_label_overrides"] = label_overrides
 
-def load_xyz_file(state):
-    path = state['filedialog'].askopenfilename(filetypes=[
-        ("Structure files", "*.xyz *.out *.log"),
-        ("XYZ", "*.xyz"),
-        ("ORCA output", "*.out *.log"),
-        ("All files", "*.*"),
-    ])
+# recent files helper
+from pathlib import Path
+def add_recent_file(state, path: str):
+    """
+    Add a file path to the recent-files list.
+    - newest first
+    - no duplicates
+    - limited by max_recent_files
+    """
+    if not path:
+        return
+
+    cfg = state.get("app_settings", {}) or {}
+    if not cfg.get("remember_recent_files", True):
+        return
+
+    p = str(Path(path).resolve())
+
+    recents = list(state.get("recent_files", []) or [])
+    recents = [x for x in recents if str(x).strip() and str(x) != p]
+    recents.insert(0, p)
+
+    max_n = int(cfg.get("max_recent_files", 8) or 8)
+    if max_n < 1:
+        max_n = 1
+
+    state["recent_files"] = recents[:max_n]
+
+def rebuild_recent_files_menu(state):
+    menu = state.get("recent_files_menu")
+    if menu is None:
+        return
+
+    menu.delete(0, "end")
+
+    cfg = state.get("app_settings", {}) or {}
+
+    if not cfg.get("remember_recent_files", True):
+        menu.add_command(label="(disabled in Settings)", state="disabled")
+        return
+
+    recents = list(state.get("recent_files", []) or [])
+    recents = [p for p in recents if str(p).strip()]
+
+    # remove missing files automatically
+    recents = [p for p in recents if Path(p).exists()]
+
+    max_n = int(cfg.get("max_recent_files", 8) or 8)
+    if max_n < 1:
+        max_n = 1
+
+    recents = recents[:max_n]
+    state["recent_files"] = recents
+
+    try:
+        save_app_state(state)
+    except Exception:
+        pass
+
+    if not recents:
+        menu.add_command(label="(empty)", state="disabled")
+        return
+
+    def _open_recent(path: str):
+        if not Path(path).exists():
+            state["messagebox"].showwarning("Recent files", f"File not found:\n{path}")
+            state["recent_files"] = [p for p in state.get("recent_files", []) if p != path]
+            try:
+                save_app_state(state)
+            except Exception:
+                pass
+            rebuild_recent_files_menu(state)
+            return
+
+        _load_xyz_from_path(state, path)
+
+    for path in recents:
+        p = Path(path)
+        name = p.name
+        parent = p.parent.name if p.parent.name else str(p.parent)
+        label = f"{name}  —  {parent}"
+
+        menu.add_command(
+            label=label,
+            command=lambda p=path: _open_recent(p)
+        )
+
+    menu.add_separator()
+    menu.add_command(label="Clear recent files", command=lambda: _clear_recent_files(state))
+
+def _clear_recent_files(state):
+    state["recent_files"] = []
+    try:
+        save_app_state(state)
+    except Exception:
+        pass
+    rebuild_recent_files_menu(state)
+
+def _load_xyz_from_path(state, path: str):
     if not path:
         return
 
@@ -2661,6 +2885,7 @@ def load_xyz_file(state):
     target_atom = state['simpledialog'].askstring("Input center atom", "Enter the center atom (element) :")
     if not target_atom:
         return
+
     tgt = None
     metal_ref_id = None
 
@@ -2682,30 +2907,84 @@ def load_xyz_file(state):
     update_graph(state)
     populate_fitting_controls(state)
 
-    # Open the 3D viewer automatically after loading the structure file.
+    # recent files
+    add_recent_file(state, path)
+    rebuild_recent_files_menu(state)
     try:
-        state['root'].after(50, lambda: open_3d_plot_window(state))
-    except Exception as e:
-        state['messagebox'].showwarning("3D viewer", f"Could not open 3D window:\n{e}")
+        save_app_state(state)
+    except Exception:
+        pass
+
+    # Auto-open 3D window if enabled
+    if state.get("app_settings", {}).get("auto_open_3d_on_load", True):
+        try:
+            state['root'].after(50, lambda: open_3d_plot_window(state))
+        except Exception as e:
+            state['messagebox'].showwarning("3D viewer", f"Could not open 3D window:\n{e}")
+
+def load_xyz_file(state):
+    path = state['filedialog'].askopenfilename(filetypes=[
+        ("Structure files", "*.xyz *.out *.log"),
+        ("XYZ", "*.xyz"),
+        ("ORCA output", "*.out *.log"),
+        ("All files", "*.*"),
+    ])
+    if not path:
+        return
+
+    _load_xyz_from_path(state, path)
 
 def create_checklist(state):
-    for w in state['checklist_frame'].winfo_children(): w.destroy()
+    for w in state['checklist_frame'].winfo_children():
+        w.destroy()
+
     atom_types = sorted(set([a for a, *_ in state['atom_data']]))
-    canvas = tk.Canvas(state['checklist_frame'], width=100, height=60); scrollbar = ttk.Scrollbar(state['checklist_frame'], orient='vertical', command=canvas.yview); scroll = tk.Frame(canvas)
-    scroll.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-    canvas.create_window((0,0), window=scroll, anchor="nw"); canvas.configure(yscrollcommand=scrollbar.set)
+
+    app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
+
+    canvas = tk.Canvas(
+        state['checklist_frame'],
+        width=100,
+        height=60,
+        bg=app_bg,
+        highlightthickness=0,
+        bd=0,
+        relief="flat",
+    )
+    scrollbar = ttk.Scrollbar(
+        state['checklist_frame'],
+        orient='vertical',
+        command=canvas.yview
+    )
+
+    scroll = tk.Frame(canvas, bg=app_bg)
+    scroll.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+
+    canvas.create_window((0, 0), window=scroll, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
     check_vars = {}
+
     for i, tp in enumerate(atom_types):
         var = tk.BooleanVar(value=True)
-        cb = tk.Checkbutton(
+        cb = ttk.Checkbutton(
             scroll,
             text=tp,
             variable=var,
             command=lambda: (update_graph(state), populate_fitting_controls(state))
         )
-        row = i//3; col=i%3; cb.grid(row=row, column=col, sticky='w', padx=5, pady=2); check_vars[tp]=var
-    canvas.pack(side="left", fill="both", expand=True); scrollbar.pack(side="right", fill="y")
-    state['check_vars']=check_vars
+        row = i // 3
+        col = i % 3
+        cb.grid(row=row, column=col, sticky='w', padx=5, pady=2)
+        check_vars[tp] = var
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    state['check_vars'] = check_vars
     populate_fitting_controls(state)
 
 def filter_atoms(state):

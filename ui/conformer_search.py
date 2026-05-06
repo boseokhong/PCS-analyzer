@@ -46,7 +46,7 @@ import sys
 import math
 import itertools
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
+from tkinter import ttk, filedialog, messagebox, scrolledtext, simpledialog
 from typing import List, Tuple, Dict, Optional, Set
 
 import numpy as np
@@ -88,6 +88,55 @@ DEFAULT_COORDINATION_CONFIG = {
 ANGULAR_PENALTY_K = 1e5
 
 # ─────────────────────────────────────────────────────────────────────────────
+# BOND DETECTION CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+BOND_SCALE_DEFAULT = 1.30
+
+# Elements that are normally allowed to form coordination bonds to metals.
+# Carbon is intentionally excluded by default because long M···C contacts
+# are frequently false positives in actinide/lanthanide structures.
+DEFAULT_COORD_DONORS = {
+    "N", "O", "F", "P", "S", "Cl", "Br", "I", "As", "Se"
+}
+
+DEFAULT_BOND_OPTIONS = {
+    "scale": BOND_SCALE_DEFAULT,
+
+    # "donor_only"  : metal bonds are kept only for donor elements above
+    # "permissive"  : old behaviour; any element can bond by distance cutoff
+    "metal_bond_mode": "donor_only",
+
+    # Allow organometallic M-C bonds only when explicitly enabled.
+    "allow_metal_carbon": False,
+
+    # Optional distance ceiling for metal-ligand bonds.
+    # None = use only covalent-radii cutoff.
+    "max_metal_bond_distance": None,
+
+    "coord_donors": DEFAULT_COORD_DONORS,
+}
+
+
+def _norm_bond(i: int, j: int) -> Tuple[int, int]:
+    """Return a canonical i<j bond tuple."""
+    return (i, j) if i < j else (j, i)
+
+
+def _merged_bond_options(user_options: Optional[dict] = None) -> dict:
+    """Merge user bond options with defaults."""
+    opts = dict(DEFAULT_BOND_OPTIONS)
+    opts["coord_donors"] = set(DEFAULT_BOND_OPTIONS["coord_donors"])
+    if user_options:
+        for k, v in user_options.items():
+            if k == "coord_donors":
+                opts[k] = set(v)
+            else:
+                opts[k] = v
+    return opts
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MOLECULAR GRAPH
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -95,33 +144,185 @@ class Molecule:
     """
     Lightweight molecular graph built from element symbols and Cartesian coords.
 
-    Attributes
-    ----------
-    n_atoms  : int
-    elements : list[str]
-    coords   : np.ndarray  (n_atoms, 3)
-    bonds    : list[(i,j)] with i < j
-    adj      : list[list[int]]  adjacency list
+    Bond detection supports:
+    - automatic distance-based covalent bonds
+    - conservative metal-donor filtering
+    - manual add/remove bond overrides
     """
 
-    def __init__(self, elements: List[str], coords: np.ndarray):
-        self.n_atoms  = len(elements)
+    def __init__(
+        self,
+        elements: List[str],
+        coords: np.ndarray,
+        *,
+        bond_options: Optional[dict] = None,
+        manual_add_bonds: Optional[Set[Tuple[int, int]]] = None,
+        manual_remove_bonds: Optional[Set[Tuple[int, int]]] = None,
+    ):
+        self.n_atoms = len(elements)
         self.elements = elements
-        self.coords   = coords.copy()
-        self.bonds:   List[Tuple[int, int]] = []
-        self.adj:     List[List[int]]       = [[] for _ in range(self.n_atoms)]
+        self.coords = coords.copy()
+
+        self.bond_options = _merged_bond_options(bond_options)
+
+        self.manual_add_bonds = {
+            _norm_bond(i, j) for i, j in (manual_add_bonds or set())
+            if 0 <= i < self.n_atoms and 0 <= j < self.n_atoms and i != j
+        }
+        self.manual_remove_bonds = {
+            _norm_bond(i, j) for i, j in (manual_remove_bonds or set())
+            if 0 <= i < self.n_atoms and 0 <= j < self.n_atoms and i != j
+        }
+
+        self.bonds: List[Tuple[int, int]] = []
+        self.adj: List[List[int]] = [[] for _ in range(self.n_atoms)]
+
+        # Diagnostic list: [(i, j, distance, cutoff, reason), ...]
+        self.suspicious_bonds: List[Tuple[int, int, float, float, str]] = []
+
         self._build_bonds()
 
+    def _is_metal_pair(self, ei: str, ej: str) -> bool:
+        return ei in METAL_ELEMENTS or ej in METAL_ELEMENTS
+
+    def _metal_and_partner(self, ei: str, ej: str) -> Tuple[Optional[str], Optional[str]]:
+        if ei in METAL_ELEMENTS and ej not in METAL_ELEMENTS:
+            return ei, ej
+        if ej in METAL_ELEMENTS and ei not in METAL_ELEMENTS:
+            return ej, ei
+        if ei in METAL_ELEMENTS and ej in METAL_ELEMENTS:
+            return ei, ej
+        return None, None
+
+    def _allow_auto_bond(self, i: int, j: int, dij: float, cutoff: float) -> Tuple[bool, str]:
+        """
+        Decide whether an automatically detected distance-based bond should be kept.
+        Returns (keep, reason).
+        """
+        ei = self.elements[i]
+        ej = self.elements[j]
+
+        if dij >= cutoff:
+            return False, "outside cutoff"
+
+        if not self._is_metal_pair(ei, ej):
+            return True, "covalent"
+
+        mode = str(self.bond_options.get("metal_bond_mode", "donor_only")).lower()
+        metal_el, partner_el = self._metal_and_partner(ei, ej)
+
+        # Metal-metal contacts are not useful for ligand torsion topology by default.
+        if metal_el in METAL_ELEMENTS and partner_el in METAL_ELEMENTS:
+            return False, "metal-metal skipped"
+
+        if mode == "permissive":
+            return True, "metal permissive"
+
+        max_d = self.bond_options.get("max_metal_bond_distance", None)
+        if max_d is not None and dij > float(max_d):
+            return False, f"metal bond above max distance {float(max_d):.2f} Å"
+
+        donors = set(self.bond_options.get("coord_donors", DEFAULT_COORD_DONORS))
+
+        if partner_el == "C":
+            if bool(self.bond_options.get("allow_metal_carbon", False)):
+                return True, "metal-carbon allowed"
+            return False, "metal-carbon skipped"
+
+        if partner_el not in donors:
+            return False, f"metal-{partner_el} skipped"
+
+        return True, "metal-donor"
+
+    def _rebuild_adjacency_from_bonds(self, bond_set: Set[Tuple[int, int]]):
+        """Rebuild self.bonds and self.adj from a bond set."""
+        self.bonds = sorted(bond_set)
+        self.adj = [[] for _ in range(self.n_atoms)]
+        for i, j in self.bonds:
+            self.adj[i].append(j)
+            self.adj[j].append(i)
+
     def _build_bonds(self):
+        """
+        Build molecular graph from distance criteria plus manual overrides.
+
+        The automatic part is conservative for metal-containing bonds:
+        metal-C and other non-donor contacts are excluded unless explicitly allowed.
+        """
+        self.suspicious_bonds.clear()
         D = cdist(self.coords, self.coords)
+
+        bond_set: Set[Tuple[int, int]] = set()
+        scale = float(self.bond_options.get("scale", BOND_SCALE_DEFAULT))
+
         for i in range(self.n_atoms):
             ri = covalent_radii.get(self.elements[i], covalent_radii["default"])
             for j in range(i + 1, self.n_atoms):
                 rj = covalent_radii.get(self.elements[j], covalent_radii["default"])
-                if D[i, j] < (ri + rj) * 1.30:
-                    self.bonds.append((i, j))
-                    self.adj[i].append(j)
-                    self.adj[j].append(i)
+                dij = float(D[i, j])
+                cutoff = (ri + rj) * scale
+
+                keep, reason = self._allow_auto_bond(i, j, dij, cutoff)
+
+                if keep:
+                    bond_set.add((i, j))
+                else:
+                    # Store diagnostics for near-cutoff or metal-related skipped bonds.
+                    if dij < cutoff and self._is_metal_pair(self.elements[i], self.elements[j]):
+                        self.suspicious_bonds.append((i, j, dij, cutoff, reason))
+
+        # Manual remove wins over automatic detection.
+        bond_set -= self.manual_remove_bonds
+
+        # Manual add wins even if the automatic policy would skip the bond.
+        bond_set |= self.manual_add_bonds
+
+        self._rebuild_adjacency_from_bonds(bond_set)
+
+    def rebuild_bonds(
+        self,
+        *,
+        manual_add_bonds: Optional[Set[Tuple[int, int]]] = None,
+        manual_remove_bonds: Optional[Set[Tuple[int, int]]] = None,
+        bond_options: Optional[dict] = None,
+    ):
+        """Update bond options/overrides and rebuild the graph."""
+        if bond_options is not None:
+            self.bond_options = _merged_bond_options(bond_options)
+
+        if manual_add_bonds is not None:
+            self.manual_add_bonds = {
+                _norm_bond(i, j) for i, j in manual_add_bonds
+                if 0 <= i < self.n_atoms and 0 <= j < self.n_atoms and i != j
+            }
+
+        if manual_remove_bonds is not None:
+            self.manual_remove_bonds = {
+                _norm_bond(i, j) for i, j in manual_remove_bonds
+                if 0 <= i < self.n_atoms and 0 <= j < self.n_atoms and i != j
+            }
+
+        self.bonds = []
+        self.adj = [[] for _ in range(self.n_atoms)]
+        self._build_bonds()
+
+    def remove_bond(self, i: int, j: int):
+        """Remove a bond manually and rebuild graph."""
+        self.manual_remove_bonds.add(_norm_bond(i, j))
+        self.manual_add_bonds.discard(_norm_bond(i, j))
+        self.rebuild_bonds(
+            manual_add_bonds=self.manual_add_bonds,
+            manual_remove_bonds=self.manual_remove_bonds,
+        )
+
+    def add_bond(self, i: int, j: int):
+        """Add a bond manually and rebuild graph."""
+        self.manual_add_bonds.add(_norm_bond(i, j))
+        self.manual_remove_bonds.discard(_norm_bond(i, j))
+        self.rebuild_bonds(
+            manual_add_bonds=self.manual_add_bonds,
+            manual_remove_bonds=self.manual_remove_bonds,
+        )
 
     def is_in_ring(self, i: int, j: int,
                     metal_indices: Optional[Set[int]] = None) -> bool:
@@ -822,6 +1023,7 @@ class ConformerOptimiser:
             use_global: bool = True,
             de_maxiter: int = 600,
             de_popsize: int = 12,
+            de_workers: int = 1,
             selected_bonds=None,
             locked_bonds=None,
             n_candidates: int = 5,
@@ -865,18 +1067,34 @@ class ConformerOptimiser:
             if self.progress_cb:
                 self.progress_cb(
                     f"Stage 1 – Differential Evolution "
-                    f"({de_maxiter} iter × pop {de_popsize})…")
-            de_result = differential_evolution(
-                self._cost, bounds,
-                seed=42, maxiter=de_maxiter, popsize=de_popsize,
-                tol=1e-8, mutation=(0.5, 1.5), recombination=0.7,
-                updating="deferred", workers=1, polish=False, x0=x0,
-            )
+                    f"({de_maxiter} iter × pop {de_popsize})…"
+                )
+
+            _saved_progress_cb = self.progress_cb
+            self.progress_cb = None
+            try:
+                de_result = differential_evolution(
+                    self._cost, bounds,
+                    seed=42,
+                    maxiter=de_maxiter,
+                    popsize=de_popsize,
+                    tol=1e-8,
+                    mutation=(0.5, 1.5),
+                    recombination=0.7,
+                    updating="deferred",
+                    workers=de_workers,
+                    polish=False,
+                    x0=x0,
+                )
+            finally:
+                self.progress_cb = _saved_progress_cb
+
             x0 = de_result.x
             if self.progress_cb:
                 self.progress_cb(
                     f"  DE done  cost={de_result.fun:.4f}  "
-                    f"success={de_result.success}")
+                    f"success={de_result.success}"
+                )
 
         # Stage 2: L-BFGS-B local refinement
         if self.progress_cb:
@@ -1167,13 +1385,13 @@ class ConformerSearchGUI:
         elif master is None:
             self.root = tk.Tk()
             self.root.title("Conformational Search – PCS Dihedral Optimiser")
-            self.root.geometry("960x780")
+            self.root.geometry("960x900")
             self._standalone = True
             self._embedded = False
         else:
             self.root = tk.Toplevel(master)
             self.root.title("Conformational Search – PCS Dihedral Optimiser")
-            self.root.geometry("960x780")
+            self.root.geometry("960x900")
             self._standalone = False
             self._embedded = False
 
@@ -1862,11 +2080,17 @@ class ConformerSearchGUI:
         self._fix_canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y")
         self._fix_canvas.pack(side="left", fill="both", expand=True)
-        self._fix_inner = ttk.Frame(self._fix_canvas)
+        self._fix_inner = tk.Frame(self._fix_canvas, bg="#f5f6fa")
         self._fix_canvas.create_window((0, 0), window=self._fix_inner, anchor="nw")
         self._fix_inner.bind("<Configure>",
                              lambda e: self._fix_canvas.configure(
                                  scrollregion=self._fix_canvas.bbox("all")))
+
+        def _fw(event):
+            self._fix_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        self._fix_canvas.bind_all("<MouseWheel>", _fw)
+        self._fix_canvas.bind("<Button-4>", lambda e: self._fix_canvas.yview_scroll(-1, "units"))
+        self._fix_canvas.bind("<Button-5>", lambda e: self._fix_canvas.yview_scroll(1, "units"))
         self._fix_rows: list = []
         self._visible_set: set = set()
 
@@ -1939,6 +2163,28 @@ class ConformerSearchGUI:
                                                      self.bond_locked)
                                     if not lk]).pack(side="left")
 
+        ttk.Separator(btn, orient="vertical").pack(
+            side="left", fill="y", padx=8, pady=2
+        )
+
+        ttk.Button(
+            btn,
+            text="⚠ Skipped contacts",
+            command=self._show_skipped_contacts,
+        ).pack(side="left", padx=(0, 4))
+
+        ttk.Button(
+            btn,
+            text="− Remove bond",
+            command=self._remove_manual_bond_dialog,
+        ).pack(side="left", padx=(0, 4))
+
+        ttk.Button(
+            btn,
+            text="+ Add bond",
+            command=self._add_manual_bond_dialog,
+        ).pack(side="left")
+
         cf = ttk.Frame(p); cf.pack(fill="both", expand=True, padx=8, pady=6)
         self._bond_canvas = tk.Canvas(cf, bg="#f5f6fa", highlightthickness=0)
         vsb = ttk.Scrollbar(cf, orient="vertical",
@@ -1946,7 +2192,7 @@ class ConformerSearchGUI:
         self._bond_canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y")
         self._bond_canvas.pack(side="left", fill="both", expand=True)
-        self._bond_inner = ttk.Frame(self._bond_canvas)
+        self._bond_inner = tk.Frame(self._bond_canvas, bg="#f5f6fa")
         self._bond_canvas.create_window((0, 0), window=self._bond_inner, anchor="nw")
         self._bond_inner.bind("<Configure>",
                               lambda e: self._bond_canvas.configure(
@@ -2010,6 +2256,111 @@ class ConformerSearchGUI:
                                  f"Enter a number between 1 and {self.mol.n_atoms}.")
             return None
 
+    def _rebuild_after_connectivity_change(self, status_text: str = ""):
+        """Rebuild rotatable/fixed/bond UI after manual connectivity changes."""
+        if self.mol is None or self.metal_idx is None:
+            return
+
+        self.rotatable_all = self.mol.find_rotatable_bonds(self.metal_idx)
+        self._populate_atom_list()
+        self._refresh_bond_locks()
+
+        if status_text:
+            self._status_var.set(status_text)
+        else:
+            self._status_var.set(
+                f"Connectivity rebuilt. {len(self.rotatable_all)} rotatable bonds detected."
+            )
+
+    def _remove_manual_bond_dialog(self):
+        """Remove a selected bond from the molecular graph."""
+        if self.mol is None:
+            messagebox.showwarning("No structure", "Load an XYZ file first.")
+            return
+
+        raw = simpledialog.askstring(
+            "Remove bond",
+            "Enter bond to remove, e.g. 1-11 or 1 11:",
+            parent=self.root,
+        )
+        if not raw:
+            return
+
+        try:
+            parts = raw.replace("-", " ").replace(",", " ").split()
+            if len(parts) != 2:
+                raise ValueError("Enter exactly two atom indices.")
+            i = int(parts[0]) - 1
+            j = int(parts[1]) - 1
+            if not (0 <= i < self.mol.n_atoms and 0 <= j < self.mol.n_atoms):
+                raise ValueError("Atom index out of range.")
+            if i == j:
+                raise ValueError("Cannot remove self-bond.")
+        except Exception as exc:
+            messagebox.showerror("Remove bond", f"Invalid input:\n{exc}")
+            return
+
+        self.mol.remove_bond(i, j)
+        self._rebuild_after_connectivity_change(
+            f"Removed bond {i+1}-{j+1}. Connectivity rebuilt."
+        )
+
+    def _add_manual_bond_dialog(self):
+        """Add a user-defined bond to the molecular graph."""
+        if self.mol is None:
+            messagebox.showwarning("No structure", "Load an XYZ file first.")
+            return
+
+        raw = simpledialog.askstring(
+            "Add bond",
+            "Enter bond to add, e.g. 1-11 or 1 11:",
+            parent=self.root,
+        )
+        if not raw:
+            return
+
+        try:
+            parts = raw.replace("-", " ").replace(",", " ").split()
+            if len(parts) != 2:
+                raise ValueError("Enter exactly two atom indices.")
+            i = int(parts[0]) - 1
+            j = int(parts[1]) - 1
+            if not (0 <= i < self.mol.n_atoms and 0 <= j < self.mol.n_atoms):
+                raise ValueError("Atom index out of range.")
+            if i == j:
+                raise ValueError("Cannot add self-bond.")
+        except Exception as exc:
+            messagebox.showerror("Add bond", f"Invalid input:\n{exc}")
+            return
+
+        self.mol.add_bond(i, j)
+        self._rebuild_after_connectivity_change(
+            f"Added bond {i+1}-{j+1}. Connectivity rebuilt."
+        )
+
+    def _show_skipped_contacts(self):
+        """Show skipped suspicious contacts in a message box."""
+        if self.mol is None:
+            messagebox.showwarning("No structure", "Load an XYZ file first.")
+            return
+
+        susp = getattr(self.mol, "suspicious_bonds", [])
+        if not susp:
+            messagebox.showinfo("Skipped contacts", "No suspicious metal contacts were skipped.")
+            return
+
+        lines = []
+        for i, j, d, cutoff, reason in susp:
+            lines.append(
+                f"{i+1}({self.mol.elements[i]})–{j+1}({self.mol.elements[j]}): "
+                f"d={d:.3f} Å, cutoff={cutoff:.3f} Å, {reason}"
+            )
+
+        messagebox.showinfo(
+            "Skipped suspicious contacts",
+            "\n".join(lines[:30]) + ("\n..." if len(lines) > 30 else ""),
+        )
+
     def _detect_all(self):
         """Detect rotatable bonds and populate the atom list in Tab 1."""
         if self.mol is None:
@@ -2027,9 +2378,25 @@ class ConformerSearchGUI:
         # Build bond list
         self._refresh_bond_locks()
 
+        susp = getattr(self.mol, "suspicious_bonds", [])
+        susp_msg = ""
+        if susp:
+            susp_msg = f"  |  {len(susp)} suspicious metal contact(s) skipped"
+
         self._status_var.set(
             f"{len(self.rotatable_all)} rotatable bonds detected. "
-            f"Mark fixed atoms in Tab ①, then run.")
+            f"Mark fixed atoms in Tab ①, then run."
+            f"{susp_msg}"
+        )
+
+        # Optional console diagnostics
+        for i, j, d, cutoff, reason in susp:
+            print(
+                f"[Bond detection] skipped: "
+                f"{i + 1}({self.mol.elements[i]})–{j + 1}({self.mol.elements[j]})  "
+                f"d={d:.3f} Å  cutoff={cutoff:.3f} Å  reason={reason}"
+            )
+
         self._nb.select(0 if getattr(self, '_embedded', False) else 1)
 
     def _populate_atom_list(self):
@@ -2049,6 +2416,24 @@ class ConformerSearchGUI:
                       width=w, anchor="center").pack(side="left")
         ttk.Separator(self._fix_inner, orient="horizontal").pack(fill="x", pady=2)
 
+        susp = getattr(self.mol, "suspicious_bonds", [])
+        if susp:
+            shown = ", ".join(
+                f"{i + 1}({self.mol.elements[i]})–{j + 1}({self.mol.elements[j]})"
+                for i, j, *_ in susp[:10]
+            )
+            if len(susp) > 10:
+                shown += " …"
+
+            ttk.Label(
+                self._fix_inner,
+                text=f"⚠ Skipped suspicious metal contacts: {shown}",
+                foreground="#b35a00",
+                font=("default", 8, "bold"),
+                wraplength=850,
+                justify="left",
+            ).pack(anchor="w", padx=6, pady=(2, 4))
+
         for idx in range(self.mol.n_atoms):
             if idx == self.metal_idx:
                 continue   # metal is always implicitly fixed
@@ -2059,7 +2444,7 @@ class ConformerSearchGUI:
             v = tk.BooleanVar(value=False)
             self.atom_fix_vars.append(v)
 
-            row = ttk.Frame(self._fix_inner)
+            row = tk.Frame(self._fix_inner, bg="#f5f6fa")
             row.pack(fill="x", padx=4, pady=1)
 
             # No automatic command on checkbox — user controls when to apply
@@ -2077,6 +2462,9 @@ class ConformerSearchGUI:
             self._fix_rows.append((v, el, idx, row))
             self._visible_set.add(idx)   # all visible initially
             self._refresh_search_setup_summary()
+
+        self._fix_inner.update_idletasks()
+        self._fix_canvas.configure(scrollregion=self._fix_canvas.bbox("all"))
 
     def _apply_fixed_filter(self):
         """Show/hide atom rows by element symbol — updates _visible_set."""
@@ -2179,7 +2567,7 @@ class ConformerSearchGUI:
             self.bond_vars.append(v)
             self.bond_locked.append(is_locked)
 
-            row = ttk.Frame(self._bond_inner)
+            row = tk.Frame(self._bond_inner, bg="#f5f6fa")
             row.pack(fill="x", padx=6, pady=1)
 
             state = "disabled" if is_locked else "normal"
@@ -2321,6 +2709,7 @@ class ConformerSearchGUI:
                     use_global=use_global,
                     de_maxiter=de_maxiter,
                     de_popsize=de_popsize,
+                    de_workers=-1,
                     selected_bonds=selected_bonds,
                     locked_bonds=locked_bonds,
                     n_candidates=n_candidates,

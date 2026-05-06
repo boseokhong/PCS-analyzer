@@ -130,17 +130,15 @@ def _rotated_coords_for_obs(state, obs_pairs):
             if donor_ids:
                 from logic.fitting import _angles_to_rotation_multi  # local import OK
                 donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
-                if not donor_pts:
-                    pass
-
-                abs_coords = _angles_to_rotation_multi(
-                    points=abs_coords,
-                    metal=metal,
-                    donor_points=donor_pts,
-                    theta_deg=float(fo.get("theta", 0.0)),
-                    alpha_deg=float(fo.get("alpha", 0.0)),
-                    axis_mode=fo.get("axis_mode", "bisector"),
-                )
+                if donor_pts:
+                    abs_coords = _angles_to_rotation_multi(
+                        points=abs_coords,
+                        metal=metal,
+                        donor_points=donor_pts,
+                        theta_deg=float(fo.get("theta", 0.0)),
+                        alpha_deg=float(fo.get("alpha", 0.0)),
+                        axis_mode=fo.get("axis_mode", "bisector"),
+                    )
 
         elif mode == "euler_global":
             ax0 = float(fo.get("ax", 0.0))
@@ -162,9 +160,26 @@ def _rotated_coords_for_obs(state, obs_pairs):
     rot0 = rotate_euler(coords0, ax, ay, az)
     rot_all = rot0 + metal
 
-    obs_ids = [rid for (rid, _) in obs_pairs]
+    valid_obs_pairs = [(rid, val) for rid, val in obs_pairs if rid in id2idx]
+    missing_ids = [rid for rid, _ in obs_pairs if rid not in id2idx]
+
+    if missing_ids:
+        print(
+            "[Diagnostic] Ignored δ_Exp Ref IDs not present in current atom set:",
+            missing_ids
+        )
+
+    if len(valid_obs_pairs) < 3:
+        raise RuntimeError(
+            "Need ≥3 valid assigned δ_Exp points for diagnostics.\n"
+            "Some δ_Exp Ref IDs are not present in the current atom set.\n"
+            "Please clear/re-import δ_Exp after loading or modifying the structure."
+        )
+
+    obs_ids = [rid for rid, _ in valid_obs_pairs]
     pts_obs = np.array([rot_all[id2idx[rid]] for rid in obs_ids], float)
-    return pts_obs, metal, obs_ids
+
+    return pts_obs, metal, obs_ids, valid_obs_pairs
 
 # -----------------------
 # diagnostic computations
@@ -183,8 +198,8 @@ def axial_fit_and_residuals(state, proton_ids=None, fit_intercept=True):
     if len(obs_pairs) < 3:
         raise RuntimeError("Need ≥3 assigned δ_Exp points for diagnostics (select protons and set δ_Exp).")
 
-    pts_obs, metal, obs_ids = _rotated_coords_for_obs(state, obs_pairs)
-    delta_exp = np.array([v for (_, v) in obs_pairs], float)
+    pts_obs, metal, obs_ids, valid_obs_pairs = _rotated_coords_for_obs(state, obs_pairs)
+    delta_exp = np.array([v for (_, v) in valid_obs_pairs], float)
 
     # geometry factors in current frame
     r, theta, phi, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
