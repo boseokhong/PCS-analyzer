@@ -13,6 +13,7 @@ v.1.3.3 updates
     - Position mode keeps fixed atoms close to their original Cartesian coordinates and is suited for conservative scaffold-preserving searches
     - Angular mode preserves metal-centered donor directions while allowing radial relaxation and is suited for more flexible coordination-complex searches
 - Conformer search : False bond detection/skipped function added
+- G_i vs delta_Exp plot : lasso selection function
 
 v.1.3.2 updates
 - added **PCS Workbench** for FFT-based distributed PCS / PDE analysis

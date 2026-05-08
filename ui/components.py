@@ -16,7 +16,10 @@ from logic.xyz_loader import load_structure
 from logic.func_group_collapse import collapse_methyl_groups, collapse_cf3_groups
 
 from logic.plot_pcs import plot_graph
-from logic.plot_cartesian import plot_cartesian_graph, export_cartesian_plot
+from logic.plot_cartesian import (
+    plot_cartesian_graph, export_cartesian_plot, start_lasso_selection, start_rectangle_selection,
+    fit_selected_points, clear_cartesian_selection,
+)
 from logic.table_utils import (
     update_molar_value, update_table, on_delta_entry_change, calculate_tensor_components_ui, calculate_tensor_components_ui_ax_rh,
     export_delta_exp_template, import_delta_exp_file, import_delta_exp_from_clipboard, undo_last_delta_import, clear_delta_exp, classify_residual_tag
@@ -831,23 +834,95 @@ def build_app():
     state["cartesian_click_cid"] = None
     state["cartesian_plot_rows"] = []
 
-    ttk.Label(plot_right, text="Plot Results").pack(anchor="w", pady=(0, 4))
+    # -------------------------
+    # Plot control panel
+    # -------------------------
+    plot_ctrl = ttk.Frame(plot_right)
+    plot_ctrl.pack(fill=tk.X, pady=(0, 4))
+
+    ttk.Label(
+        plot_ctrl,
+        text="Plot Results",
+        font=("Segoe UI", 9, "bold"),
+    ).pack(side=tk.LEFT)
+
+    state["cartesian_selection_status_var"] = tk.StringVar(value="All points")
+    ttk.Label(
+        plot_ctrl,
+        textvariable=state["cartesian_selection_status_var"],
+        font=("Segoe UI", 8),
+        foreground="#666666",
+    ).pack(side=tk.RIGHT)
+
+    # Force-origin checkbox row
+    origin_row = ttk.Frame(plot_right)
+    origin_row.pack(fill=tk.X, pady=(0, 3))
+
     state["plot_force_origin_var"] = tk.BooleanVar(value=False)
     ttk.Checkbutton(
-        plot_right,
+        origin_row,
         text="Force fit through origin",
         variable=state["plot_force_origin_var"],
         command=lambda: plot_cartesian_graph(state),
-    ).pack(anchor="w", pady=(0, 6))
+    ).pack(side=tk.LEFT)
 
-    plot_result_box = tk.Text(plot_right, height=12, width=34, wrap="word", font=("Consolas", 9))
+    # Compact selection toolbar
+    sel_toolbar = ttk.Frame(plot_right)
+    sel_toolbar.pack(fill=tk.X, pady=(0, 4))
+
+    state["cartesian_selection_mode"] = "all"
+    state["cartesian_selected_ids"] = set()
+    state["cartesian_selector"] = None
+    state["cartesian_selector_kind"] = None
+    state["cartesian_selector_active"] = False
+
+    ttk.Button(
+        sel_toolbar,
+        text="Lasso",
+        width=6,
+        command=lambda: state["cartesian_start_lasso"](state),
+    ).pack(side=tk.LEFT, padx=(0, 2))
+
+    ttk.Button(
+        sel_toolbar,
+        text="Box",
+        width=5,
+        command=lambda: state["cartesian_start_rectangle"](state),
+    ).pack(side=tk.LEFT, padx=2)
+
+    ttk.Button(
+        sel_toolbar,
+        text="Fit",
+        width=5,
+        command=lambda: state["cartesian_fit_selected"](state),
+    ).pack(side=tk.LEFT, padx=2)
+
+    ttk.Button(
+        sel_toolbar,
+        text="Clear",
+        width=6,
+        command=lambda: state["cartesian_clear_selection"](state),
+    ).pack(side=tk.LEFT, padx=2)
+
+    ttk.Button(
+        sel_toolbar,
+        text="Export",
+        width=7,
+        command=lambda: export_cartesian_plot(state),
+    ).pack(side=tk.RIGHT, padx=(2, 0))
+
+    plot_result_box = tk.Text(
+        plot_right,
+        height=12,
+        width=34,
+        wrap="word",
+        font=("Consolas", 9),
+    )
     plot_result_box.pack(fill=tk.BOTH, expand=True)
     plot_result_box.insert("1.0", "Plot analysis will appear here.")
     plot_result_box.configure(state="disabled")
 
     state["plot_result_box"] = plot_result_box
-
-    ttk.Button(plot_right, text="💾 Export Plot & Summary", command=lambda: export_cartesian_plot(state)).pack(anchor="e", pady=(6, 0))
 
     # --------------------------
     # --- Diagnostic tab UI ---
@@ -1347,7 +1422,7 @@ def build_app():
     plots_nb.add(cstab, text="🔍 Conformer Search")
     state["conformer_tab"] = cstab
 
-    # ── 액션 바 ──────────────────────────────────────────────────────────────
+    # ── Action bar ──────────────────────────────────────────────────────────────
     cs_btns = ttk.Frame(cstab)
     cs_btns.pack(fill=tk.X, padx=6, pady=(4, 2))
 
@@ -3078,5 +3153,10 @@ def wire(state):
     state['plot_cartesian'] = plot_cartesian_graph
     state['filter_atoms'] = filter_atoms
     state['update_table'] = update_table
+    #-- plot selection interaction ---
+    state["cartesian_start_lasso"] = start_lasso_selection
+    state["cartesian_start_rectangle"] = start_rectangle_selection
+    state["cartesian_fit_selected"] = fit_selected_points
+    state["cartesian_clear_selection"] = clear_cartesian_selection
 
     return state

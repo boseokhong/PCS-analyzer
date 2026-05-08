@@ -5,6 +5,8 @@ import csv
 
 from scipy import stats
 import numpy as np
+from matplotlib.widgets import LassoSelector, RectangleSelector
+from matplotlib.path import Path
 
 def _safe_float(x):
     try:
@@ -71,7 +73,43 @@ def _build_plot_rows(state):
         })
     return rows
 
-def _format_result_text(rows, selected_ref=None, force_origin=False):
+def _get_active_rows_for_fit(state, rows):
+    """
+    Return rows used for regression depending on the current selection mode.
+    """
+    mode = state.get("cartesian_selection_mode", "all")
+    selected = state.get("cartesian_selected_ids", set()) or set()
+
+    if mode == "selected" and selected:
+        return [r for r in rows if r["ref_id"] in selected]
+
+    return list(rows)
+
+def _update_selection_status(state, rows=None):
+    """
+    Update the compact selection status label in the Cartesian plot panel.
+    """
+    var = state.get("cartesian_selection_status_var")
+    if var is None:
+        return
+
+    if rows is None:
+        rows = state.get("cartesian_plot_rows", []) or []
+
+    selected = state.get("cartesian_selected_ids", set()) or set()
+    active = bool(state.get("cartesian_selector_active", False))
+
+    if active:
+        kind = state.get("cartesian_selector_kind") or "selection"
+        if kind == "rectangle":
+            kind = "box"
+        var.set(f"{kind} active")
+    elif selected:
+        var.set(f"Selected: {len(selected)} / {len(rows)}")
+    else:
+        var.set("All points")
+
+def _format_result_text(rows, selected_ref=None, force_origin=False, fit_scope="all"):
     if not rows:
         return "No assigned δ_Exp values.\n\nImport or enter δ_Exp values to populate the plot."
 
@@ -102,6 +140,7 @@ def _format_result_text(rows, selected_ref=None, force_origin=False):
     lines.append("=" * 30)
     lines.append(f"n points        : {len(rows)}")
     lines.append(f"fit mode        : {'through origin' if force_origin else 'with intercept'}")
+    lines.append(f"fit scope       : {fit_scope}")
 
     if np.isfinite(slope):
         lines.append("")
@@ -184,6 +223,11 @@ def _install_pick_handler(state, ax, rows, artists):
     tree = state.get("tree")
 
     def _on_click(event):
+        # During lasso/box selection, do not treat mouse press as point picking.
+        # Otherwise Treeview selection can trigger plot redraw while the selector is active.
+        if state.get("cartesian_selector_active", False):
+            return
+
         if event.inaxes != ax:
             return
         if event.xdata is None or event.ydata is None:
@@ -387,6 +431,13 @@ def _install_hover_handler(state, ax, rows, artists):
     hover_thr2 = (0.03 ** 2 + 0.03 ** 2)  # normalized distance^2
 
     def _on_move(event):
+        # Disable hover tooltip while interactive selection is active.
+        if state.get("cartesian_selector_active", False):
+            if annot.get_visible():
+                annot.set_visible(False)
+                canvas.draw_idle()
+            return
+
         if event.inaxes != ax or event.xdata is None or event.ydata is None:
             if annot.get_visible():
                 annot.set_visible(False)
@@ -521,6 +572,7 @@ def plot_cartesian_graph(state):
 
     rows = _build_plot_rows(state)
     state["cartesian_plot_rows"] = rows
+    _update_selection_status(state, rows)
 
     force_origin = bool(state.get("plot_force_origin_var").get()) if state.get(
         "plot_force_origin_var") is not None else False
@@ -534,9 +586,16 @@ def plot_cartesian_graph(state):
         ax.set_ylabel("δ (ppm)")
         ax.set_title("Geometrical factor (Gᵢ) vs Chemical shift (δ_Exp)")
         ax.grid(True)
+        ax.axhline(0, color="#444444", linewidth=1.0, alpha=0.9, zorder=1)
+        ax.axvline(0, color="#444444", linewidth=1.0, alpha=0.9, zorder=1)
         _set_result_box_text(
             state,
-            _format_result_text(rows, selected_ref=None, force_origin=force_origin)
+            _format_result_text(
+                rows,
+                selected_ref=None,
+                force_origin=force_origin,
+                fit_scope="all points",
+            )
         )
         _disconnect_plot_callbacks(state)
         canvas.draw()
@@ -544,26 +603,74 @@ def plot_cartesian_graph(state):
 
     selected_ref = _get_selected_ref_id(state)
 
-    x = np.asarray([r["gi"] for r in rows], dtype=float)
-    y = np.asarray([r["dexp"] for r in rows], dtype=float)
+    fit_rows = _get_active_rows_for_fit(state, rows)
+    fit_scope = "selected points" if (
+            state.get("cartesian_selection_mode") == "selected"
+            and state.get("cartesian_selected_ids")
+    ) else "all points"
+
+    x = np.asarray([r["gi"] for r in fit_rows], dtype=float)
+    y = np.asarray([r["dexp"] for r in fit_rows], dtype=float)
+
+    selected_ids = state.get("cartesian_selected_ids", set()) or set()
+    has_multi_selection = bool(selected_ids)
 
     artists = []
+
     for row in rows:
-        is_selected = (selected_ref == row["ref_id"])
+        ref_id = row["ref_id"]
+
+        # Current single selection from the main Treeview
+        is_focused = (selected_ref == ref_id)
+
+        # Multi-point selection from Lasso/Rectangle
+        is_in_subset = ref_id in selected_ids
+
+        if has_multi_selection:
+            if is_in_subset:
+                # Included in the current regression subset
+                alpha = 0.90
+                size = 46
+                edge = "#333333"
+                lw = 0.75
+                zorder = 5
+            else:
+                # Visible but excluded from the current regression subset
+                alpha = 0.18
+                size = 26
+                edge = "#BBBBBB"
+                lw = 0.25
+                zorder = 2
+
+            # Focused point should remain recognizable even in subset mode
+            if is_focused:
+                size = max(size, 64)
+                edge = "gold"
+                lw = 1.4
+                zorder = 7
+
+        else:
+            # Normal mode: only the currently focused Treeview point is highlighted
+            alpha = 0.90
+            size = 76 if is_focused else 38
+            edge = "gold" if is_focused else "#444444"
+            lw = 1.8 if is_focused else 0.55
+            zorder = 4 if is_focused else 3
+
         art = ax.scatter(
             [row["gi"]],
             [row["dexp"]],
-            s=(76 if is_selected else 38),
+            s=size,
             marker="o",
             color=_point_color_from_dpcs(row["dpcs"]),
-            alpha=0.90,
-            zorder=(4 if is_selected else 3),
-            edgecolors=("gold" if is_selected else "#444444"),
-            linewidths=(1.8 if is_selected else 0.55),
+            alpha=alpha,
+            zorder=zorder,
+            edgecolors=edge,
+            linewidths=lw,
         )
         artists.append(art)
 
-    if len(rows) >= 2:
+    if len(fit_rows) >= 2:
         fit = _linear_fit(x, y, force_origin=force_origin, ci_level=0.95)
         slope = fit["slope"]
         intercept = fit["intercept"]
@@ -571,7 +678,10 @@ def plot_cartesian_graph(state):
         if np.isfinite(slope):
             xx = np.linspace(np.min(x), np.max(x), 200)
             yy = slope * xx + intercept
-            label = "Linear fit (b=0)" if force_origin else "Linear fit"
+            label = "Linear fit selected (b=0)" if force_origin else "Linear fit selected"
+            if fit_scope == "all points":
+                label = "Linear fit (b=0)" if force_origin else "Linear fit"
+
             ax.plot(xx, yy, color="#222222", linewidth=1.6, label=label)
 
     if selected_ref is not None:
@@ -594,6 +704,10 @@ def plot_cartesian_graph(state):
     ax.set_ylabel("δ (ppm)")
     ax.set_title("Geometrical factor (Gᵢ) vs Chemical shift (δ_Exp)")
     ax.grid(True, alpha=0.25, linewidth=0.6)
+    # origin axes
+    ax.axhline(0, color="#444444", linewidth=1.0, alpha=0.9, zorder=1)
+    ax.axvline(0, color="#444444", linewidth=1.0, alpha=0.9, zorder=1)
+
 
     if len(rows) >= 2:
         ax.legend(fontsize=8)
@@ -606,11 +720,187 @@ def plot_cartesian_graph(state):
             color="#555555",
         )
 
-    _install_pick_handler(state, ax, rows, artists)
-    _install_hover_handler(state, ax, rows, artists)
+    if not state.get("cartesian_selector_active", False):
+        _install_pick_handler(state, ax, rows, artists)
+        _install_hover_handler(state, ax, rows, artists)
+
     _set_result_box_text(
         state,
-        _format_result_text(rows, selected_ref=selected_ref, force_origin=force_origin)
+        _format_result_text(
+            fit_rows,
+            selected_ref=selected_ref,
+            force_origin=force_origin,
+            fit_scope=fit_scope,
+        )
     )
     fig.tight_layout()
     canvas.draw()
+
+# Lasso/Rectangle functions
+def _clear_existing_selector(state):
+    selector = state.get("cartesian_selector")
+    if selector is not None:
+        try:
+            selector.disconnect_events()
+        except Exception:
+            pass
+
+    state["cartesian_selector"] = None
+    state["cartesian_selector_kind"] = None
+    state["cartesian_selector_active"] = False
+    _update_selection_status(state)
+
+def _select_rows_by_indices(state, rows, indices):
+    selected_ids = {rows[i]["ref_id"] for i in indices if 0 <= i < len(rows)}
+    state["cartesian_selected_ids"] = selected_ids
+    state["cartesian_selection_mode"] = "selected" if selected_ids else "all"
+
+    # Reflect selection in the main Treeview
+    tree = state.get("tree")
+    row_by_id = state.get("row_by_id", {})
+    if tree is not None and row_by_id:
+        items = [row_by_id[rid] for rid in selected_ids if rid in row_by_id]
+        if items:
+            tree.selection_set(items)
+            tree.focus(items[0])
+            tree.see(items[0])
+
+    plot_cartesian_graph(state)
+
+
+def start_lasso_selection(state):
+    fig = state.get("cartesian_figure")
+    canvas = state.get("cartesian_canvas")
+    rows = state.get("cartesian_plot_rows", []) or _build_plot_rows(state)
+
+    if fig is None or canvas is None or not rows:
+        return
+
+    # Remove previous selector and normal plot callbacks.
+    # This prevents point-click / hover events from redrawing the plot
+    # while the lasso selector is active.
+    _clear_existing_selector(state)
+    _disconnect_plot_callbacks(state)
+
+    ax = fig.axes[0] if fig.axes else None
+    if ax is None:
+        state["cartesian_selector_active"] = False
+        return
+
+    state["cartesian_selector_kind"] = "lasso"
+    state["cartesian_selector_active"] = True
+    _update_selection_status(state, rows)
+
+    points = np.asarray([[r["gi"], r["dexp"]] for r in rows], dtype=float)
+
+    def _on_select(verts):
+        indices = []
+        try:
+            if verts is None or len(verts) < 3:
+                return
+
+            path = Path(verts)
+            mask = path.contains_points(points)
+            indices = np.nonzero(mask)[0].tolist()
+
+        finally:
+            _clear_existing_selector(state)
+
+        _select_rows_by_indices(state, rows, indices)
+
+    selector = LassoSelector(ax, onselect=_on_select)
+    state["cartesian_selector"] = selector
+
+
+def start_rectangle_selection(state):
+    fig = state.get("cartesian_figure")
+    canvas = state.get("cartesian_canvas")
+    rows = state.get("cartesian_plot_rows", []) or _build_plot_rows(state)
+
+    if fig is None or canvas is None or not rows:
+        return
+
+    # Remove previous selector and normal plot callbacks.
+    # This prevents point-click / hover events from redrawing the plot
+    # while the rectangle selector is active.
+    _clear_existing_selector(state)
+    _disconnect_plot_callbacks(state)
+
+    ax = fig.axes[0] if fig.axes else None
+    if ax is None:
+        state["cartesian_selector_active"] = False
+        return
+
+    state["cartesian_selector_kind"] = "rectangle"
+    state["cartesian_selector_active"] = True
+    _update_selection_status(state, rows)
+
+    points = np.asarray([[r["gi"], r["dexp"]] for r in rows], dtype=float)
+
+    def _on_select(eclick, erelease):
+        indices = []
+        try:
+            if eclick.xdata is None or eclick.ydata is None:
+                return
+            if erelease.xdata is None or erelease.ydata is None:
+                return
+
+            x0, x1 = sorted([eclick.xdata, erelease.xdata])
+            y0, y1 = sorted([eclick.ydata, erelease.ydata])
+
+            mask = (
+                (points[:, 0] >= x0) &
+                (points[:, 0] <= x1) &
+                (points[:, 1] >= y0) &
+                (points[:, 1] <= y1)
+            )
+
+            indices = np.nonzero(mask)[0].tolist()
+
+        finally:
+            _clear_existing_selector(state)
+
+        _select_rows_by_indices(state, rows, indices)
+
+    selector = RectangleSelector(
+        ax,
+        _on_select,
+        useblit=False,
+        button=[1],
+        interactive=False,
+        props=dict(
+            facecolor="gray",
+            edgecolor="black",
+            alpha=0.15,
+            fill=True,
+        ),
+    )
+
+    state["cartesian_selector"] = selector
+
+
+def fit_selected_points(state):
+    selected = state.get("cartesian_selected_ids", set()) or set()
+    if selected:
+        state["cartesian_selection_mode"] = "selected"
+    else:
+        state["cartesian_selection_mode"] = "all"
+
+    plot_cartesian_graph(state)
+
+
+def clear_cartesian_selection(state):
+    _clear_existing_selector(state)
+    state["cartesian_selector_active"] = False
+    state["cartesian_selected_ids"] = set()
+    state["cartesian_selection_mode"] = "all"
+    _update_selection_status(state)
+
+    tree = state.get("tree")
+    if tree is not None:
+        try:
+            tree.selection_remove(tree.selection())
+        except Exception:
+            pass
+
+    plot_cartesian_graph(state)
