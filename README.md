@@ -1,6 +1,8 @@
 # Pseudocontact Chemical Shift (PCS) Analyzer
 ![version](https://img.shields.io/badge/version-1.3.2-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
+<img width="400" height="230" alt="pcs_banner" src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf" />
+
 <img width="1409" height="919" alt="PCS Analyzer main interface" src="https://github.com/user-attachments/assets/e4a0b469-4a98-4552-803d-6cb8a3fbfdab" />
 <img width="2420" height="882" alt="PCS Analyzer additional views" src="https://github.com/user-attachments/assets/7981899a-5cc4-46a6-9462-152e7a0f38bb" />
 
