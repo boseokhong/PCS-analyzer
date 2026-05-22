@@ -3,7 +3,7 @@
 import tkinter as tk
 from tkinter import ttk
 import webbrowser
-
+from app_version import APP_NAME, APP_VERSION, GITHUB_RELEASES_URL, ZENODO_DOI, ZENODO_URL
 
 def open_about_window(state: dict):
     root = state["root"]
@@ -50,13 +50,13 @@ def open_about_window(state: dict):
 
     ttk.Label(
         outer,
-        text="PCS Analyzer",
+        text=APP_NAME,
         font=("Segoe UI", 12, "bold"),
     ).pack(anchor="w", pady=(0, 4))
 
     ttk.Label(
         outer,
-        text="Version 1.3.3",
+        text=f"Version {APP_VERSION}",
     ).pack(anchor="w", pady=(0, 10))
 
     body = (
@@ -80,15 +80,15 @@ def open_about_window(state: dict):
 
     make_link(
         outer,
-        "DOI: 10.5281/zenodo.18752129",
-        "https://doi.org/10.5281/zenodo.18752129",
+        f"DOI: {ZENODO_DOI}",
+        ZENODO_URL,
         pady=(0, 2),
     )
 
     make_link(
         outer,
         "GitHub: github.com/boseokhong/PCS-analyzer",
-        "https://github.com/boseokhong/PCS-analyzer",
+        GITHUB_RELEASES_URL,
         pady=(0, 8),
     )
 

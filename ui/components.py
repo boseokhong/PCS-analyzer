@@ -49,6 +49,7 @@ from ui.plot_3d_pyvista import open_pyvista_field
 from ui.settings_window import open_settings_window
 from logic.app_settings import load_app_state, save_app_state, is_reasonable_main_geometry
 from ui.about_window import open_about_window
+from ui.update_window import check_for_updates_ui
 
 #plugins
 from plugin_system.plugin_api import PluginApp
@@ -637,6 +638,7 @@ def build_app():
 
     state["settings_window"] = None
     state["about_window"] = None
+    state["update_window"] = None
     state["recent_files"] = list(persisted.get("recent_files", []))
     state["app_settings"] = dict(persisted.get("app_settings", {}))
     state["rebuild_recent_files_menu"] = lambda: rebuild_recent_files_menu(state)
@@ -732,17 +734,20 @@ def build_app():
     view_menu = tk.Menu(menubar, tearoff=0)
     modules_menu = tk.Menu(menubar, tearoff=0)
     settings_menu = tk.Menu(menubar, tearoff=0)
+    help_menu = tk.Menu(menubar, tearoff=0)
 
     menubar.add_cascade(label="File", menu=file_menu)
     menubar.add_cascade(label="View", menu=view_menu)
     menubar.add_cascade(label="Modules", menu=modules_menu)
     menubar.add_cascade(label="Settings", menu=settings_menu)
+    menubar.add_cascade(label="Help", menu=help_menu)
 
     state["menus"] = {
         "File": file_menu,
         "View": view_menu,
         "Modules": modules_menu,
         "Settings": settings_menu,
+        "Help": help_menu,
     }
 
     # ----------------------------
@@ -833,9 +838,17 @@ def build_app():
         command=lambda: open_settings_window(state)
     )
 
-    settings_menu.add_separator()
+    # ----------------------------
+    # Help menu
+    # ----------------------------
+    help_menu.add_command(
+        label="Check for Updates...",
+        command=lambda: check_for_updates_ui(state)
+    )
 
-    settings_menu.add_command(
+    help_menu.add_separator()
+
+    help_menu.add_command(
         label="About PCS Analyzer",
         command=lambda: open_about_window(state)
     )
