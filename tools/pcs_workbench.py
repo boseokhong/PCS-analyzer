@@ -1200,9 +1200,9 @@ class AppSession:
     viewer_plotter = None
 
 
-class AppWindow(tk.Tk):
-    def __init__(self):
-        super().__init__()
+class AppWindow(tk.Toplevel):
+    def __init__(self, master=None):
+        super().__init__(master)
 
         self.title("PCS Workbench")
         self.geometry("1040x760")
@@ -3001,9 +3001,25 @@ class AppWindow(tk.Tk):
 
 
 def main():
-    app = AppWindow()
-    app.mainloop()
+    root = tk.Tk()
+    root.withdraw()
+
+    app = AppWindow(master=root)
+
+    def _close():
+        try:
+            app._on_quit()
+        finally:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+
+    app.protocol("WM_DELETE_WINDOW", _close)
+    root.mainloop()
 
 
 if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
     main()

@@ -585,7 +585,6 @@ def open_pcs_workbench(state):
         )
         return
 
-    # Focus existing Workbench window if already open
     win = state.get("pcs_workbench_window")
     if win is not None:
         try:
@@ -597,7 +596,7 @@ def open_pcs_workbench(state):
             pass
 
     try:
-        win = AppWindow()
+        win = AppWindow(master=state["root"])
         state["pcs_workbench_window"] = win
 
         def _on_close():

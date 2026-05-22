@@ -106,10 +106,44 @@ v.1.2.0 updates
 '''
 
 
+from pathlib import Path
+import sys
 from multiprocessing import freeze_support
 
 from ui.components import build_app, wire
 from app_version import APP_NAME, APP_VERSION
+
+
+def resource_path(relative_path: str) -> Path:
+    rel = Path(relative_path)
+
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+
+        candidates = [
+            exe_dir / rel,
+            exe_dir / "_internal" / rel,
+        ]
+
+        for path in candidates:
+            if path.exists():
+                return path
+
+        return candidates[0]
+
+    return Path(__file__).resolve().parent / rel
+
+
+def apply_window_icon(root):
+    icon_path = resource_path("img/logoheader.ico")
+
+    if not icon_path.exists():
+        return
+
+    try:
+        root.iconbitmap(str(icon_path))
+    except Exception:
+        pass
 
 
 def main():
@@ -122,6 +156,8 @@ def main():
         state["root"].title(f"{APP_NAME} v{APP_VERSION}")
     except Exception:
         pass
+
+    apply_window_icon(state["root"])
 
     wire(state)
     state["root"].mainloop()
