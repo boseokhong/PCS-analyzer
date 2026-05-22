@@ -15,7 +15,7 @@ MIN_MAIN_HEIGHT = 650
 
 DEFAULT_APP_SETTINGS = {
     "theme_variant": "light",
-    "theme_accent": "green",
+    "theme_accent": "blue",
 
     "open_2d_plot_on_start": True,
     "auto_open_3d_on_load": True,

@@ -4743,6 +4743,9 @@ def cli_main():
     print(f"Saved: {args.out}")
 
 if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
+
     if len(sys.argv) > 1:
         cli_main()
     else:

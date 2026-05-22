@@ -574,15 +574,52 @@ def _on_tree_select_update_views(state):
     _on_tree_select_update_cartesian(state)
 
 def open_pcs_workbench(state):
-    import subprocess
-    import sys
-    from pathlib import Path
     from tkinter import messagebox
-    script = Path(__file__).resolve().parent.parent / "tools" / "pcs_workbench.py"
-    if not script.exists():
-        messagebox.showerror("PCS Workbench", f"File not found:\n{script}")
+
+    try:
+        from tools.pcs_workbench import AppWindow
+    except Exception as e:
+        messagebox.showerror(
+            "PCS Workbench",
+            f"Could not import PCS Workbench:\n{e}"
+        )
         return
-    subprocess.Popen([sys.executable, str(script)])
+
+    # Focus existing Workbench window if already open
+    win = state.get("pcs_workbench_window")
+    if win is not None:
+        try:
+            if win.winfo_exists():
+                win.lift()
+                win.focus_force()
+                return
+        except Exception:
+            pass
+
+    try:
+        win = AppWindow()
+        state["pcs_workbench_window"] = win
+
+        def _on_close():
+            try:
+                win._on_quit()
+            except Exception:
+                try:
+                    win.destroy()
+                except Exception:
+                    pass
+            finally:
+                state["pcs_workbench_window"] = None
+
+        win.protocol("WM_DELETE_WINDOW", _on_close)
+        win.lift()
+        win.focus_force()
+
+    except Exception as e:
+        messagebox.showerror(
+            "PCS Workbench",
+            f"Could not open PCS Workbench:\n{e}"
+        )
 
 def refresh_plugin_menu(state):
     """
@@ -2443,28 +2480,28 @@ def on_save_plot_any(state):
         pcs_path, atoms_path = save_to_csv(pcs_values, theta_values, tensor, fd, polar_data)
         state['messagebox'].showinfo("Export", f"Saved CSV:\n{pcs_path}\n{atoms_path}")
 
-        # Origin
-        try:
-            script = os.path.join(os.path.dirname(__file__), '..', 'tools', 'plot_pcs_origin.py')
-            script = os.path.abspath(script)
-
-            cmd = [sys.executable, script, pcs_path]
-            if state['plot_90_var'].get():
-                cmd.append('--half')
-
-            kwargs = {}
-            if os.name == 'nt':
-                DETACHED = getattr(subprocess, 'DETACHED_PROCESS', 0)
-                NEWGROUP = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
-                kwargs['creationflags'] = DETACHED | NEWGROUP
-
-            subprocess.Popen(cmd, **kwargs)
-
-        except Exception as e:
-            state['messagebox'].showwarning(
-                "Origin",
-                f"CSV saved but failed to start Origin automation:\n{e}"
-            )
+        # # Origin
+        # try:
+        #     script = os.path.join(os.path.dirname(__file__), '..', 'tools', 'plot_pcs_origin.py')
+        #     script = os.path.abspath(script)
+        #
+        #     cmd = [sys.executable, script, pcs_path]
+        #     if state['plot_90_var'].get():
+        #         cmd.append('--half')
+        #
+        #     kwargs = {}
+        #     if os.name == 'nt':
+        #         DETACHED = getattr(subprocess, 'DETACHED_PROCESS', 0)
+        #         NEWGROUP = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+        #         kwargs['creationflags'] = DETACHED | NEWGROUP
+        #
+        #     subprocess.Popen(cmd, **kwargs)
+        #
+        # except Exception as e:
+        #     state['messagebox'].showwarning(
+        #         "Origin",
+        #         f"CSV saved but failed to start Origin automation:\n{e}"
+        #     )
 
     elif ext == ".png":
         win = state.get("pcs_plot_popup")

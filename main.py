@@ -106,6 +106,8 @@ v.1.2.0 updates
 '''
 
 
+from multiprocessing import freeze_support
+
 from ui.components import build_app, wire
 from app_version import APP_NAME, APP_VERSION
 
@@ -126,6 +128,7 @@ def main():
 
 
 if __name__ == "__main__":
+    freeze_support()
     main()
 
 '''
