@@ -107,15 +107,26 @@ v.1.2.0 updates
 
 
 from ui.components import build_app, wire
+from app_version import APP_NAME, APP_VERSION
+
 
 def main():
     state = build_app()
+
+    state["app_name"] = APP_NAME
+    state["app_version"] = APP_VERSION
+
+    try:
+        state["root"].title(f"{APP_NAME} v{APP_VERSION}")
+    except Exception:
+        pass
+
     wire(state)
-    state['root'].mainloop()
+    state["root"].mainloop()
+
 
 if __name__ == "__main__":
     main()
-
 
 '''
 When we try to pick out anything by itself, we find it hitched to everything else in the universe.

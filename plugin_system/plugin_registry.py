@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+def get_app_base_dir() -> Path:
+    """
+    Source mode:
+        project root
+
+    PyInstaller onedir:
+        folder containing PCS Analyzer.exe
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+
+    return Path(__file__).resolve().parent.parent
+
+
+BASE_DIR = get_app_base_dir()
 
 PLUGIN_DIR = BASE_DIR / "plugins"
 INSTALLED_DIR = PLUGIN_DIR / "installed"
@@ -14,8 +29,8 @@ REGISTRY_PATH = PLUGIN_DIR / "plugins.json"
 
 
 def ensure_plugin_dirs() -> None:
-    PLUGIN_DIR.mkdir(exist_ok=True)
-    INSTALLED_DIR.mkdir(exist_ok=True)
+    PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
+    INSTALLED_DIR.mkdir(parents=True, exist_ok=True)
 
     if not REGISTRY_PATH.exists():
         REGISTRY_PATH.write_text("{}", encoding="utf-8")
