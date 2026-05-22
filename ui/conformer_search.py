@@ -923,23 +923,37 @@ class ConformerOptimiser:
         for bi, bj in self.rotatable:
             stj = mol.subtree_with_barriers(bj, bi, _barriers_c)
             sti = mol.subtree_with_barriers(bi, bj, _barriers_c)
+
             metal_in_j = bool(_metal_set_c & set(stj))
             metal_in_i = bool(_metal_set_c & set(sti))
+
             if metal_in_i and not metal_in_j:
-                rot_idx = np.array(stj, int); pivot_idx = bi; axis_sign = 1
+                rot_idx = np.array(stj, int)
+                pivot_idx = bi
+                axis_sign = 1
             elif metal_in_j and not metal_in_i:
-                rot_idx = np.array(sti, int); pivot_idx = bj; axis_sign = -1
+                rot_idx = np.array(sti, int)
+                pivot_idx = bj
+                axis_sign = -1
             else:
                 if len(stj) <= len(sti):
-                    rot_idx = np.array(stj, int); pivot_idx = bi; axis_sign = 1
+                    rot_idx = np.array(stj, int)
+                    pivot_idx = bi
+                    axis_sign = 1
                 else:
-                    rot_idx = np.array(sti, int); pivot_idx = bj; axis_sign = -1
+                    rot_idx = np.array(sti, int)
+                    pivot_idx = bj
+                    axis_sign = -1
+
             nb_i = [n for n in mol.adj[bi] if n != bj]
             nb_j = [n for n in mol.adj[bj] if n != bi]
+
             ref_fixed  = nb_i[0] if axis_sign ==  1 else nb_j[0]
             ref_moving = nb_j[0] if axis_sign ==  1 else nb_i[0]
+
             self._rot_cache.append(
-                (pivot_idx, axis_sign, rot_idx, ref_fixed, ref_moving, bi, bj))
+                (pivot_idx, axis_sign, rot_idx, ref_fixed, ref_moving, bi, bj)
+            )
 
         self._x0 = self._read_current_angles(mol.coords)
 
@@ -949,8 +963,12 @@ class ConformerOptimiser:
             nb_i = [n for n in self.mol.adj[i] if n != j]
             nb_j = [n for n in self.mol.adj[j] if n != i]
             if nb_i and nb_j:
-                ang = dihedral_angle(coords[nb_i[0]], coords[i],
-                                     coords[j], coords[nb_j[0]])
+                ang = dihedral_angle(
+                    coords[nb_i[0]],
+                    coords[i],
+                    coords[j],
+                    coords[nb_j[0]],
+                )
             else:
                 ang = 0.0
             angles.append(ang)
@@ -959,35 +977,52 @@ class ConformerOptimiser:
     def _apply_angles(self, angles: np.ndarray) -> np.ndarray:
         """Apply dihedral angles using pre-cached subtree data (fast path)."""
         coords = self.mol.coords.copy()
+
         for angle, (pivot_idx, axis_sign, rot_idx,
                     ref_fixed, ref_moving, bi, bj) in zip(angles, self._rot_cache):
+
             pivot    = coords[pivot_idx]
             raw_axis = coords[bj] - coords[bi]
             al       = float(np.linalg.norm(raw_axis))
             if al < 1e-9:
                 continue
+
             axis = (raw_axis / al) * axis_sign
 
-            current = dihedral_angle(coords[ref_fixed], pivot,
-                                     pivot + axis, coords[ref_moving])
+            current = dihedral_angle(
+                coords[ref_fixed],
+                pivot,
+                pivot + axis,
+                coords[ref_moving],
+            )
             delta  = angle - current
             th     = math.radians(delta)
             cos_th = math.cos(th)
             sin_th = math.sin(th)
 
-            vecs   = coords[rot_idx] - pivot          # (M, 3)
-            dot_v  = (vecs * axis).sum(axis=1, keepdims=True)
-            cross_v = np.cross(axis, vecs)            # (M, 3)
-            coords[rot_idx] = (pivot
-                               + cos_th * vecs
-                               + sin_th * cross_v
-                               + (1 - cos_th) * dot_v * axis)
+            vecs    = coords[rot_idx] - pivot
+            dot_v   = (vecs * axis).sum(axis=1, keepdims=True)
+            cross_v = np.cross(axis, vecs)
+
+            coords[rot_idx] = (
+                pivot
+                + cos_th * vecs
+                + sin_th * cross_v
+                + (1 - cos_th) * dot_v * axis
+            )
+
         return coords
 
     def _cost(self, x: np.ndarray) -> float:
         coords = self._apply_angles(x)
-        pcs_pred = calc_pcs(coords[self.obs_atoms], self.metal,
-                            self.dchi_ax, self.dchi_rh, self.euler_zyz)
+
+        pcs_pred = calc_pcs(
+            coords[self.obs_atoms],
+            self.metal,
+            self.dchi_ax,
+            self.dchi_rh,
+            self.euler_zyz,
+        )
         resid = pcs_pred - self.obs_pcs
         cost = float(np.dot(resid, resid))
 
@@ -1005,6 +1040,7 @@ class ConformerOptimiser:
                     self.metal_idx,
                     self.coordination_config,
                 )
+
             if self._fixed_list and self.metal_idx is not None:
                 cost += angular_fixed_penalty(
                     coords,
@@ -1051,18 +1087,21 @@ class ConformerOptimiser:
                 "No free rotatable bonds.\n\n"
                 "All candidate bonds are locked because a fixed atom appears\n"
                 "in their rotating subtree.  Either unfix some atoms or add\n"
-                "more rotatable bonds.")
+                "more rotatable bonds."
+            )
 
         bounds = [(-180.0, 180.0)] * n_bonds
-        x0     = self._x0.copy()
+        x0 = self._x0.copy()
 
         if self.progress_cb:
             self.progress_cb(
                 f"Optimising {n_bonds} dihedral(s) "
                 f"[{len(self.fixed_atoms)} atom(s) fixed, "
-                f"{len(self.obs_atoms)} PCS obs.]…")
+                f"{len(self.obs_atoms)} PCS obs.]…"
+            )
 
         # Stage 1: Differential Evolution
+        de_result = None
         if use_global:
             if self.progress_cb:
                 self.progress_cb(
@@ -1074,7 +1113,8 @@ class ConformerOptimiser:
             self.progress_cb = None
             try:
                 de_result = differential_evolution(
-                    self._cost, bounds,
+                    self._cost,
+                    bounds,
                     seed=42,
                     maxiter=de_maxiter,
                     popsize=de_popsize,
@@ -1090,6 +1130,7 @@ class ConformerOptimiser:
                 self.progress_cb = _saved_progress_cb
 
             x0 = de_result.x
+
             if self.progress_cb:
                 self.progress_cb(
                     f"  DE done  cost={de_result.fun:.4f}  "
@@ -1100,13 +1141,15 @@ class ConformerOptimiser:
         if self.progress_cb:
             self.progress_cb("Stage 2 – L-BFGS-B local refinement…")
 
-        n_candidates = max(1, int(n_candidates)) # candidates number
+        n_candidates = max(1, int(n_candidates))
         return_mode = str(return_mode).strip().lower()
+
         # Collect top-N starting points from DE population.
         # de_result.population / de_result.population_energies are available
         # when updating="deferred"; fall back to [x0] if not present.
         pop = getattr(de_result, "population", None) if use_global else None
         engs = getattr(de_result, "population_energies", None) if use_global else None
+
         if pop is not None and engs is not None:
             order = np.argsort(engs)[:n_candidates]
             starts = [pop[i] for i in order]
@@ -1116,49 +1159,83 @@ class ConformerOptimiser:
         # Stage 2: local-refine each starting point independently.
         candidates_raw = []
         for s in starts:
-            r = minimize(self._cost, s, method="L-BFGS-B", bounds=bounds,
-                         options={"maxiter": 2000, "ftol": 1e-14, "gtol": 1e-10})
+            r = minimize(
+                self._cost,
+                s,
+                method="L-BFGS-B",
+                bounds=bounds,
+                options={"maxiter": 2000, "ftol": 1e-14, "gtol": 1e-10},
+            )
             candidates_raw.append((r.fun, r.x))
 
         # Sort by final cost, deduplicate near-identical solutions.
         candidates_raw.sort(key=lambda t: t[0])
-        candidates_raw = _deduplicate_candidates(candidates_raw, tol_deg=dedup_tol_deg)
+        candidates_raw = _deduplicate_candidates(
+            candidates_raw,
+            tol_deg=dedup_tol_deg,
+        )
         candidates_raw = candidates_raw[:n_candidates]
 
-        self.candidates = [self._make_result(x, selected_bonds, locked_bonds)
-                           for _, x in candidates_raw]
+        self.candidates = [
+            self._make_result(x, selected_bonds, locked_bonds)
+            for _, x in candidates_raw
+        ]
 
         if return_mode == "best":
             self.candidates = self.candidates[:1]
 
-        # Primary return = best candidate (backward-compatible)
+        # Primary return = best candidate, backward-compatible
         return self.candidates[0]
 
     def _make_result(self, x_opt, selected_bonds=None, locked_bonds=None) -> dict:
-        """Build a full result dict for one candidate angle vector."""
+        """Build a full result dict for one dihedral-angle candidate."""
         coords_opt = self._apply_angles(x_opt)
-        pcs_pred   = calc_pcs(coords_opt[self.obs_atoms], self.metal,
-                              self.dchi_ax, self.dchi_rh, self.euler_zyz)
-        resid_v    = pcs_pred - self.obs_pcs
-        rmsd       = float(np.sqrt(np.mean(resid_v ** 2)))
-        ss_res     = float(np.sum(resid_v ** 2))
-        ss_tot     = float(np.sum((self.obs_pcs - self.obs_pcs.mean()) ** 2))
-        r2         = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-15 else float("nan")
-        q_factor   = (float(np.sqrt(ss_res / np.sum(self.obs_pcs ** 2)))
-                      if np.any(self.obs_pcs != 0) else float("nan"))
+
+        pcs_pred = calc_pcs(
+            coords_opt[self.obs_atoms],
+            self.metal,
+            self.dchi_ax,
+            self.dchi_rh,
+            self.euler_zyz,
+        )
+        resid_v = pcs_pred - self.obs_pcs
+
+        rmsd = float(np.sqrt(np.mean(resid_v ** 2)))
+        ss_res = float(np.sum(resid_v ** 2))
+        ss_tot = float(np.sum((self.obs_pcs - self.obs_pcs.mean()) ** 2))
+        r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-15 else float("nan")
+        q_factor = (
+            float(np.sqrt(ss_res / np.sum(self.obs_pcs ** 2)))
+            if np.any(self.obs_pcs != 0)
+            else float("nan")
+        )
+
         angle_deltas = []
         for d in (x_opt - self._x0):
-            while d >  180: d -= 360
-            while d < -180: d += 360
+            while d > 180:
+                d -= 360
+            while d < -180:
+                d += 360
             angle_deltas.append(d)
-        per_atom = [(int(self.obs_atoms[k]),
-                     self.mol.elements[int(self.obs_atoms[k])],
-                     float(self.obs_pcs[k]), float(pcs_pred[k]), float(resid_v[k]))
-                    for k in range(len(self.obs_atoms))]
+
+        per_atom = [
+            (
+                int(self.obs_atoms[k]),
+                self.mol.elements[int(self.obs_atoms[k])],
+                float(self.obs_pcs[k]),
+                float(pcs_pred[k]),
+                float(resid_v[k]),
+            )
+            for k in range(len(self.obs_atoms))
+        ]
+
         if self.fixed_atoms:
-            max_fd = float(np.linalg.norm(
-                coords_opt[self.fixed_atoms] - self._ref_coords[self.fixed_atoms],
-                axis=1).max())
+            max_fd = float(
+                np.linalg.norm(
+                    coords_opt[self.fixed_atoms] - self._ref_coords[self.fixed_atoms],
+                    axis=1,
+                ).max()
+            )
         else:
             max_fd = 0.0
 
@@ -1169,11 +1246,19 @@ class ConformerOptimiser:
             cur_norms = np.linalg.norm(cur_vecs, axis=1, keepdims=True)
             cur_norms = np.where(cur_norms > 1e-9, cur_norms, 1.0)
             cur_unit = cur_vecs / cur_norms
-            cos_ang = np.clip((cur_unit * self._fixed_unit_vecs).sum(axis=1), -1.0, 1.0)
+
+            cos_ang = np.clip(
+                (cur_unit * self._fixed_unit_vecs).sum(axis=1),
+                -1.0,
+                1.0,
+            )
             ang_devs = np.degrees(np.arccos(cos_ang))
             max_ang_dev = float(ang_devs.max())
 
-            ref_vecs = self._ref_coords[self._fixed_list] - self._ref_coords[self.metal_idx]
+            ref_vecs = (
+                self._ref_coords[self._fixed_list]
+                - self._ref_coords[self.metal_idx]
+            )
             ref_dists = np.linalg.norm(ref_vecs, axis=1)
             cur_dists = np.linalg.norm(cur_vecs, axis=1)
             max_radial_change = float(np.max(np.abs(cur_dists - ref_dists)))
@@ -1185,43 +1270,555 @@ class ConformerOptimiser:
             metal_el = self.mol.elements[self.metal_idx]
             metal_opt = coords_opt[self.metal_idx]
             donor_dists = []
+
             for i, el in enumerate(self.mol.elements):
                 if i == self.metal_idx or el == "H":
                     continue
+
                 d = float(np.linalg.norm(coords_opt[i] - metal_opt))
                 if d < 4.5:
                     dmin = get_coordination_min_distance(
-                        metal_el, el, self.coordination_config
+                        metal_el,
+                        el,
+                        self.coordination_config,
                     )
                     donor_dists.append((i + 1, el, d, dmin, d < dmin))
+
             min_donor_dist = min((d for _, _, d, _, _ in donor_dists), default=0.0)
-            coord_violations = [(ref, el, d, dmin)
-                                for ref, el, d, dmin, viol in donor_dists if viol]
+            coord_violations = [
+                (ref, el, d, dmin)
+                for ref, el, d, dmin, viol in donor_dists
+                if viol
+            ]
         else:
             min_donor_dist = 0.0
             coord_violations = []
 
         return dict(
-            coords_opt        = coords_opt,
-            angles_opt        = x_opt,
-            angles_init       = self._x0,
-            angle_deltas      = np.array(angle_deltas),
-            rmsd              = rmsd,
-            r2                = r2,
-            q_factor          = q_factor,
-            per_atom          = per_atom,
-            n_clashes         = count_clashes(coords_opt, self.mol.elements, self._bonded13),
-            fixed_displacement= max_fd,
-            selected_bonds    = selected_bonds or [],
-            locked_bonds      = locked_bonds or [],
-            max_angular_dev_deg = max_ang_dev,
-            max_radial_change   = max_radial_change,
-            min_donor_dist      = min_donor_dist,
-            coord_violations    = coord_violations,
-            constraint_mode     = self.constraint_mode,
-            coordination_config = self.coordination_config,
+            mode="dihedral",
+            coords_opt=coords_opt,
+            angles_opt=x_opt,
+            angles_init=self._x0,
+            angle_deltas=np.array(angle_deltas),
+            rmsd=rmsd,
+            r2=r2,
+            q_factor=q_factor,
+            per_atom=per_atom,
+            n_clashes=count_clashes(coords_opt, self.mol.elements, self._bonded13),
+            fixed_displacement=max_fd,
+            selected_bonds=selected_bonds or [],
+            locked_bonds=locked_bonds or [],
+            max_angular_dev_deg=max_ang_dev,
+            max_radial_change=max_radial_change,
+            min_donor_dist=min_donor_dist,
+            coord_violations=coord_violations,
+            constraint_mode=self.constraint_mode,
+            coordination_config=self.coordination_config,
         )
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RIGID-BODY ANCHOR ROTATION OPTIMISER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _rotation_axis_from_anchors(
+    coords: np.ndarray,
+    metal_pos: np.ndarray,
+    anchor_indices: List[int],
+    mode: str = "bisector",
+) -> np.ndarray:
+    """
+    Build a metal-centred rotation axis from one or more anchor atoms.
+
+    mode
+    ----
+    first
+        Axis = metal -> first anchor.
+    bisector
+        Axis = normalized sum of metal -> anchor unit vectors.
+    connecting
+        Axis = anchor_1 -> anchor_2, shifted to pass through the metal.
+        Useful when two anchors define a structural direction.
+    """
+    if not anchor_indices:
+        raise ValueError("At least one anchor atom is required.")
+
+    mode = str(mode).strip().lower()
+
+    if mode == "connecting" and len(anchor_indices) >= 2:
+        v = coords[anchor_indices[1]] - coords[anchor_indices[0]]
+    elif mode == "first" or len(anchor_indices) == 1:
+        v = coords[anchor_indices[0]] - metal_pos
+    else:
+        units = []
+        for idx in anchor_indices:
+            d = coords[idx] - metal_pos
+            n = np.linalg.norm(d)
+            if n > 1e-9:
+                units.append(d / n)
+        v = np.sum(units, axis=0) if units else np.array([0.0, 0.0, 1.0])
+
+    n = np.linalg.norm(v)
+    if n < 1e-9:
+        return np.array([0.0, 0.0, 1.0])
+
+    return v / n
+
+
+def _rotate_around_axis(
+    points: np.ndarray,
+    axis: np.ndarray,
+    origin: np.ndarray,
+    angle_deg: float,
+) -> np.ndarray:
+    """Rotate points around an axis passing through origin using Rodrigues' formula."""
+    pts = points - origin
+    a = axis / max(np.linalg.norm(axis), 1e-12)
+
+    theta = math.radians(float(angle_deg))
+    cos_t = math.cos(theta)
+    sin_t = math.sin(theta)
+
+    dot = pts @ a
+    cross = np.cross(np.broadcast_to(a, pts.shape), pts)
+
+    rotated = (
+        cos_t * pts
+        + sin_t * cross
+        + (1.0 - cos_t) * dot[:, None] * a
+    )
+
+    return rotated + origin
+
+
+class RigidBodyAnchorOptimiser:
+    """
+    Optimise rigid-body rotation of a molecular fragment around a metal-centred
+    axis defined by anchor atoms.
+
+    Intended use
+    ------------
+    Use this when no meaningful free dihedral is available, for example closed
+    chelate rings, PyO/picolinate-like ligands, bipyridyl-type fragments, or
+    rigid donor frameworks.
+
+    lock_mode
+    ---------
+    rigid_with_axis
+        All non-metal atoms rotate as one rigid body. Anchor atoms rotate too.
+
+    angular_only
+        Anchor atoms stay fixed in Cartesian space. All other non-metal atoms
+        rotate around the anchor-defined axis.
+
+    angular_radial_free
+        Anchor directions from the metal are kept fixed, but each metal-anchor
+        radial distance is fitted as an additional parameter.
+    """
+
+    def __init__(
+        self,
+        mol: Molecule,
+        obs_atoms: List[int],
+        obs_pcs: np.ndarray,
+        metal: np.ndarray,
+        metal_idx: int,
+        anchor_atoms: List[int],
+        axis_mode: str = "bisector",
+        dchi_ax: float = -3.0,
+        dchi_rh: float = 0.0,
+        euler_zyz: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+        lock_mode: str = "angular_radial_free",
+        radial_bounds_rel: Tuple[float, float] = (0.8, 1.2),
+        progress_cb=None,
+        coordination_config: Optional[dict] = None,
+    ):
+        if metal_idx is None:
+            raise ValueError("metal_idx must be set for rigid-body mode.")
+        if not anchor_atoms:
+            raise ValueError("At least one anchor atom is required for rigid-body mode.")
+
+        lock_mode = str(lock_mode).strip().lower()
+        if lock_mode not in ("rigid_with_axis", "angular_only", "angular_radial_free"):
+            raise ValueError(f"Unknown rigid-body lock mode: {lock_mode!r}")
+
+        self.mol = mol
+        self.obs_atoms = np.asarray(obs_atoms, int)
+        self.obs_pcs = np.asarray(obs_pcs, float)
+        self.metal = np.asarray(metal, float)
+        self.metal_idx = int(metal_idx)
+        self.anchor_atoms = [int(a) for a in anchor_atoms if int(a) != int(metal_idx)]
+        self.axis_mode = str(axis_mode).strip().lower()
+        self.dchi_ax = float(dchi_ax)
+        self.dchi_rh = float(dchi_rh)
+        self.euler_zyz = tuple(euler_zyz)
+        self.lock_mode = lock_mode
+        self.radial_bounds_rel = tuple(radial_bounds_rel)
+        self.progress_cb = progress_cb
+        self.coordination_config = get_coordination_config(coordination_config)
+
+        if not self.anchor_atoms:
+            raise ValueError("Anchor list contains only the metal atom.")
+
+        self._ref = mol.coords.copy()
+        self._origin = self._ref[self.metal_idx].copy()
+
+        self._axis = _rotation_axis_from_anchors(
+            self._ref,
+            self._origin,
+            self.anchor_atoms,
+            self.axis_mode,
+        )
+
+        all_idx = set(range(mol.n_atoms))
+        all_idx.discard(self.metal_idx)
+
+        # In angular modes, anchor atoms themselves are not rotated.
+        if self.lock_mode in ("angular_only", "angular_radial_free"):
+            for a in self.anchor_atoms:
+                all_idx.discard(a)
+
+        self._rot_idx = np.array(sorted(all_idx), dtype=int)
+
+        anchor_vecs = self._ref[self.anchor_atoms] - self._origin
+        anchor_norms = np.linalg.norm(anchor_vecs, axis=1)
+        safe_norms = np.where(anchor_norms > 1e-9, anchor_norms, 1.0)
+
+        self._anchor_unit_ref = anchor_vecs / safe_norms[:, None]
+        self._anchor_radii_ref = anchor_norms
+
+        self._bonded13 = _precompute_bonded_13(mol)
+
+    def _apply_state(self, x: np.ndarray) -> np.ndarray:
+        """
+        x[0] = rigid-body rotation angle in degrees.
+        x[1:] = anchor radial distances, only for angular_radial_free mode.
+        """
+        coords = self._ref.copy()
+
+        if self.lock_mode == "angular_radial_free":
+            for k, atom_idx in enumerate(self.anchor_atoms):
+                r_new = float(x[1 + k])
+                coords[atom_idx] = self._origin + r_new * self._anchor_unit_ref[k]
+
+            axis = _rotation_axis_from_anchors(
+                coords,
+                self._origin,
+                self.anchor_atoms,
+                self.axis_mode,
+            )
+        else:
+            axis = self._axis
+
+        coords[self._rot_idx] = _rotate_around_axis(
+            coords[self._rot_idx],
+            axis,
+            self._origin,
+            float(x[0]),
+        )
+
+        return coords
+
+    def _cost(self, x: np.ndarray) -> float:
+        coords = self._apply_state(x)
+
+        pcs_pred = calc_pcs(
+            coords[self.obs_atoms],
+            self.metal,
+            self.dchi_ax,
+            self.dchi_rh,
+            self.euler_zyz,
+        )
+        resid = pcs_pred - self.obs_pcs
+        cost = float(np.dot(resid, resid))
+
+        cost += clash_penalty(coords, self.mol.elements, self._bonded13)
+
+        if self.metal_idx is not None:
+            cost += coordination_penalty(
+                coords,
+                self.mol.elements,
+                self.metal_idx,
+                self.coordination_config,
+            )
+
+        if self.lock_mode in ("angular_only", "angular_radial_free"):
+            cost += angular_fixed_penalty(
+                coords,
+                self._anchor_unit_ref,
+                self.anchor_atoms,
+                coords[self.metal_idx],
+            )
+
+        return cost
+
+    def _make_result(self, x_opt: np.ndarray) -> dict:
+        """Build a full result dict for one rigid-body candidate."""
+        coords_opt = self._apply_state(x_opt)
+
+        pcs_pred = calc_pcs(
+            coords_opt[self.obs_atoms],
+            self.metal,
+            self.dchi_ax,
+            self.dchi_rh,
+            self.euler_zyz,
+        )
+        resid_v = pcs_pred - self.obs_pcs
+
+        rmsd = float(np.sqrt(np.mean(resid_v ** 2)))
+        ss_res = float(np.sum(resid_v ** 2))
+        ss_tot = float(np.sum((self.obs_pcs - self.obs_pcs.mean()) ** 2))
+        r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-15 else float("nan")
+        q_factor = (
+            float(np.sqrt(ss_res / np.sum(self.obs_pcs ** 2)))
+            if np.any(self.obs_pcs != 0)
+            else float("nan")
+        )
+
+        per_atom = [
+            (
+                int(self.obs_atoms[k]),
+                self.mol.elements[int(self.obs_atoms[k])],
+                float(self.obs_pcs[k]),
+                float(pcs_pred[k]),
+                float(resid_v[k]),
+            )
+            for k in range(len(self.obs_atoms))
+        ]
+
+        has_radial = self.lock_mode == "angular_radial_free"
+
+        # Anchor diagnostics
+        anchor_drift = 0.0
+        anchor_angular_dev = 0.0
+        anchor_radial_change = []
+
+        for k, atom_idx in enumerate(self.anchor_atoms):
+            disp = float(np.linalg.norm(coords_opt[atom_idx] - self._ref[atom_idx]))
+            anchor_drift = max(anchor_drift, disp)
+
+            v_now = coords_opt[atom_idx] - coords_opt[self.metal_idx]
+            r_now = float(np.linalg.norm(v_now))
+            u_now = v_now / max(r_now, 1e-12)
+
+            cos_dev = float(np.clip(np.dot(u_now, self._anchor_unit_ref[k]), -1.0, 1.0))
+            anchor_angular_dev = max(
+                anchor_angular_dev,
+                math.degrees(math.acos(cos_dev)),
+            )
+
+            anchor_radial_change.append(r_now - self._anchor_radii_ref[k])
+
+        if has_radial:
+            axis_final = _rotation_axis_from_anchors(
+                coords_opt,
+                self._origin,
+                self.anchor_atoms,
+                self.axis_mode,
+            )
+            anchor_radii_opt = x_opt[1:].copy()
+        else:
+            axis_final = self._axis.copy()
+            anchor_radii_opt = self._anchor_radii_ref.copy()
+
+        # Coordination diagnostics, matching the current dihedral optimiser style.
+        if self.metal_idx is not None:
+            metal_el = self.mol.elements[self.metal_idx]
+            metal_opt = coords_opt[self.metal_idx]
+            donor_dists = []
+
+            for i, el in enumerate(self.mol.elements):
+                if i == self.metal_idx or el == "H":
+                    continue
+
+                d = float(np.linalg.norm(coords_opt[i] - metal_opt))
+                if d < 4.5:
+                    dmin = get_coordination_min_distance(
+                        metal_el,
+                        el,
+                        self.coordination_config,
+                    )
+                    donor_dists.append((i + 1, el, d, dmin, d < dmin))
+
+            min_donor_dist = min((d for _, _, d, _, _ in donor_dists), default=0.0)
+            coord_violations = [
+                (ref, el, d, dmin)
+                for ref, el, d, dmin, is_violation in donor_dists
+                if is_violation
+            ]
+        else:
+            min_donor_dist = 0.0
+            coord_violations = []
+
+        return dict(
+            mode="rigid",
+            coords_opt=coords_opt,
+
+            # Rigid-body variables
+            angle_opt=float(x_opt[0]),
+            x_opt=x_opt.copy(),
+            axis=self._axis.copy(),
+            axis_final=axis_final.copy(),
+            origin=self._origin.copy(),
+            axis_mode=self.axis_mode,
+            lock_mode=self.lock_mode,
+
+            # Anchor diagnostics
+            anchor_atoms=list(self.anchor_atoms),
+            anchor_radii_init=self._anchor_radii_ref.copy(),
+            anchor_radii_opt=anchor_radii_opt,
+            anchor_radial_change=np.array(anchor_radial_change, dtype=float),
+            anchor_drift=anchor_drift,
+            fixed_displacement=anchor_drift,
+            max_angular_dev_deg=anchor_angular_dev,
+
+            # Fit quality
+            rmsd=rmsd,
+            r2=r2,
+            q_factor=q_factor,
+            per_atom=per_atom,
+            n_clashes=count_clashes(coords_opt, self.mol.elements, self._bonded13),
+
+            # Compatibility with existing result handling
+            selected_bonds=[],
+            locked_bonds=[],
+            min_donor_dist=min_donor_dist,
+            coord_violations=coord_violations,
+            constraint_mode=f"rigid:{self.lock_mode}",
+            coordination_config=self.coordination_config,
+        )
+
+    def run(
+        self,
+        n_starts: int = 72,
+        local_only: bool = False,
+        n_candidates: int = 5,
+        dedup_tol_deg: float = 5.0,
+        return_mode: str = "top_n",
+    ) -> dict:
+        """
+        Run rigid-body optimisation.
+
+        Best mode:
+            Grid scan over φ -> best start -> L-BFGS-B -> one result.
+
+        Top-N mode:
+            Grid scan over φ -> take several low-cost starts -> refine each
+            with L-BFGS-B -> deduplicate by periodic φ -> keep Top N.
+
+        self.candidates is populated in the same style as ConformerOptimiser.
+        """
+        n_anchors = len(self.anchor_atoms)
+        has_radial = self.lock_mode == "angular_radial_free"
+        n_params = 1 + (n_anchors if has_radial else 0)
+
+        n_starts = max(6, int(n_starts))
+        n_candidates = max(1, int(n_candidates))
+        dedup_tol_deg = float(dedup_tol_deg)
+        return_mode = str(return_mode).strip().lower()
+
+        # Initial vector
+        x_init = np.zeros(n_params, dtype=float)
+        if has_radial:
+            x_init[1:] = self._anchor_radii_ref
+
+        # Bounds
+        bounds: List[Tuple[float, float]] = [(-180.0, 180.0)]
+        if has_radial:
+            lo_rel, hi_rel = self.radial_bounds_rel
+            for r0 in self._anchor_radii_ref:
+                bounds.append((max(float(lo_rel) * r0, 0.5), float(hi_rel) * r0))
+
+        if self.progress_cb:
+            self.progress_cb(
+                f"Rigid-body mode [{self.lock_mode}]: "
+                f"{len(self._rot_idx)} atom(s) rotate around axis "
+                f"[{self._axis[0]:+.3f}, {self._axis[1]:+.3f}, {self._axis[2]:+.3f}]"
+            )
+
+            if has_radial:
+                rstr = ", ".join(
+                    f"{self.mol.elements[a]}({a + 1})={self._anchor_radii_ref[k]:.3f} Å "
+                    f"[{bounds[1 + k][0]:.2f}…{bounds[1 + k][1]:.2f}]"
+                    for k, a in enumerate(self.anchor_atoms)
+                )
+                self.progress_cb(f"  Anchor radial bounds: {rstr}")
+
+        # Stage 1: grid scan over φ
+        grid_results = []
+
+        if local_only:
+            grid_results.append((self._cost(x_init), x_init.copy()))
+        else:
+            for k in range(n_starts):
+                angle = -180.0 + 360.0 * k / n_starts
+                x_test = x_init.copy()
+                x_test[0] = angle
+
+                value = self._cost(x_test)
+                grid_results.append((value, x_test.copy()))
+
+            grid_results.sort(key=lambda t: t[0])
+
+            if self.progress_cb and grid_results:
+                best_val, best_x = grid_results[0]
+                self.progress_cb(
+                    f"  Grid scan done: best initial φ ≈ {best_x[0]:+.1f}° "
+                    f"(cost={best_val:.4f})"
+                )
+
+        # Select several low-cost grid starts. Use a slightly larger pool than
+        # n_candidates because local refinement can collapse several starts into
+        # the same periodic φ minimum.
+        grid_results.sort(key=lambda t: t[0])
+        pool_size = 1 if return_mode == "best" else min(
+            len(grid_results),
+            max(n_candidates * 3, n_candidates),
+        )
+        starts = [x.copy() for _, x in grid_results[:pool_size]]
+
+        # Stage 2: local-refine each starting point independently.
+        if self.progress_cb:
+            self.progress_cb(
+                f"Stage 2 – L-BFGS-B local refinement "
+                f"from {len(starts)} rigid-body start(s)…"
+            )
+
+        candidates_raw = []
+        for s in starts:
+            r = minimize(
+                self._cost,
+                s,
+                method="L-BFGS-B",
+                bounds=bounds,
+                options={"maxiter": 800, "ftol": 1e-12, "gtol": 1e-10},
+            )
+            candidates_raw.append((float(r.fun), r.x.copy()))
+
+        # Sort by final cost, deduplicate near-identical periodic φ solutions.
+        candidates_raw.sort(key=lambda t: t[0])
+        candidates_raw = _deduplicate_rigid_candidates(
+            candidates_raw,
+            tol_deg=dedup_tol_deg,
+        )
+        candidates_raw = candidates_raw[:n_candidates]
+
+        self.candidates = [self._make_result(x) for _, x in candidates_raw]
+
+        if return_mode == "best":
+            self.candidates = self.candidates[:1]
+
+        if self.progress_cb and self.candidates:
+            best = self.candidates[0]
+            self.progress_cb(
+                f"  Rigid-body optimisation done: "
+                f"best φ={best['angle_opt']:+.3f}°, "
+                f"RMSD={best['rmsd']:.4f} ppm, "
+                f"candidates={len(self.candidates)}"
+            )
+
+        # Primary return = best candidate, matching ConformerOptimiser.
+        return self.candidates[0]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FILE I/O
@@ -1292,6 +1889,41 @@ def _deduplicate_candidates(
             kept.append((cost, x))
     return kept
 
+def _angle_delta_deg(a: float, b: float) -> float:
+    """Smallest signed difference between two periodic angles in degrees."""
+    d = float(a) - float(b)
+    while d > 180.0:
+        d -= 360.0
+    while d < -180.0:
+        d += 360.0
+    return d
+
+
+def _deduplicate_rigid_candidates(
+    candidates: list,
+    tol_deg: float = 5.0,
+) -> list:
+    """
+    Remove rigid-body candidates with nearly identical rotation angles.
+
+    Rigid-body φ is periodic, so +179° and -179° are only 2° apart.
+    """
+    kept = []
+    for cost, x in candidates:
+        phi = float(x[0])
+        duplicate = False
+
+        for _, kept_x in kept:
+            kept_phi = float(kept_x[0])
+            if abs(_angle_delta_deg(phi, kept_phi)) <= tol_deg:
+                duplicate = True
+                break
+
+        if not duplicate:
+            kept.append((cost, x))
+
+    return kept
+
 # ─────────────────────────────────────────────────────────────────────────────
 # REPORT
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1357,6 +1989,88 @@ def format_report(result: dict, rotatable_bonds, mol, locked_bonds=None,
     lines += ["", "═" * 64]
     return "\n".join(lines)
 
+def format_rigid_body_report(result: dict, mol: Molecule,
+                             rank: int = 1, n_total: int = 1) -> str:
+    """Text report for rigid-body anchor rotation results."""
+    rank_str = f"  [Candidate #{rank} / {n_total}]" if n_total > 1 else ""
+
+    axis = result.get("axis", np.zeros(3))
+    axis_final = result.get("axis_final", axis)
+    anchors = result.get("anchor_atoms", [])
+
+    lines = [
+        "═" * 64,
+        f"  RIGID-BODY ANCHOR ROTATION – PCS FIT REPORT{rank_str}",
+        "═" * 64,
+        "",
+        f"  Search mode             : rigid-body anchor rotation",
+        f"  Axis mode               : {result.get('axis_mode', 'unknown')}",
+        f"  Anchor lock mode        : {result.get('lock_mode', 'unknown')}",
+        f"  Anchor atoms            : "
+        + (", ".join(f"{a + 1}({mol.elements[a]})" for a in anchors) if anchors else "—"),
+        f"  Rotation angle φ        : {result.get('angle_opt', 0.0):+.3f}°",
+        f"  Initial axis            : [{axis[0]:+.4f}, {axis[1]:+.4f}, {axis[2]:+.4f}]",
+        f"  Final axis              : [{axis_final[0]:+.4f}, {axis_final[1]:+.4f}, {axis_final[2]:+.4f}]",
+        f"  Steric clashes          : {result.get('n_clashes', 0)}",
+        f"  Max anchor drift        : {result.get('anchor_drift', 0.0):.4f} Å",
+        f"  Max angular drift       : {result.get('max_angular_dev_deg', 0.0):.4f}°",
+    ]
+
+    radial_change = result.get("anchor_radial_change", None)
+    if radial_change is not None and len(radial_change):
+        lines += ["", "  ANCHOR RADIAL CHANGES  [Å]", "  " + "─" * 44]
+        for k, a in enumerate(anchors):
+            r0 = result.get("anchor_radii_init", [])[k]
+            r1 = result.get("anchor_radii_opt", [])[k]
+            dr = radial_change[k]
+            lines.append(
+                f"  {a + 1:>6} {mol.elements[a]:<4} "
+                f"r_init={r0:>8.4f}  r_opt={r1:>8.4f}  Δr={dr:>+8.4f}"
+            )
+
+    min_d = result.get("min_donor_dist", 0.0)
+    viols = result.get("coord_violations", [])
+    if min_d > 0:
+        lines += [
+            "",
+            f"  Min M–donor distance    : {min_d:.3f} Å  "
+            f"{'✓ OK' if not viols else f'⚠ {len(viols)} violation(s)'}",
+        ]
+
+    if viols:
+        lines.append("  Coordination violations:")
+        for ref, el, d, dmin in viols:
+            lines.append(f"    Atom {ref}({el}): {d:.3f} Å < min {dmin:.3f} Å")
+
+    lines += [
+        "",
+        "  FIT QUALITY",
+        "  " + "─" * 44,
+        f"  RMSD     = {result['rmsd']:.4f} ppm",
+        (
+            f"  R²       = {result['r2']:.4f}"
+            if not math.isnan(result["r2"])
+            else "  R²       = —"
+        ),
+        (
+            f"  Q-factor = {result['q_factor']:.4f}"
+            if not math.isnan(result["q_factor"])
+            else "  Q-factor = —"
+        ),
+        "",
+        "  PER-ATOM PCS FIT  [ppm]",
+        "  " + "─" * 44,
+        f"  {'Ref':>6} {'Atom':<4} {'δ_exp':>9} {'δ_pred':>9} {'Resid':>9}",
+    ]
+
+    for idx, el, exp, pred, res in result["per_atom"]:
+        lines.append(
+            f"  {idx + 1:>6} {el:<4} {exp:>+9.3f} {pred:>+9.3f} {res:>+9.3f}"
+        )
+
+    lines += ["", "═" * 64]
+    return "\n".join(lines)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # GUI
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1384,13 +2098,13 @@ class ConformerSearchGUI:
             self._embedded = True
         elif master is None:
             self.root = tk.Tk()
-            self.root.title("Conformational Search – PCS Dihedral Optimiser")
+            self.root.title("Conformational Search – PCS Dihedral Optimizer")
             self.root.geometry("960x900")
             self._standalone = True
             self._embedded = False
         else:
             self.root = tk.Toplevel(master)
-            self.root.title("Conformational Search – PCS Dihedral Optimiser")
+            self.root.title("Conformational Search – PCS Dihedral Optimizer")
             self.root.geometry("960x900")
             self._standalone = False
             self._embedded = False
@@ -1417,6 +2131,16 @@ class ConformerSearchGUI:
         self._n_candidates_var = tk.StringVar(value="5")
         self._dedup_tol_var = tk.StringVar(value="5.0")
         self._search_model_hint_var = tk.StringVar(value="")
+
+        # Search-mode selector: existing dihedral search vs rigid-body anchor rotation
+        self._search_mode_var = tk.StringVar(value="dihedral")
+
+        # Rigid-body options
+        self._rb_axis_mode_var = tk.StringVar(value="bisector")
+        self._rb_lock_mode_var = tk.StringVar(value="angular_radial_free")
+        self._rb_grid_var = tk.StringVar(value="72")
+        self._rb_bounds_lo_var = tk.StringVar(value="0.8")
+        self._rb_bounds_hi_var = tk.StringVar(value="1.2")
 
         self._build_ui()
         self._prefill_from_initial_data()
@@ -1814,6 +2538,108 @@ class ConformerSearchGUI:
             self._imported_value_labels.append(val_lbl)
 
         grid.columnconfigure(1, weight=1)
+
+        # ── Search mode ─────────────────────────────────────────────────────────────
+        mode_box = ttk.LabelFrame(content_parent, text="Search mode", padding=8)
+        mode_box.pack(fill="x", **pad)
+
+        ttk.Radiobutton(
+            mode_box,
+            text="Dihedral torsion search",
+            variable=self._search_mode_var,
+            value="dihedral",
+            command=self._on_search_mode_change,
+        ).pack(anchor="w")
+
+        ttk.Label(
+            mode_box,
+            text=(
+                "Use this for flexible ligand arms with meaningful rotatable bonds."
+            ),
+            foreground="#666666",
+            wraplength=850,
+        ).pack(anchor="w", padx=(24, 0), pady=(0, 4))
+
+        ttk.Radiobutton(
+            mode_box,
+            text="Rigid-body anchor rotation",
+            variable=self._search_mode_var,
+            value="rigid",
+            command=self._on_search_mode_change,
+        ).pack(anchor="w")
+
+        ttk.Label(
+            mode_box,
+            text=(
+                "Use this for closed chelate/ring-like ligands with no free dihedrals. "
+                "Anchor atoms are selected in the Fixed atoms tab."
+            ),
+            foreground="#666666",
+            wraplength=850,
+        ).pack(anchor="w", padx=(24, 0), pady=(0, 4))
+
+        self._rb_options_frame = ttk.Frame(mode_box)
+        self._rb_options_frame.pack(fill="x", padx=(24, 0), pady=(4, 0))
+
+        rb_row1 = ttk.Frame(self._rb_options_frame)
+        rb_row1.pack(fill="x", pady=(2, 2))
+
+        ttk.Label(rb_row1, text="Axis mode:").pack(side="left")
+        ttk.Combobox(
+            rb_row1,
+            textvariable=self._rb_axis_mode_var,
+            values=("bisector", "first", "connecting"),
+            width=14,
+            state="readonly",
+        ).pack(side="left", padx=(6, 16))
+
+        ttk.Label(rb_row1, text="Lock mode:").pack(side="left")
+        ttk.Combobox(
+            rb_row1,
+            textvariable=self._rb_lock_mode_var,
+            values=("rigid_with_axis", "angular_only", "angular_radial_free"),
+            width=22,
+            state="readonly",
+        ).pack(side="left", padx=(6, 16))
+
+        ttk.Label(rb_row1, text="Grid steps:").pack(side="left")
+        ttk.Entry(
+            rb_row1,
+            textvariable=self._rb_grid_var,
+            width=6,
+        ).pack(side="left", padx=(6, 0))
+
+        self._rb_bounds_frame = ttk.Frame(self._rb_options_frame)
+        self._rb_bounds_frame.pack(fill="x", pady=(4, 0))
+
+        ttk.Label(
+            self._rb_bounds_frame,
+            text="Radial bounds rel.:",
+        ).pack(side="left")
+
+        ttk.Entry(
+            self._rb_bounds_frame,
+            textvariable=self._rb_bounds_lo_var,
+            width=6,
+        ).pack(side="left", padx=(6, 2))
+
+        ttk.Label(self._rb_bounds_frame, text="to").pack(side="left")
+
+        ttk.Entry(
+            self._rb_bounds_frame,
+            textvariable=self._rb_bounds_hi_var,
+            width=6,
+        ).pack(side="left", padx=(2, 8))
+
+        ttk.Label(
+            self._rb_bounds_frame,
+            text="× initial metal–anchor distance",
+            foreground="#666666",
+        ).pack(side="left")
+
+        self._rb_lock_mode_var.trace_add("write", lambda *_: self._on_search_mode_change())
+        self._on_search_mode_change()
+
 
         # ── Optimization options:  ───────────────────────────────
         of = ttk.LabelFrame(content_parent, text="Optimization options", padding=10)
@@ -2361,6 +3187,27 @@ class ConformerSearchGUI:
             "\n".join(lines[:30]) + ("\n..." if len(lines) > 30 else ""),
         )
 
+    def _on_search_mode_change(self, *_args):
+        """Show/hide rigid-body-specific options."""
+        try:
+            mode = self._search_mode_var.get()
+        except Exception:
+            return
+
+        if not hasattr(self, "_rb_options_frame"):
+            return
+
+        if mode == "rigid":
+            self._rb_options_frame.pack(fill="x", padx=(24, 0), pady=(4, 0))
+        else:
+            self._rb_options_frame.pack_forget()
+
+        if hasattr(self, "_rb_bounds_frame"):
+            if mode == "rigid" and self._rb_lock_mode_var.get() == "angular_radial_free":
+                self._rb_bounds_frame.pack(fill="x", pady=(4, 0))
+            else:
+                self._rb_bounds_frame.pack_forget()
+
     def _detect_all(self):
         """Detect rotatable bonds and populate the atom list in Tab 1."""
         if self.mol is None:
@@ -2606,26 +3453,20 @@ class ConformerSearchGUI:
         if self.mol is None:
             messagebox.showwarning("No structure", "Load an XYZ file first.")
             return
-        if not self.rotatable_all:
-            messagebox.showwarning("No bonds",
-                                   "Click 'Detect bonds & fill atom list' first.")
+
+        # Rigid-body mode can run even when no rotatable bonds are available.
+        # Dihedral mode still requires detected rotatable bonds.
+        mode = self._search_mode_var.get().strip().lower()
+        if mode != "rigid" and not self.rotatable_all:
+            messagebox.showwarning(
+                "No bonds",
+                "Click 'Detect bonds & fill atom list' first.\n\n"
+                "If this is a closed chelate/ring-like ligand, switch to "
+                "'Rigid-body anchor rotation' mode."
+            )
             return
 
-        fixed_set    = self._get_fixed_set()
-        use_anchor2 = getattr(self, '_anchor_mode_var', None)
-        use_anchor2 = use_anchor2.get() if use_anchor2 is not None else True
-        _, locked_bonds = classify_bonds_by_fixed(
-            self.mol, self.rotatable_all, fixed_set,
-            metal_idx=self.metal_idx, anchor_mode=use_anchor2)
-        # Only use bonds that are both free and user-selected
-        selected_bonds = [b for b, v, lk in zip(self.rotatable_all,
-                                                  self.bond_vars,
-                                                  self.bond_locked)
-                          if v.get() and not lk]
-        if not selected_bonds:
-            messagebox.showwarning("No free bonds selected",
-                                   "Select at least one free (🔓) rotatable bond.")
-            return
+        fixed_set = self._get_fixed_set()
 
         # Parse tensor parameters
         try:
@@ -2652,33 +3493,25 @@ class ConformerSearchGUI:
         try:
             atom_indices, pcs_values = load_pcs_csv(pcs_path, self.mol.elements)
         except Exception as e:
-            messagebox.showerror("PCS CSV", str(e)); return
+            messagebox.showerror("PCS CSV", str(e))
+            return
         if not atom_indices:
             messagebox.showerror("PCS data",
                                  "No valid data found.\n"
                                  "Expected columns: Ref (1-based), δ_exp [ppm]")
             return
 
-        try:
-            de_maxiter = int(self._de_maxiter_var.get())
-            de_popsize = int(self._de_popsize_var.get())
-        except ValueError:
-            de_maxiter, de_popsize = 600, 12
-
-        constraint_mode = self._constraint_mode_var.get().strip().lower()
+        # Candidate output options
         output_mode = self._output_mode_var.get().strip().lower()
-
         try:
             n_candidates = max(1, int(self._n_candidates_var.get()))
         except ValueError:
             n_candidates = 5
-
         try:
             dedup_tol_deg = float(self._dedup_tol_var.get())
         except ValueError:
             dedup_tol_deg = 5.0
 
-        use_global = self._use_global_var.get()
         self._status_var.set("Running optimization…")
         self._set_running_state(True, "Preparing optimization...")
         self.root.update_idletasks()
@@ -2688,6 +3521,125 @@ class ConformerSearchGUI:
             self.root.update_idletasks()
 
         import threading
+
+        # ─────────────────────────────────────────────────────────────────────
+        # Rigid-body anchor rotation mode
+        # ─────────────────────────────────────────────────────────────────────
+        # Use this branch for closed chelate/ring-like ligands where the usual
+        # dihedral search has no meaningful free rotatable bonds. Anchor atoms are
+        # taken from the Fixed atoms tab, excluding the metal centre itself.
+        if mode == "rigid":
+            anchor_atoms = [a for a in fixed_set if a != self.metal_idx]
+
+            if not anchor_atoms:
+                self._set_running_state(False, "No anchors.")
+                messagebox.showwarning(
+                    "No anchors",
+                    "Mark at least one anchor atom in the Fixed atoms tab.\n\n"
+                    "For example, choose a donor atom, Pt atom, or a rigid-core atom "
+                    "that should define the metal-centred rotation axis."
+                )
+                return
+
+            try:
+                grid_n = max(6, int(self._rb_grid_var.get()))
+            except ValueError:
+                grid_n = 72
+
+            axis_mode = self._rb_axis_mode_var.get().strip().lower()
+            lock_mode = self._rb_lock_mode_var.get().strip().lower()
+
+            try:
+                rb_lo = float(self._rb_bounds_lo_var.get())
+                rb_hi = float(self._rb_bounds_hi_var.get())
+                if rb_lo <= 0 or rb_hi <= rb_lo:
+                    raise ValueError
+                radial_bounds = (rb_lo, rb_hi)
+            except ValueError:
+                radial_bounds = (0.8, 1.2)
+
+            def _run_rigid():
+                try:
+                    opt = RigidBodyAnchorOptimiser(
+                        mol=self.mol,
+                        obs_atoms=atom_indices,
+                        obs_pcs=np.array(pcs_values, float),
+                        metal=metal,
+                        metal_idx=self.metal_idx,
+                        anchor_atoms=anchor_atoms,
+                        axis_mode=axis_mode,
+                        dchi_ax=dchi_ax,
+                        dchi_rh=dchi_rh,
+                        euler_zyz=euler,
+                        lock_mode=lock_mode,
+                        radial_bounds_rel=radial_bounds,
+                        progress_cb=_progress,
+                        coordination_config=None,  # future: pass loaded JSON/settings dict here
+                    )
+
+                    result = opt.run(
+                        n_starts=grid_n,
+                        n_candidates=n_candidates,
+                        dedup_tol_deg=dedup_tol_deg,
+                        return_mode=output_mode,
+                    )
+
+                    # opt.candidates is populated by run(); each dict already has rigid metadata.
+                    candidates = opt.candidates  # list[dict], sorted by RMSD
+
+                    self.root.after(0, lambda c=candidates: (
+                        self._set_running_state(False, "Completed."),
+                        self._show_results(c),
+                    ))
+
+                except Exception:
+                    import traceback
+                    tb = traceback.format_exc()
+                    self.root.after(0, lambda t=tb: (
+                        self._set_running_state(False, "Error."),
+                        messagebox.showerror("Rigid-body optimization error", t[:1200]),
+                        self._status_var.set("Error.")
+                    ))
+
+            threading.Thread(target=_run_rigid, daemon=True).start()
+            return
+
+        # ─────────────────────────────────────────────────────────────────────
+        # Classical dihedral-angle mode
+        # ─────────────────────────────────────────────────────────────────────
+        use_anchor2 = getattr(self, '_anchor_mode_var', None)
+        use_anchor2 = use_anchor2.get() if use_anchor2 is not None else True
+
+        _, locked_bonds = classify_bonds_by_fixed(
+            self.mol, self.rotatable_all, fixed_set,
+            metal_idx=self.metal_idx, anchor_mode=use_anchor2)
+
+        # Only use bonds that are both free and user-selected
+        selected_bonds = [b for b, v, lk in zip(self.rotatable_all,
+                                                self.bond_vars,
+                                                self.bond_locked)
+                          if v.get() and not lk]
+
+        if not selected_bonds:
+            self._set_running_state(False, "No free bonds selected.")
+            messagebox.showwarning(
+                "No free bonds selected",
+                "Select at least one free (🔓) rotatable bond.\n\n"
+                "For closed chelate/ring-like ligands with no free dihedrals, "
+                "switch to 'Rigid-body anchor rotation' mode."
+            )
+            return
+
+        try:
+            de_maxiter = int(self._de_maxiter_var.get())
+            de_popsize = int(self._de_popsize_var.get())
+        except ValueError:
+            de_maxiter, de_popsize = 600, 12
+
+        constraint_mode = self._constraint_mode_var.get().strip().lower()
+
+        use_global = self._use_global_var.get()
+
         def _run():
             try:
                 opt = ConformerOptimiser(
@@ -2716,18 +3668,23 @@ class ConformerSearchGUI:
                     dedup_tol_deg=dedup_tol_deg,
                     return_mode=output_mode,
                 )
+
                 # opt.candidates is populated by run(); each dict already has selected/locked.
                 candidates = opt.candidates  # list[dict], sorted by RMSD
+                for cand in candidates:
+                    cand["mode"] = "dihedral"
+
                 self.root.after(0, lambda c=candidates: (
                     self._set_running_state(False, "Completed."),
                     self._show_results(c),
                 ))
+
             except Exception:
                 import traceback
                 tb = traceback.format_exc()
                 self.root.after(0, lambda t=tb: (
                     self._set_running_state(False, "Error."),
-                    messagebox.showerror("Optimization error", t[:900]),
+                    messagebox.showerror("Optimization error", t[:1200]),
                     self._status_var.set("Error.")
                 ))
 
@@ -2757,23 +3714,41 @@ class ConformerSearchGUI:
         self._nb.select(3)
 
         if callable(self.on_preview_result):
+            best = candidates[0]
+
+            if best.get("mode") == "rigid":
+                preview_report = format_rigid_body_report(
+                    best,
+                    self.mol,
+                    rank=1,
+                    n_total=len(candidates),
+                )
+            else:
+                preview_report = format_report(
+                    best,
+                    best["selected_bonds"],
+                    self.mol,
+                    best.get("locked_bonds"),
+                    rank=1,
+                    n_total=len(candidates),
+                )
+
             payload = {
-                "result": candidates[0],
+                "result": best,
                 "elements": list(self.mol.elements),
                 "coords_initial": self.mol.coords.copy(),
-                "coords_opt": candidates[0]["coords_opt"].copy(),
-                "report": format_report(candidates[0],
-                                        candidates[0]['selected_bonds'],
-                                        self.mol,
-                                        candidates[0].get('locked_bonds'),
-                                        rank=1, n_total=len(candidates)),
+                "coords_opt": best["coords_opt"].copy(),
+                "report": preview_report,
                 "metal_idx": self.metal_idx,
             }
+
             try:
                 self.on_preview_result(payload)
             except Exception as e:
-                messagebox.showwarning("Preview callback warning",
-                                       f"Result computed, but preview callback failed:\n{e}")
+                messagebox.showwarning(
+                    "Preview callback warning",
+                    f"Result computed, but preview callback failed:\n{e}",
+                )
 
     def _build_candidate_selector(self):
         """(Re)build radio-button row in the results tab."""
@@ -3220,30 +4195,57 @@ class ConformerSearchGUI:
         ttk.Button(right, text="Save figure…", command=_save_plot).pack(fill="x", pady=(4, 0))
 
         _redraw()
-        
+
     def _display_candidate_report(self, idx: int):
         """Render the report for candidate idx in the result text box."""
         cand = self.candidates[idx]
         self.result = cand
 
-        report = format_report(
-            cand, cand['selected_bonds'], self.mol,
-            cand.get('locked_bonds'),
-            rank=idx + 1, n_total=len(self.candidates),
-        )
+        if cand.get("mode") == "rigid":
+            report = format_rigid_body_report(
+                cand,
+                self.mol,
+                rank=idx + 1,
+                n_total=len(self.candidates),
+            )
+        else:
+            report = format_report(
+                cand,
+                cand["selected_bonds"],
+                self.mol,
+                cand.get("locked_bonds"),
+                rank=idx + 1,
+                n_total=len(self.candidates),
+            )
+
         self._result_box.config(state="normal")
         self._result_box.delete("1.0", "end")
         self._result_box.insert("end", report)
         self._result_box.config(state="disabled")
 
-        fd = cand.get('fixed_displacement', 0.0)
-        self._status_var.set(
-            f"Showing candidate #{idx + 1}/{len(self.candidates)}  "
-            f"RMSD={cand['rmsd']:.4f} ppm"
-            + (f"  R²={cand['r2']:.4f}" if not math.isnan(cand['r2']) else "")
-            + (f"  ⚠ {cand['n_clashes']} clashes" if cand['n_clashes'] else "")
-            + (f"  ⚠ fixed drift {fd:.3f} Å" if fd > 0.01 else "")
-        )
+        if cand.get("mode") == "rigid":
+            radial_change = cand.get("anchor_radial_change", None)
+            extra = ""
+            if radial_change is not None and len(radial_change):
+                extra = f"  Δr_max={float(np.max(np.abs(radial_change))):.3f} Å"
+
+            self._status_var.set(
+                f"Showing rigid-body result  "
+                f"φ={cand.get('angle_opt', 0.0):+.2f}°  "
+                f"RMSD={cand['rmsd']:.4f} ppm"
+                + (f"  R²={cand['r2']:.4f}" if not math.isnan(cand["r2"]) else "")
+                + (f"  ⚠ {cand['n_clashes']} clashes" if cand["n_clashes"] else "")
+                + extra
+            )
+        else:
+            fd = cand.get("fixed_displacement", 0.0)
+            self._status_var.set(
+                f"Showing candidate #{idx + 1}/{len(self.candidates)}  "
+                f"RMSD={cand['rmsd']:.4f} ppm"
+                + (f"  R²={cand['r2']:.4f}" if not math.isnan(cand["r2"]) else "")
+                + (f"  ⚠ {cand['n_clashes']} clashes" if cand["n_clashes"] else "")
+                + (f"  ⚠ fixed drift {fd:.3f} Å" if fd > 0.01 else "")
+            )
 
     def _save_xyz(self):
         if not getattr(self, 'candidates', None):
@@ -3308,16 +4310,31 @@ class ConformerSearchGUI:
         ttk.Button(btn_row, text="Save file…", command=_do_save).pack(side="left")
 
     def _save_report(self):
-        if self.result is None:
-            messagebox.showwarning("No result", "Run the search first."); return
+        if not getattr(self, "result", None):
+            messagebox.showwarning("No result", "Run the search first.")
+            return
+
         path = filedialog.asksaveasfilename(
-            title="Save report", defaultextension=".txt",
-            filetypes=[("Text","*.txt"),("All","*.*")])
-        if not path: return
-        rpt = format_report(self.result, self.result['selected_bonds'],
-                            self.mol, self.result.get('locked_bonds'))
+            title="Save report",
+            defaultextension=".txt",
+            filetypes=[("Text", "*.txt"), ("All", "*.*")],
+        )
+        if not path:
+            return
+
+        if self.result.get("mode") == "rigid":
+            rpt = format_rigid_body_report(self.result, self.mol)
+        else:
+            rpt = format_report(
+                self.result,
+                self.result["selected_bonds"],
+                self.mol,
+                self.result.get("locked_bonds"),
+            )
+
         with open(path, "w", encoding="utf-8") as f:
             f.write(rpt)
+
         messagebox.showinfo("Saved", f"Saved:\n{path}")
 
     def _show_plot(self):
@@ -3402,53 +4419,327 @@ def run_conformer_search_gui(master=None, embed_in=None, **kwargs):
 
 def cli_main():
     import argparse
+
     parser = argparse.ArgumentParser(
-        description="Conformational search to fit PCS data.")
-    parser.add_argument("--xyz",        required=True)
-    parser.add_argument("--pcs",        required=True)
-    parser.add_argument("--metal",      type=int,   default=1)
-    parser.add_argument("--fix",        type=int,   nargs="*", default=[],
-                        help="1-based atom indices to fix (space-separated)")
-    parser.add_argument("--dchi-ax",    type=float, default=-2.0)
-    parser.add_argument("--dchi-rh",    type=float, default=0.0)
-    parser.add_argument("--euler-zyz",  type=float, nargs=3, default=[0.,0.,0.],
-                        metavar=("A","B","G"))
-    parser.add_argument("--metal-xyz",  type=float, nargs=3, default=[0.,0.,0.],
-                        metavar=("X","Y","Z"))
-    parser.add_argument("--no-global",  action="store_true")
-    parser.add_argument("--de-maxiter", type=int,   default=600)
-    parser.add_argument("--de-popsize", type=int,   default=12)
-    parser.add_argument("--out",        default="optimised.xyz")
+        description="Conformational search to fit PCS data."
+    )
+
+    # ── Common input files and tensor parameters ─────────────────────────────
+    parser.add_argument("--xyz", required=True)
+    parser.add_argument("--pcs", required=True)
+    parser.add_argument("--metal", type=int, default=1)
+    parser.add_argument(
+        "--fix",
+        type=int,
+        nargs="*",
+        default=[],
+        help=(
+            "1-based atom indices to fix in dihedral mode, or to use as "
+            "anchor atoms in rigid-body mode."
+        ),
+    )
+    parser.add_argument("--dchi-ax", type=float, default=-2.0)
+    parser.add_argument("--dchi-rh", type=float, default=0.0)
+    parser.add_argument(
+        "--euler-zyz",
+        type=float,
+        nargs=3,
+        default=[0.0, 0.0, 0.0],
+        metavar=("A", "B", "G"),
+        help="Tensor orientation in degrees, ZYZ convention.",
+    )
+    parser.add_argument(
+        "--metal-xyz",
+        type=float,
+        nargs=3,
+        default=[0.0, 0.0, 0.0],
+        metavar=("X", "Y", "Z"),
+        help="Metal position used for PCS calculation.",
+    )
+    parser.add_argument("--out", default="optimised.xyz")
+
+    # ── Dihedral-mode options ────────────────────────────────────────────────
+    parser.add_argument(
+        "--no-global",
+        action="store_true",
+        help="Skip Differential Evolution and run only local L-BFGS-B refinement.",
+    )
+    parser.add_argument("--de-maxiter", type=int, default=600)
+    parser.add_argument("--de-popsize", type=int, default=12)
+    parser.add_argument(
+        "--de-workers",
+        type=int,
+        default=1,
+        help="Number of workers for Differential Evolution. Use -1 for all cores.",
+    )
+    parser.add_argument(
+        "--constraint-mode",
+        choices=("angular", "position"),
+        default="angular",
+        help="Fixed-atom constraint model in dihedral mode.",
+    )
+    parser.add_argument(
+        "--n-candidates",
+        type=int,
+        default=5,
+        help="Number of final conformer candidates to keep in dihedral mode.",
+    )
+    parser.add_argument(
+        "--dedup-tol",
+        type=float,
+        default=5.0,
+        help="Angular tolerance in degrees for candidate deduplication.",
+    )
+    parser.add_argument(
+        "--best-only",
+        action="store_true",
+        help="Return only the best dihedral candidate.",
+    )
+
+    # ── Rigid-body mode options ──────────────────────────────────────────────
+    parser.add_argument(
+        "--rigid-body",
+        action="store_true",
+        help=(
+            "Use rigid-body anchor rotation instead of dihedral search. "
+            "Recommended for closed chelate/ring-like ligands without free dihedrals."
+        ),
+    )
+    parser.add_argument(
+        "--axis-mode",
+        choices=("bisector", "first", "connecting"),
+        default="bisector",
+        help="Rotation axis definition in rigid-body mode.",
+    )
+    parser.add_argument(
+        "--lock-mode",
+        choices=("rigid_with_axis", "angular_only", "angular_radial_free"),
+        default="angular_radial_free",
+        help=(
+            "Anchor locking strategy in rigid-body mode. "
+            "rigid_with_axis: anchors rotate with the fragment. "
+            "angular_only: anchors stay Cartesian-fixed. "
+            "angular_radial_free: anchor directions are fixed, but radial distances are fitted."
+        ),
+    )
+    parser.add_argument(
+        "--rb-grid",
+        type=int,
+        default=72,
+        help="Number of grid-scan starting angles in rigid-body mode.",
+    )
+    parser.add_argument(
+        "--radial-bounds",
+        type=float,
+        nargs=2,
+        default=[0.8, 1.2],
+        metavar=("LO_REL", "HI_REL"),
+        help=(
+            "Relative radial bounds for anchor distances in angular_radial_free mode. "
+            "Default 0.8 1.2 means 80–120%% of the initial metal-anchor distance."
+        ),
+    )
+    parser.add_argument(
+        "--n-candidates",
+        type=int,
+        default=5,
+        help="Number of final candidates to keep.",
+    )
+    parser.add_argument(
+        "--dedup-tol",
+        type=float,
+        default=5.0,
+        help="Angular tolerance in degrees for candidate deduplication.",
+    )
+    parser.add_argument(
+        "--best-only",
+        action="store_true",
+        help="Return only the best candidate.",
+    )
+
     args = parser.parse_args()
 
+    # ── Load structure ───────────────────────────────────────────────────────
     print(f"Loading: {args.xyz}")
     elements, coords = load_xyz(args.xyz)
     mol = Molecule(elements, coords)
-    metal_idx  = args.metal - 1
-    fixed_set  = {args.metal - 1} | {i - 1 for i in (args.fix or [])}
-    print(f"  {mol.n_atoms} atoms | metal: {args.metal}({elements[metal_idx]})"
-          f" | fixed: {sorted(fixed_set)}")
 
-    candidates = mol.find_rotatable_bonds(metal_idx)
-    free, locked = classify_bonds_by_fixed(mol, candidates, fixed_set,
-                                            metal_idx=metal_idx, anchor_mode=True)
-    print(f"  {len(candidates)} rotatable bonds: {len(free)} free, {len(locked)} locked")
+    metal_idx = args.metal - 1
+    if metal_idx < 0 or metal_idx >= mol.n_atoms:
+        raise SystemExit(
+            f"ERROR: --metal {args.metal} is outside the atom range 1–{mol.n_atoms}."
+        )
 
+    fixed_set = {metal_idx} | {i - 1 for i in (args.fix or [])}
+    fixed_set = {i for i in fixed_set if 0 <= i < mol.n_atoms}
+
+    print(
+        f"  {mol.n_atoms} atoms | metal: {args.metal}({elements[metal_idx]})"
+        f" | fixed/anchors: {[i + 1 for i in sorted(fixed_set)]}"
+    )
+
+    # ── Load PCS ─────────────────────────────────────────────────────────────
     print(f"\nLoading PCS: {args.pcs}")
     atom_idx, pcs_vals = load_pcs_csv(args.pcs, elements)
+
+    if not atom_idx:
+        raise SystemExit(
+            "ERROR: no valid PCS observations found.\n"
+            "Expected CSV columns: Ref, δ_exp or Ref, Element, δ_exp."
+        )
+
     print(f"  {len(atom_idx)} observations")
 
+    metal = np.array(args.metal_xyz, dtype=float)
+    euler = tuple(math.radians(a) for a in args.euler_zyz)
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Rigid-body anchor rotation mode
+    # ────────────────────────────────────────────────────────────────────────
+    if args.rigid_body:
+        anchor_atoms = [a for a in sorted(fixed_set) if a != metal_idx]
+
+        if not anchor_atoms:
+            raise SystemExit(
+                "ERROR: --rigid-body requires at least one --fix anchor atom.\n"
+                "Example: --metal 1 --fix 12 18 --rigid-body"
+            )
+
+        lo_rel, hi_rel = args.radial_bounds
+        if lo_rel <= 0 or hi_rel <= lo_rel:
+            raise SystemExit(
+                "ERROR: --radial-bounds must satisfy 0 < LO_REL < HI_REL."
+            )
+
+        print("\nRigid-body mode")
+        print(f"  axis mode   : {args.axis_mode}")
+        print(f"  lock mode   : {args.lock_mode}")
+        print(f"  grid steps  : {args.rb_grid}")
+        print(
+            "  anchors     : "
+            + ", ".join(f"{i + 1}({elements[i]})" for i in anchor_atoms)
+        )
+        if args.lock_mode == "angular_radial_free":
+            print(f"  radial bounds: {lo_rel:.3f}–{hi_rel:.3f} × initial distance")
+
+        opt = RigidBodyAnchorOptimiser(
+            mol=mol,
+            obs_atoms=atom_idx,
+            obs_pcs=np.array(pcs_vals, dtype=float),
+            metal=metal,
+            metal_idx=metal_idx,
+            anchor_atoms=anchor_atoms,
+            axis_mode=args.axis_mode,
+            dchi_ax=args.dchi_ax,
+            dchi_rh=args.dchi_rh,
+            euler_zyz=euler,
+            lock_mode=args.lock_mode,
+            radial_bounds_rel=(lo_rel, hi_rel),
+            progress_cb=print,
+            coordination_config=None,
+        )
+
+        return_mode = "best" if args.best_only else "top_n"
+
+        result = opt.run(
+            n_starts=args.rb_grid,
+            n_candidates=args.n_candidates,
+            dedup_tol_deg=args.dedup_tol,
+            return_mode=return_mode,
+        )
+
+        # opt.candidates is populated by run(); primary result is the best candidate.
+        candidates_out = getattr(opt, "candidates", [result])
+
+        for cand in candidates_out:
+            cand["mode"] = "rigid"
+
+        print(format_rigid_body_report(candidates_out[0], mol))
+
+        if len(candidates_out) > 1:
+            print("\nRigid-body candidates:")
+            for i, cand in enumerate(candidates_out, start=1):
+                extra = ""
+                radial_change = cand.get("anchor_radial_change", None)
+                if radial_change is not None and len(radial_change):
+                    extra = f", Δr_max={float(np.max(np.abs(radial_change))):.4f} Å"
+
+                print(
+                    f"  #{i:<2d} "
+                    f"φ={cand.get('angle_opt', 0.0):+9.3f}°  "
+                    f"RMSD={cand['rmsd']:.4f} ppm  "
+                    f"R²={cand['r2']:.4f}"
+                    f"{extra}"
+                )
+
+        save_xyz(args.out, elements, candidates_out[0]["coords_opt"])
+
+        print(f"Saved: {args.out}")
+        return
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Classical dihedral-angle mode
+    # ────────────────────────────────────────────────────────────────────────
+    candidates = mol.find_rotatable_bonds(metal_idx)
+    free, locked = classify_bonds_by_fixed(
+        mol,
+        candidates,
+        fixed_set,
+        metal_idx=metal_idx,
+        anchor_mode=True,
+    )
+
+    print(
+        f"\nDihedral mode\n"
+        f"  {len(candidates)} rotatable bonds: {len(free)} free, {len(locked)} locked"
+    )
+
+    if not free:
+        raise SystemExit(
+            "ERROR: no free rotatable bonds.\n"
+            "TIP: for closed chelate/ring-like ligands, use --rigid-body "
+            "and provide one or more --fix anchor atoms."
+        )
+
     opt = ConformerOptimiser(
-        mol=mol, rotatable=free,
-        obs_atoms=atom_idx, obs_pcs=np.array(pcs_vals),
-        metal=np.array(args.metal_xyz),
-        dchi_ax=args.dchi_ax, dchi_rh=args.dchi_rh,
-        euler_zyz=tuple(math.radians(a) for a in args.euler_zyz),
-        metal_idx=metal_idx, fixed_atoms=fixed_set,
-        progress_cb=print)
-    result = opt.run(not args.no_global, args.de_maxiter, args.de_popsize)
-    print(format_report(result, free, mol, locked))
-    save_xyz(args.out, elements, result['coords_opt'])
+        mol=mol,
+        rotatable=free,
+        obs_atoms=atom_idx,
+        obs_pcs=np.array(pcs_vals, dtype=float),
+        metal=metal,
+        dchi_ax=args.dchi_ax,
+        dchi_rh=args.dchi_rh,
+        euler_zyz=euler,
+        metal_idx=metal_idx,
+        fixed_atoms=fixed_set,
+        progress_cb=print,
+        constraint_mode=args.constraint_mode,
+        coordination_config=None,
+    )
+
+    return_mode = "best" if args.best_only else "top_n"
+
+    result = opt.run(
+        use_global=not args.no_global,
+        de_maxiter=args.de_maxiter,
+        de_popsize=args.de_popsize,
+        de_workers=args.de_workers,
+        selected_bonds=free,
+        locked_bonds=locked,
+        n_candidates=args.n_candidates,
+        dedup_tol_deg=args.dedup_tol,
+        return_mode=return_mode,
+    )
+
+    # opt.candidates is populated by run(); primary result is the best candidate.
+    candidates_out = getattr(opt, "candidates", [result])
+    for cand in candidates_out:
+        cand["mode"] = "dihedral"
+
+    print(format_report(candidates_out[0], free, mol, locked))
+
+    # CLI saves only the best candidate by default.
+    save_xyz(args.out, elements, candidates_out[0]["coords_opt"])
     print(f"Saved: {args.out}")
 
 if __name__ == "__main__":

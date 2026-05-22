@@ -1,5 +1,7 @@
 # Pseudocontact Chemical Shift (PCS) Analyzer
-![version](https://img.shields.io/badge/version-1.3.2-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
+![version](https://img.shields.io/badge/version-1.3.3-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
+
+<img width="400" height="230" alt="pcs_banner" src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf" />
 
 <img width="1409" height="919" alt="PCS Analyzer main interface" src="https://github.com/user-attachments/assets/e4a0b469-4a98-4552-803d-6cb8a3fbfdab" />
 <img width="2420" height="882" alt="PCS Analyzer additional views" src="https://github.com/user-attachments/assets/7981899a-5cc4-46a6-9462-152e7a0f38bb" />
@@ -27,6 +29,20 @@ Core use cases include:
 - advanced fitting and conformer-assisted refinement
 
 ## Recent Changes
+Release **v1.3.3**
+- Interface and workflow
+  - Added a main menu bar and settings menu.
+    - Moved the **Load XYZ Structure** action to the main menu.
+  - Added a Modules/Plugins menu.
+  - Added a Module Manager window for managing available modules and plugins.
+- Conformer Search
+  - Added a new constraint-mode selector with two modes:
+    - **Position mode**: legacy fitting mode introduced in v1.3.0. Fixed atoms are kept close to their original Cartesian coordinates, making this mode suitable for conservative, scaffold-preserving searches.
+    - **Angular mode**: newly introduced mode in v1.3.3. Metal-centered donor directions are preserved while radial relaxation is allowed, making this mode more suitable for flexible coordination-complex searches.
+  - Added false-bond detection and skipped-bond handling.
+  - Added rigid mode for conformer searches.
+- Gᵢ vs δExp plot
+  - Added lasso selection functionality for selecting subsets of data points directly from the plot.
 
 Release **v1.3.2**
 - added **PCS Workbench**, a standalone workspace for FFT-based PDE PCS analysis from ORCA magnetic susceptibility tensors and spin-density grids `.3d`
@@ -265,6 +281,21 @@ PCS Analyzer supports export of:
   - **oblique PCS slice plotting** for user-defined planes through the metal centre
   - a **traceless tensor spheroid viewer**
   - PDE field calculation follows the distributed PCS formalism of Charnock and Kuprov: *Phys. Chem. Chem. Phys.*, **2014**, DOI: `10.1039/C4CP03106G`
+
+**v1.3.3**
+- Interface and workflow
+  - Added a main menu bar and settings menu.
+    - Moved the **Load XYZ Structure** action to the main menu.
+  - Added a Modules/Plugins menu.
+  - Added a Module Manager window for managing available modules and plugins.
+- Conformer Search
+  - Added a new constraint-mode selector with two modes:
+    - **Position mode**: legacy fitting mode introduced in v1.3.0. Fixed atoms are kept close to their original Cartesian coordinates, making this mode suitable for conservative, scaffold-preserving searches.
+    - **Angular mode**: newly introduced mode in v1.3.3. Metal-centered donor directions are preserved while radial relaxation is allowed, making this mode more suitable for flexible coordination-complex searches.
+  - Added false-bond detection and skipped-bond handling.
+  - Added rigid mode for conformer searches.
+- Gᵢ vs δExp plot
+  - Added lasso selection functionality for selecting subsets of data points directly from the plot.
 
 </details>
 

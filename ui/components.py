@@ -45,9 +45,15 @@ from ui.conformer_search import run_conformer_search_gui
 
 from ui.plot_3d_pyvista import open_pyvista_field
 
+#settings
 from ui.settings_window import open_settings_window
-from logic.app_settings import load_app_state, save_app_state
+from logic.app_settings import load_app_state, save_app_state, is_reasonable_main_geometry
 from ui.about_window import open_about_window
+
+#plugins
+from plugin_system.plugin_api import PluginApp
+from plugin_system.plugin_loader import load_enabled_plugins
+from ui.module_manager_window import open_module_manager_window
 
 def get_cpk_color(atom):
     return CPK_COLORS.get(atom, CPK_COLORS['default'])
@@ -577,6 +583,53 @@ def open_pcs_workbench(state):
         return
     subprocess.Popen([sys.executable, str(script)])
 
+def refresh_plugin_menu(state):
+    """
+    Built-in module entries such as Module Manager and PCS Workbench are kept.
+    External plugin menu items are removed and reloaded from plugins.json.
+    """
+    modules_menu = state.get("menus", {}).get("Modules")
+    if modules_menu is None:
+        return
+
+    start_index = state.get("plugin_menu_start_index")
+    if start_index is None:
+        return
+
+    # Remove old external plugin menu entries
+    try:
+        end_index = modules_menu.index("end")
+        if end_index is not None and end_index >= start_index:
+            modules_menu.delete(start_index, "end")
+    except Exception:
+        pass
+
+    plugin_app = PluginApp(state)
+    state["plugin_app"] = plugin_app
+
+    try:
+        results = load_enabled_plugins(plugin_app)
+        state["plugin_load_results"] = results
+
+        # Console diagnostics
+        for r in results:
+            if not r.get("ok"):
+                print(
+                    "[Plugin loading failed]",
+                    r.get("plugin_id"),
+                    r.get("error", "")
+                )
+
+    except Exception as e:
+        state["plugin_load_results"] = []
+        try:
+            state["messagebox"].showwarning(
+                "Plugin loading",
+                f"Plugins could not be loaded:\n{e}"
+            )
+        except Exception:
+            pass
+
 def build_app():
     state = {}
     # initialize: settings
@@ -639,13 +692,19 @@ def build_app():
     state['root'] = root
 
     saved_geo = persisted.get("main_window_geometry")
-    if state["app_settings"].get("remember_window_geometry", True) and saved_geo:
+    default_geo = "1200x880"
+
+    if (
+        state["app_settings"].get("remember_window_geometry", True)
+        and saved_geo
+        and is_reasonable_main_geometry(saved_geo)
+    ):
         try:
             root.geometry(saved_geo)
         except Exception:
-            root.geometry("1200x880")
+            root.geometry(default_geo)
     else:
-        root.geometry("1200x880")
+        root.geometry(default_geo)
 
     #apply_style(root, variant="light", accent="green")  # darkmode : variant="dark"
     apply_style(
@@ -657,47 +716,129 @@ def build_app():
     # close handler
     def _on_main_close():
         try:
-            save_app_state(state)
+            save_app_state(state, save_geometry=True)
         except Exception:
             pass
         root.destroy()
 
-    # menu bar
+    # ============================================================
+    # Menu bar
+    # ============================================================
     menubar = tk.Menu(root)
     root.config(menu=menubar)
     state["menubar"] = menubar
 
     file_menu = tk.Menu(menubar, tearoff=0)
     view_menu = tk.Menu(menubar, tearoff=0)
+    modules_menu = tk.Menu(menubar, tearoff=0)
     settings_menu = tk.Menu(menubar, tearoff=0)
 
     menubar.add_cascade(label="File", menu=file_menu)
     menubar.add_cascade(label="View", menu=view_menu)
+    menubar.add_cascade(label="Modules", menu=modules_menu)
     menubar.add_cascade(label="Settings", menu=settings_menu)
 
-    file_menu.add_command(label="Load XYZ...", command=lambda: load_xyz_file(state))
+    state["menus"] = {
+        "File": file_menu,
+        "View": view_menu,
+        "Modules": modules_menu,
+        "Settings": settings_menu,
+    }
+
+    # ----------------------------
+    # File menu
+    # ----------------------------
+    file_menu.add_command(
+        label="Load XYZ...",
+        command=lambda: load_xyz_file(state)
+    )
+
     recent_files_menu = tk.Menu(file_menu, tearoff=0)
     state["recent_files_menu"] = recent_files_menu
     file_menu.add_cascade(label="Recent files", menu=recent_files_menu)
     rebuild_recent_files_menu(state)
-    file_menu.add_separator()
-    file_menu.add_command(label="Save current XYZ...", command=lambda: on_save_visible_xyz(state))
-    file_menu.add_command(label="Save plot data...", command=lambda: on_save_plot_any(state))
-    file_menu.add_command(label="Save table...", command=lambda: on_save_table_any(state))
-    file_menu.add_separator()
-    file_menu.add_command(label="Exit", command=_on_main_close)
 
-    view_menu.add_command(label="2D PCS Plot", command=lambda: open_pcs_plot_popup(state))
-    view_menu.add_command(label="Projection", command=lambda: open_projection_window(state))
-    view_menu.add_command(label="3D Structure", command=lambda: open_3d_plot_window(state))
-    view_menu.add_command(label="3D PCS Plot", command=lambda: open_pyvista_field(state))
-    view_menu.add_command(label="NMR Shift Viewer", command=lambda: open_nmr_window(state))
-    view_menu.add_separator()
-    view_menu.add_command(label="PCS Workbench", command=lambda: open_pcs_workbench(state))
+    file_menu.add_separator()
 
-    settings_menu.add_command(label="Open settings...", command=lambda: open_settings_window(state))
+    file_menu.add_command(
+        label="Save current XYZ...",
+        command=lambda: on_save_visible_xyz(state)
+    )
+    file_menu.add_command(
+        label="Save plot data...",
+        command=lambda: on_save_plot_any(state)
+    )
+    file_menu.add_command(
+        label="Save table...",
+        command=lambda: on_save_table_any(state)
+    )
+
+    file_menu.add_separator()
+
+    file_menu.add_command(
+        label="Exit",
+        command=_on_main_close
+    )
+
+    # ----------------------------
+    # View menu
+    # ----------------------------
+    view_menu.add_command(
+        label="2D PCS Plot",
+        command=lambda: open_pcs_plot_popup(state)
+    )
+    view_menu.add_command(
+        label="Projection",
+        command=lambda: open_projection_window(state)
+    )
+    view_menu.add_command(
+        label="3D Structure",
+        command=lambda: open_3d_plot_window(state)
+    )
+    view_menu.add_command(
+        label="3D PCS Plot",
+        command=lambda: open_pyvista_field(state)
+    )
+    view_menu.add_command(
+        label="NMR Shift Viewer",
+        command=lambda: open_nmr_window(state)
+    )
+
+    # ----------------------------
+    # Modules menu
+    # ----------------------------
+    modules_menu.add_command(
+        label="Module Manager...",
+        command=lambda: open_module_manager_window(state)
+    )
+
+    modules_menu.add_separator()
+
+    modules_menu.add_command(
+        label="PCS Workbench",
+        command=lambda: open_pcs_workbench(state)
+    )
+
+    # External plugin entries will be inserted below this index.
+    end_index = modules_menu.index("end")
+    state["plugin_menu_start_index"] = (
+        end_index + 1 if end_index is not None else 0
+    )
+
+    # ----------------------------
+    # Settings menu
+    # ----------------------------
+    settings_menu.add_command(
+        label="Open settings...",
+        command=lambda: open_settings_window(state)
+    )
+
     settings_menu.add_separator()
-    settings_menu.add_command(label="About PCS Analyzer", command=lambda: open_about_window(state))
+
+    settings_menu.add_command(
+        label="About PCS Analyzer",
+        command=lambda: open_about_window(state)
+    )
 
 
     state["residual_color_enabled_var"] = tk.BooleanVar(value=False)
@@ -1805,6 +1946,12 @@ def build_app():
 
     root.protocol("WM_DELETE_WINDOW", _on_main_close)
 
+    # ============================================================
+    # Load enabled plugins
+    # ============================================================
+    state["refresh_plugin_menu"] = lambda: refresh_plugin_menu(state)
+    refresh_plugin_menu(state)
+
     return state
 
 def switch_fit_mode(state):
@@ -2882,7 +3029,7 @@ def rebuild_recent_files_menu(state):
     state["recent_files"] = recents
 
     try:
-        save_app_state(state)
+        save_app_state(state, save_geometry=False)
     except Exception:
         pass
 
@@ -2895,7 +3042,7 @@ def rebuild_recent_files_menu(state):
             state["messagebox"].showwarning("Recent files", f"File not found:\n{path}")
             state["recent_files"] = [p for p in state.get("recent_files", []) if p != path]
             try:
-                save_app_state(state)
+                save_app_state(state, save_geometry=False)
             except Exception:
                 pass
             rebuild_recent_files_menu(state)
@@ -2920,7 +3067,7 @@ def rebuild_recent_files_menu(state):
 def _clear_recent_files(state):
     state["recent_files"] = []
     try:
-        save_app_state(state)
+        save_app_state(state, save_geometry=False)
     except Exception:
         pass
     rebuild_recent_files_menu(state)
@@ -2986,7 +3133,7 @@ def _load_xyz_from_path(state, path: str):
     add_recent_file(state, path)
     rebuild_recent_files_menu(state)
     try:
-        save_app_state(state)
+        save_app_state(state, save_geometry=False)
     except Exception:
         pass
 
