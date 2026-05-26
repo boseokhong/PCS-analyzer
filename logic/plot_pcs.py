@@ -1,7 +1,7 @@
 # logic/plot_pcs.py
 
 import numpy as np
-from logic.chem_constants import CPK_COLORS
+from logic.chem_constants import CPK_COLORS, covalent_radii
 
 
 def get_cpk_color(atom):
@@ -32,7 +32,7 @@ def calculate_r(pcs_value, theta, tensor):
     return r
 
 
-def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, polar_data=None, store_click_key=None):
+def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, polar_data=None, rotated_coords=None, store_click_key=None):
     """
     Draw one PCS polar plot onto the given figure/canvas pair.
 
@@ -82,16 +82,141 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
             intensity = max(0, 1 + pcs_value / abs(pcs_min))
             color = (intensity, intensity, 1)
 
+        rvals_plot = np.where(np.isfinite(rvals), rvals, 0.0)
+
         if plot_90:
             mirrored_theta = np.pi - theta_range
             ax.plot(
                 np.concatenate([theta_range, mirrored_theta]),
-                np.concatenate([rvals, rvals]),
+                np.concatenate([rvals_plot, rvals_plot]),
                 color=color,
                 label=f"{pcs_value: .1f}",
             )
         else:
-            ax.plot(theta_range, rvals, color=color, label=f"{pcs_value: .1f}")
+            ax.plot(theta_range, rvals_plot, color=color, label=f"{pcs_value: .1f}")
+
+    # Magic angle lines — distinct from grid (gray, thicker)
+    magic_angle = np.arccos(1.0 / np.sqrt(3))  # ~54.74 deg
+    for ma_ang in [magic_angle, np.pi - magic_angle]:
+        if plot_90 and ma_ang > np.pi / 2:
+            continue
+        ax.axvline(x=ma_ang, color="#BCCBD8", linewidth=1.2, linestyle="--", alpha=0.75)
+
+    # Options from state
+    use_radii_scale = bool(state.get("atom_scale_var").get()) if state.get("atom_scale_var") is not None else False
+    show_bonds      = bool(state.get("show_bonds_var").get()) if state.get("show_bonds_var") is not None else False
+    try:
+        atom_scale = float(state["atom_scale_entry"].get()) if "atom_scale_entry" in state else 1.0
+    except Exception:
+        atom_scale = 1.0
+    try:
+        bond_width = float(state["bond_width_entry"].get()) if "bond_width_entry" in state else 0.9
+    except Exception:
+        bond_width = 0.9
+    try:
+        bond_tol = float(state["bond_tol_entry"].get()) if "bond_tol_entry" in state else 0.03
+    except Exception:
+        bond_tol = 0.03
+
+    if rotated_coords is None:
+        rotated_coords = state.get("_pcs_last_rotated_coords")
+
+    # Bond drawing
+    # - Bond detection still uses real 3D distances from rotated_coords.
+    # - The color-splitting midpoint is computed in the displayed 2D polar plane,
+    #   so the midpoint lies visually on the A-B line in the polar plot.
+    if show_bonds and polar_data and rotated_coords and len(rotated_coords) == len(polar_data):
+        n_pd = len(polar_data)
+        coords = np.array(rotated_coords)  # shape (n, 3)
+
+        def _fold_theta_for_plot(theta):
+            """Map theta to the displayed angular range."""
+            if plot_90 and theta > np.pi / 2:
+                return np.pi - theta
+            return theta
+
+        def _polar_to_plot_xy(theta, r):
+            """
+            Convert displayed polar data to a 2D plotting-plane coordinate.
+
+            The PCS polar plot uses:
+            - theta zero at North
+            - theta direction clockwise
+
+            Therefore:
+            x = r * sin(theta)
+            y = r * cos(theta)
+            """
+            x = r * np.sin(theta)
+            y = r * np.cos(theta)
+            return x, y
+
+        def _plot_xy_to_polar(x, y):
+            """
+            Convert 2D plotting-plane coordinate back to polar data coordinates.
+            This gives a midpoint that lies on the visual A-B line.
+            """
+            r = float(np.hypot(x, y))
+            if r < 1e-10:
+                return None, None
+
+            theta = float(np.arctan2(x, y))
+
+            # Keep theta in the visible positive angular domain.
+            if theta < 0:
+                theta += 2 * np.pi
+
+            if plot_90:
+                # After folding, the intended displayed range is 0–90°.
+                # Numerical safety only; normally midpoint should already be in range.
+                theta = min(max(theta, 0.0), np.pi / 2)
+            else:
+                # The intended displayed range is 0–180°.
+                theta = min(max(theta, 0.0), np.pi)
+
+            return theta, r
+
+        for i in range(n_pd):
+            atom_i, r_i, theta_i = polar_data[i]
+            th_i = _fold_theta_for_plot(theta_i)
+            rad_i = covalent_radii.get(atom_i, covalent_radii["default"])
+
+            for j in range(i + 1, n_pd):
+                atom_j, r_j, theta_j = polar_data[j]
+                th_j = _fold_theta_for_plot(theta_j)
+                rad_j = covalent_radii.get(atom_j, covalent_radii["default"])
+
+                # Keep bond detection chemically/geometrically based on 3D distance.
+                dist3d = float(np.linalg.norm(coords[i] - coords[j]))
+
+                if dist3d <= (rad_i + rad_j) * (1.0 + bond_tol):
+                    # Midpoint in the displayed 2D polar plotting plane, not in 3D.
+                    x_i, y_i = _polar_to_plot_xy(th_i, r_i)
+                    x_j, y_j = _polar_to_plot_xy(th_j, r_j)
+
+                    x_mid = 0.5 * (x_i + x_j)
+                    y_mid = 0.5 * (y_i + y_j)
+
+                    th_mid, r_mid = _plot_xy_to_polar(x_mid, y_mid)
+                    if th_mid is None:
+                        continue
+
+                    ax.plot(
+                        [th_i, th_mid],
+                        [r_i, r_mid],
+                        color=get_cpk_color(atom_i),
+                        linewidth=bond_width,
+                        alpha=0.7,
+                        zorder=2,
+                    )
+                    ax.plot(
+                        [th_mid, th_j],
+                        [r_mid, r_j],
+                        color=get_cpk_color(atom_j),
+                        linewidth=bond_width,
+                        alpha=0.7,
+                        zorder=2,
+                    )
 
     click_pairs = []
 
@@ -113,6 +238,10 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
     else:
         pseudo_ref_ids = set(pseudo_ref_ids)
 
+    # Base scatter sizes
+    BASE_SIZE = 15
+    BASE_SIZE_PSEUDO = 30
+
     if polar_data:
         n = min(len(polar_data), len(ids))
 
@@ -126,8 +255,15 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
             is_pseudo = ref_id in pseudo_ref_ids
 
             marker = "x" if is_pseudo else "o"
-            size = 30 if is_pseudo else 15
             lw = 1.3 if is_pseudo else 0.8
+
+            # Atom size: radii-proportional or fixed
+            if use_radii_scale and not is_pseudo:
+                rad = covalent_radii.get(atom, covalent_radii["default"])
+                ref_rad = covalent_radii.get("C", 0.76)
+                size = BASE_SIZE * (rad / ref_rad) ** 2 * atom_scale
+            else:
+                size = (BASE_SIZE_PSEUDO if is_pseudo else BASE_SIZE) * atom_scale
 
             is_selected = (selected_ref is not None and ref_id == selected_ref)
             scatter_kwargs = dict(
@@ -207,10 +343,20 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
     canvas.draw_idle()
 
 
-def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
+def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None, rotated_coords=None):
     """
     Draw the embedded PCS plot and, if open, the popup PCS plot as well.
+
+    rotated_coords is required for 3D-distance-based bond detection.
+    Some redraw paths, such as table selection or atom highlighting, call this
+    function without rotated_coords. In that case, reuse the last valid
+    rotated coordinates so that visible bonds do not disappear after redraw.
     """
+    if rotated_coords is not None:
+        state["_pcs_last_rotated_coords"] = rotated_coords
+    else:
+        rotated_coords = state.get("_pcs_last_rotated_coords")
+
     # Main embedded PCS plot
     _draw_single_pcs_plot(
         fig=state.get("pcs_figure"),
@@ -220,6 +366,7 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
         theta_values=theta_values,
         tensor=tensor,
         polar_data=polar_data,
+        rotated_coords=rotated_coords,
         store_click_key="pcs_click_cid",
     )
 
@@ -232,6 +379,7 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None):
         theta_values=theta_values,
         tensor=tensor,
         polar_data=polar_data,
+        rotated_coords=rotated_coords,
         store_click_key="pcs_popup_click_cid",
     )
 

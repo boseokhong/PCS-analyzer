@@ -66,6 +66,70 @@ def _sep(parent, orient='horizontal', pady=8, fill='x'):
     s.pack(fill=fill, pady=pady)
     return s
 
+class ToolTip:
+    """Small Tkinter tooltip helper for ttk/tk widgets."""
+    def __init__(self, widget, text, delay=600, wraplength=320):
+        self.widget = widget
+        self.text = text
+        self.delay = delay
+        self.wraplength = wraplength
+        self.tipwindow = None
+        self.after_id = None
+
+        self.widget.bind("<Enter>", self._schedule, add="+")
+        self.widget.bind("<Leave>", self._hide, add="+")
+        self.widget.bind("<ButtonPress>", self._hide, add="+")
+
+    def _schedule(self, event=None):
+        self._cancel()
+        self.after_id = self.widget.after(self.delay, self._show)
+
+    def _cancel(self):
+        if self.after_id is not None:
+            try:
+                self.widget.after_cancel(self.after_id)
+            except Exception:
+                pass
+            self.after_id = None
+
+    def _show(self):
+        if self.tipwindow is not None or not self.text:
+            return
+
+        try:
+            x = self.widget.winfo_rootx() + 18
+            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 8
+        except Exception:
+            return
+
+        self.tipwindow = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+
+        label = tk.Label(
+            tw,
+            text=self.text,
+            justify=tk.LEFT,
+            background="#FFFFE0",
+            foreground="#111111",
+            relief=tk.SOLID,
+            borderwidth=1,
+            wraplength=self.wraplength,
+            font=("Segoe UI", 9),
+            padx=7,
+            pady=5,
+        )
+        label.pack()
+
+    def _hide(self, event=None):
+        self._cancel()
+        if self.tipwindow is not None:
+            try:
+                self.tipwindow.destroy()
+            except Exception:
+                pass
+            self.tipwindow = None
+
 # slider theme related helper
 def _apply_scale_theme(scale_widget, state):
     app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
@@ -1667,69 +1731,330 @@ def build_app():
     state["conformer_result_box"] = cs_app._result_box
 
     # Right inputs region
-    input_frame = ttk.Frame(right_frame); input_frame.pack(fill=tk.Y, padx=10, pady=10); state['input_frame']=input_frame
+    input_frame = ttk.Frame(right_frame);
+    input_frame.pack(fill=tk.Y, padx=10, pady=10);
+    state['input_frame'] = input_frame
 
     # Δχ_ax
-    tf = ttk.Frame(input_frame); tf.pack(pady=3)
-    ttk.Label(tf, text="Δχ_ax values (E-32 m³):", font=("default",9,"bold")).pack(side=tk.LEFT)
-    tensor_entry = ttk.Entry(tf, width=5); tensor_entry.pack(side=tk.LEFT, padx=5); state['tensor_entry']=tensor_entry
+    tf = ttk.Frame(input_frame)
+    tf.pack(pady=3)
+
+    dchi_ax_label = ttk.Label(
+        tf,
+        text="Δχ_ax values (E-32 m³):",
+        font=("default", 9, "bold")
+    )
+    dchi_ax_label.pack(side=tk.LEFT)
+
+    tensor_entry = ttk.Entry(tf, width=5)
+    tensor_entry.pack(side=tk.LEFT, padx=5)
+    state['tensor_entry'] = tensor_entry
+
+    dchi_ax_tooltip = (
+        "Set the axial magnetic susceptibility anisotropy used for PCS calculation."
+    )
+    ToolTip(dchi_ax_label, dchi_ax_tooltip)
+    ToolTip(tensor_entry, dchi_ax_tooltip)
 
     # PCS range
-    prf = ttk.Frame(input_frame); prf.pack(pady=3)
-    ttk.Label(prf, text="PCS plot range (ppm)", font=("default",9,"bold")).pack(side=tk.TOP, pady=0)
-    pef = ttk.Frame(prf); pef.pack(side=tk.TOP, pady=0)
-    ttk.Label(pef, text="Min:").pack(side=tk.LEFT); pcs_min_entry = ttk.Entry(pef, width=5); pcs_min_entry.pack(side=tk.LEFT, padx=5)
-    ttk.Label(pef, text="/").pack(side=tk.LEFT); ttk.Label(pef, text="Max:").pack(side=tk.LEFT); pcs_max_entry = ttk.Entry(pef, width=5); pcs_max_entry.pack(side=tk.LEFT, padx=5)
-    state['pcs_min_entry']=pcs_min_entry; state['pcs_max_entry']=pcs_max_entry
+    prf = ttk.Frame(input_frame)
+    prf.pack(pady=3)
+
+    pcs_range_label = ttk.Label(
+        prf,
+        text="PCS plot range (ppm)",
+        font=("default", 9, "bold")
+    )
+    pcs_range_label.pack(side=tk.TOP, pady=0)
+
+    pef = ttk.Frame(prf)
+    pef.pack(side=tk.TOP, pady=0)
+
+    pcs_min_label = ttk.Label(pef, text="Min:")
+    pcs_min_label.pack(side=tk.LEFT)
+
+    pcs_min_entry = ttk.Entry(pef, width=5)
+    pcs_min_entry.pack(side=tk.LEFT, padx=5)
+
+    ttk.Label(pef, text="/").pack(side=tk.LEFT)
+
+    pcs_max_label = ttk.Label(pef, text="Max:")
+    pcs_max_label.pack(side=tk.LEFT)
+
+    pcs_max_entry = ttk.Entry(pef, width=5)
+    pcs_max_entry.pack(side=tk.LEFT, padx=5)
+
+    state['pcs_min_entry'] = pcs_min_entry
+    state['pcs_max_entry'] = pcs_max_entry
+
+    pcs_range_tooltip = (
+        "Set the minimum and maximum PCS contour values shown in the 2D polar plot."
+    )
+    ToolTip(pcs_range_label, pcs_range_tooltip)
+    ToolTip(pcs_min_label, pcs_range_tooltip)
+    ToolTip(pcs_min_entry, pcs_range_tooltip)
+    ToolTip(pcs_max_label, pcs_range_tooltip)
+    ToolTip(pcs_max_entry, pcs_range_tooltip)
 
     # Interval
-    pif = ttk.Frame(input_frame); pif.pack(pady=3)
-    ttk.Label(pif, text="PCS plot interval (ppm):", font=("default",9,"bold")).pack(side=tk.LEFT)
-    pcs_interval_entry = ttk.Entry(pif, width=5); pcs_interval_entry.pack(side=tk.LEFT, padx=5); state['pcs_interval_entry']=pcs_interval_entry
+    pif = ttk.Frame(input_frame)
+    pif.pack(pady=3)
 
-    # Toggle 0-90 / 0-180
-    prt = ttk.Frame(input_frame); prt.pack(pady=0); ttk.Label(prt, text="Half/Quarter plot toggle", font=("default",9,"bold")).pack(side=tk.LEFT)
-    plot_90_var = tk.BooleanVar(value=False); state['plot_90_var']=plot_90_var
-    ttk.Checkbutton(prt, variable=plot_90_var,
-                   command=lambda: state['update_graph'](),
-                   ).pack(side=tk.LEFT)
+    pcs_interval_label = ttk.Label(
+        pif,
+        text="PCS plot interval (ppm):",
+        font=("default", 9, "bold")
+    )
+    pcs_interval_label.pack(side=tk.LEFT)
+
+    pcs_interval_entry = ttk.Entry(pif, width=5)
+    pcs_interval_entry.pack(side=tk.LEFT, padx=5)
+    state['pcs_interval_entry'] = pcs_interval_entry
+
+    pcs_interval_tooltip = (
+        "Set the spacing between PCS contour lines in the 2D polar plot."
+    )
+    ToolTip(pcs_interval_label, pcs_interval_tooltip)
+    ToolTip(pcs_interval_entry, pcs_interval_tooltip)
 
     # Update/Reset
-    bf = ttk.Frame(input_frame); bf.pack(pady=3)
-    ttk.Button(bf, text="⟳ Update", command=lambda: state['update_graph']()).pack(side=tk.LEFT, padx=2)
-    ttk.Button(bf, text="❌ Reset", command=lambda: reset_values(state)).pack(side=tk.LEFT, padx=2)
+    bf = ttk.Frame(input_frame)
+    bf.pack(pady=3)
+
+    update_btn = ttk.Button(
+        bf,
+        text="⟳ Update",
+        command=lambda: state['update_graph']()
+    )
+    update_btn.pack(side=tk.LEFT, padx=2)
+
+    reset_btn = ttk.Button(
+        bf,
+        text="❌ Reset",
+        command=lambda: reset_values(state)
+    )
+    reset_btn.pack(side=tk.LEFT, padx=2)
+
+    ToolTip(
+        update_btn,
+        "Update the PCS values, table, and plots using the current settings."
+    )
+    ToolTip(
+        reset_btn,
+        "Reset the PCS plot controls to their default values."
+    )
+
+    _sep(input_frame)
+
+    # Toggle 0-90 / 0-180
+    prt = ttk.Frame(input_frame)
+    prt.pack(pady=3)
+
+    plot_toggle_label = ttk.Label(
+        prt,
+        text="Half/Quarter plot toggle",
+        font=("default", 9, "bold")
+    )
+    plot_toggle_label.pack(side=tk.LEFT)
+
+    plot_90_var = tk.BooleanVar(value=False)
+    state['plot_90_var'] = plot_90_var
+
+    plot_toggle_check = ttk.Checkbutton(
+        prt,
+        variable=plot_90_var,
+        command=lambda: state['update_graph']()
+    )
+    plot_toggle_check.pack(side=tk.LEFT, padx=(4, 0))
+
+    plot_toggle_tooltip = (
+        "Toggle the 2D polar plot range between 0–180° and 0–90°."
+    )
+    ToolTip(plot_toggle_label, plot_toggle_tooltip)
+    ToolTip(plot_toggle_check, plot_toggle_tooltip)
+
+    # Atom scale / Bond controls
+    atom_scale_var = tk.BooleanVar(value=False)
+    state['atom_scale_var'] = atom_scale_var
+
+    show_bonds_var = tk.BooleanVar(value=False)
+    state['show_bonds_var'] = show_bonds_var
+
+    pat = ttk.Frame(input_frame)
+    pat.pack(pady=(0, 2))
+
+    atom_radii_label = ttk.Label(
+        pat,
+        text="Atom radii",
+        font=("default", 9, "bold")
+    )
+    atom_radii_label.pack(side=tk.LEFT, padx=(0, 2))
+
+    atom_radii_check = ttk.Checkbutton(
+        pat,
+        variable=atom_scale_var,
+        command=lambda: state['update_graph']()
+    )
+    atom_radii_check.pack(side=tk.LEFT, padx=(0, 8))
+
+    atom_scale_label = ttk.Label(
+        pat,
+        text="Atom scale:",
+        font=("default", 9, "bold")
+    )
+    atom_scale_label.pack(side=tk.LEFT, padx=(0, 2))
+
+    atom_scale_entry = ttk.Entry(pat, width=4)
+    atom_scale_entry.insert(0, "1.0")
+    atom_scale_entry.pack(side=tk.LEFT)
+    state['atom_scale_entry'] = atom_scale_entry
+
+    atom_radii_tooltip = (
+        "Show atom-size-scaled scatter points in the 2D polar plot."
+    )
+    atom_scale_tooltip = (
+        "Adjust the atom-radius scaling factor in the 2D polar plot."
+    )
+
+    ToolTip(atom_radii_label, atom_radii_tooltip)
+    ToolTip(atom_radii_check, atom_radii_tooltip)
+    ToolTip(atom_scale_label, atom_scale_tooltip)
+    ToolTip(atom_scale_entry, atom_scale_tooltip)
+
+    pbw = ttk.Frame(input_frame)
+    pbw.pack(pady=(0, 3))
+
+    bonds_label = ttk.Label(
+        pbw,
+        text="Bonds",
+        font=("default", 9, "bold")
+    )
+    bonds_label.pack(side=tk.LEFT, padx=(0, 2))
+
+    bonds_check = ttk.Checkbutton(
+        pbw,
+        variable=show_bonds_var,
+        command=lambda: state['update_graph']()
+    )
+    bonds_check.pack(side=tk.LEFT, padx=(0, 8))
+
+    width_label = ttk.Label(
+        pbw,
+        text="width:",
+        font=("default", 9, "bold")
+    )
+    width_label.pack(side=tk.LEFT, padx=(0, 2))
+
+    bond_width_entry = ttk.Entry(pbw, width=4)
+    bond_width_entry.insert(0, "1.1")
+    bond_width_entry.pack(side=tk.LEFT, padx=(0, 6))
+    state['bond_width_entry'] = bond_width_entry
+
+    tol_label = ttk.Label(
+        pbw,
+        text="tol.:",
+        font=("default", 9, "bold")
+    )
+    tol_label.pack(side=tk.LEFT, padx=(0, 2))
+
+    bond_tol_entry = ttk.Entry(pbw, width=4)
+    bond_tol_entry.insert(0, "0.03")
+    bond_tol_entry.pack(side=tk.LEFT)
+    state['bond_tol_entry'] = bond_tol_entry
+
+    bond_tooltip = (
+        "Display guide lines between nearby atoms. "
+        "These are visual aids, not confirmed bonding paths."
+    )
+    width_tooltip = (
+        "Set the thickness of the displayed bond lines."
+    )
+    tol_tooltip = (
+        "Set the extra margin for bond detection. "
+        "Cutoff = summed covalent radii × (1.00 + tol.)."
+    )
+
+    ToolTip(bonds_label, bond_tooltip)
+    ToolTip(bonds_check, bond_tooltip)
+    ToolTip(width_label, width_tooltip)
+    ToolTip(bond_width_entry, width_tooltip)
+    ToolTip(tol_label, tol_tooltip)
+    ToolTip(bond_tol_entry, tol_tooltip)
 
     # Frame - align middle
-    for f in (tf, prf, pif, prt, bf):
+    for f in (tf, prf, pif, prt, pat, pbw, bf):
         f.pack_configure(anchor="center")
 
     _sep(input_frame)
 
     # Molar labels and chi_mol
-    state['molar_value_label'] = ttk.Label(input_frame, text="Δχ_mol_ax : N/A m³/mol")
+    state['molar_value_label'] = ttk.Label(
+        input_frame,
+        text="Δχ_mol_ax : N/A m³/mol"
+    )
     state['molar_value_label'].pack(pady=0)
 
-    ttk.Label(input_frame, text="χ_mol from Exp. (m³/mol):").pack()
+    molar_value_tooltip = (
+        "Molar axial susceptibility anisotropy converted from the molecular Δχ_ax value."
+    )
+    ToolTip(state['molar_value_label'], molar_value_tooltip)
+
+    chi_mol_label = ttk.Label(
+        input_frame,
+        text="χ_mol from Exp. (m³/mol):"
+    )
+    chi_mol_label.pack()
 
     chi_mol_entry = ttk.Entry(input_frame)
     chi_mol_entry.pack()
     state['chi_mol_entry'] = chi_mol_entry
 
-    state['tensor_xx_label'] = ttk.Label(input_frame, text="χ_xx: N/A m³/mol")
+    chi_mol_tooltip = (
+        "Enter the experimental molar susceptibility. "
+        "Leave blank to use a traceless tensor approximation."
+    )
+    ToolTip(chi_mol_label, chi_mol_tooltip)
+    ToolTip(chi_mol_entry, chi_mol_tooltip)
+
+    state['tensor_xx_label'] = ttk.Label(
+        input_frame,
+        text="χ_xx: N/A m³/mol"
+    )
     state['tensor_xx_label'].pack()
-    state['tensor_yy_label'] = ttk.Label(input_frame, text="χ_yy: N/A m³/mol")
+
+    state['tensor_yy_label'] = ttk.Label(
+        input_frame,
+        text="χ_yy: N/A m³/mol"
+    )
     state['tensor_yy_label'].pack()
-    state['tensor_zz_label'] = ttk.Label(input_frame, text="χ_zz: N/A m³/mol")
+
+    state['tensor_zz_label'] = ttk.Label(
+        input_frame,
+        text="χ_zz: N/A m³/mol"
+    )
     state['tensor_zz_label'].pack()
+
+    tensor_component_tooltip = (
+        "Calculated tensor components derived from the current Δχ settings."
+    )
+    ToolTip(state['tensor_xx_label'], tensor_component_tooltip)
+    ToolTip(state['tensor_yy_label'], tensor_component_tooltip)
+    ToolTip(state['tensor_zz_label'], tensor_component_tooltip)
 
     # ---- Auto-calc on/off ----
     state.setdefault("chi_auto_calc_var", tk.BooleanVar(value=True))
 
-    ttk.Checkbutton(
+    auto_calc_check = ttk.Checkbutton(
         input_frame,
         text="Auto-calc (default: ON)",
         variable=state["chi_auto_calc_var"],
-    ).pack(pady=(2, 0))
+    )
+    auto_calc_check.pack(pady=(2, 0))
+
+    ToolTip(
+        auto_calc_check,
+        "Automatically update χ tensor components when related input values change."
+    )
 
     # ---- Placeholder (blank -> traceless) ----
     CHI_PLACEHOLDER = "blank → χ_iso=0"
@@ -2520,7 +2845,7 @@ def on_save_plot_any(state):
     ext = ext.lower()
 
     if ext == ".xlsx":
-        pcs_values, theta_values, tensor, polar_data = recompute_plot_inputs(state)
+        pcs_values, theta_values, tensor, polar_data, _ = recompute_plot_inputs(state)
         try:
             from logic.export_utils import save_to_excel
             save_to_excel(pcs_values, theta_values, tensor, fd, polar_data)
@@ -2536,7 +2861,7 @@ def on_save_plot_any(state):
         state['messagebox'].showinfo("Export", f"Saved Excel:\n{fd}")
 
     elif ext == ".csv":
-        pcs_values, theta_values, tensor, polar_data = recompute_plot_inputs(state)
+        pcs_values, theta_values, tensor, polar_data, _ = recompute_plot_inputs(state)
         from logic.export_utils import save_to_csv
         pcs_path, atoms_path = save_to_csv(pcs_values, theta_values, tensor, fd, polar_data)
         state['messagebox'].showinfo("Export", f"Saved CSV:\n{pcs_path}\n{atoms_path}")
@@ -2587,7 +2912,7 @@ def on_save_plot_any(state):
     else:
         # 확장자 없으면 .xlsx로 저장
         fd_x = base + ".xlsx"
-        pcs_values, theta_values, tensor, polar_data = recompute_plot_inputs(state)
+        pcs_values, theta_values, tensor, polar_data, _ = recompute_plot_inputs(state)
         try:
             from logic.export_utils import save_to_excel
             save_to_excel(pcs_values, theta_values, tensor, fd_x, polar_data)
@@ -2768,8 +3093,8 @@ def recompute_plot_inputs(state):
     theta_values = state.get('theta_values')
     if theta_values is None:
         theta_values = np.linspace(0, 2*np.pi, 500); state['theta_values']=theta_values
-    polar_data, _ = filter_atoms(state)
-    return pcs_values, theta_values, tensor, polar_data
+    polar_data, rotated_coords = filter_atoms(state)
+    return pcs_values, theta_values, tensor, polar_data, rotated_coords
 
 def update_graph(state):
     tensor = state['tensor_entry'].get()
@@ -2790,13 +3115,14 @@ def update_graph(state):
             pass
     else:
         polar_data = None
+        rotated_coords = None
 
     theta_values = state.get('theta_values')
     if theta_values is None:
         theta_values = np.linspace(0, 2*np.pi, 500)
     state['theta_values'] = theta_values
 
-    plot_graph(state, pcs_values, theta_values, tensor, polar_data=polar_data)
+    plot_graph(state, pcs_values, theta_values, tensor, polar_data=polar_data, rotated_coords=rotated_coords)
     plot_cartesian_graph(state)
     update_molar_value(state, tensor)
     try:

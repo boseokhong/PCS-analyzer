@@ -17,6 +17,8 @@ v.1.3.3 updates
 - Fonts options in Settings window, code refactoring
 - Support `.pcsp` project file I/O for project reproducibility
 - Drag & Drop to load `.pcsp`,`.xyz`,`.out`,`.log` files
+- Improved 2D polar contour plot visualization
+- Main window control panel UI changed
 
 v.1.3.2 updates
 - added **PCS Workbench** for FFT-based distributed PCS / PDE analysis
