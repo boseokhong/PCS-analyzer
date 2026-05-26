@@ -15,6 +15,8 @@ def cartesian_to_spherical_with_colors(coords, elements):
 def plot_theta_phi_scatter(root, theta, phi, elements, colors, FigureCanvasTkAgg):
     import matplotlib.pyplot as plt
     import tkinter as tk
+    fonts = getattr(root, "_app_fonts", {}) or {}
+    plot_label = fonts.get("plot_label", 8)
     win = tk.Toplevel(root)
     win.title("Mollweide projection plot")
     win.geometry("800x400")
@@ -23,8 +25,8 @@ def plot_theta_phi_scatter(root, theta, phi, elements, colors, FigureCanvasTkAgg
     ax.grid(True)
     for t, p, c in zip(theta, phi, colors):
         ax.scatter(t, p, color=c, s=25, alpha=0.8)
-    ax.set_xlabel("Azimuthal angle (φ)", fontsize=8)
-    ax.set_ylabel("Polar angle (θ)", fontsize=8)
+    ax.set_xlabel("Azimuthal angle (φ)", fontsize=plot_label)
+    ax.set_ylabel("Polar angle (θ)", fontsize=plot_label)
     ax.axhline(y=0, color='black', linewidth=1)
 
     canvas = FigureCanvasTkAgg(fig, master=win)

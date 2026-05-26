@@ -11,6 +11,8 @@ import tkinter as tk
 from tkinter import ttk, colorchooser, filedialog
 from typing import Callable, Optional
 
+from ui.style import get_app_fonts
+
 
 STYLE_OPTIONS = ("surface", "mesh", "both")
 CAMERA_PRESETS = ("iso", "xy", "xz", "yz")
@@ -36,9 +38,10 @@ def _labeled_check(parent, row, label, variable, tooltip=""):
 
 
 def _section_header(parent, row, text):
+    fonts = get_app_fonts(parent)
     sep = ttk.Separator(parent, orient="horizontal")
     sep.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 2))
-    lbl = ttk.Label(parent, text=text, font=("TkDefaultFont", 9, "bold"))
+    lbl = ttk.Label(parent, text=text, font=fonts.get("section", ("TkDefaultFont", 9, "bold")))
     lbl.grid(row=row + 1, column=0, columnspan=2, sticky="w", pady=(0, 4))
     return lbl
 
@@ -114,7 +117,7 @@ class _ToolTip:
             background="#fffde7",
             relief="solid",
             borderwidth=1,
-            font=("TkDefaultFont", 8),
+            font=get_app_fonts(self._widget).get("ui_small", ("TkDefaultFont", 8)),
             wraplength=280,
             justify="left",
             padx=4,
@@ -351,7 +354,7 @@ class ControlPanel(ttk.Frame):
             inner,
             textvariable=self._temp_summary_var,
             foreground="gray",
-            font=("TkDefaultFont", 8),
+            font=get_app_fonts(self).get("ui_small", ("TkDefaultFont", 8)),
             wraplength=220,
             justify="left",
         )
@@ -411,7 +414,7 @@ class ControlPanel(ttk.Frame):
         hdr = ttk.Frame(inner)
         hdr.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 2))
         for col, txt in enumerate(("ppm", "Pos", "Neg", "Style", "Opacity", "")):
-            ttk.Label(hdr, text=txt, font=("TkDefaultFont", 8, "bold")).grid(
+            ttk.Label(hdr, text=txt, font=get_app_fonts(self).get("ui_small_bold", ("TkDefaultFont", 8, "bold"))).grid(
                 row=0, column=col, padx=2, sticky="w"
             )
         r += 1
@@ -579,7 +582,7 @@ class ControlPanel(ttk.Frame):
                 "Use Open / Refresh Viewer to redraw only the scene with the current display settings."
             ),
             foreground="gray",
-            font=("TkDefaultFont", 8),
+            font=get_app_fonts(self).get("ui_small", ("TkDefaultFont", 8)),
             wraplength=240,
             justify="left",
         ).grid(row=r, column=0, columnspan=2, pady=(10, 4), sticky="w")

@@ -14,6 +14,9 @@ v.1.3.3 updates
   - **Angular mode**: preserves metal-centered donor directions while allowing radial relaxation, suitable for flexible coordination-complex searches.
   - Added false-bond detection and skipped-bond handling to Conformer Search.
   - Added **Rigid mode** for fully constrained conformer-search workflows.
+- Fonts options in Settings window, code refactoring
+- Support `.pcsp` project file I/O for project reproducibility
+- Drag & Drop to load `.pcsp`,`.xyz`,`.out`,`.log` files
 
 v.1.3.2 updates
 - added **PCS Workbench** for FFT-based distributed PCS / PDE analysis

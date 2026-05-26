@@ -8,7 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 
 
-DEFAULT_MAIN_GEOMETRY = "1200x880"
+DEFAULT_MAIN_GEOMETRY = "1250x850"
 MIN_MAIN_WIDTH = 900
 MIN_MAIN_HEIGHT = 650
 
@@ -30,6 +30,22 @@ DEFAULT_APP_SETTINGS = {
     "default_pcs_interval": 0.5,
 
     "export_default_dpi": 600,
+
+    # Font settings
+    # UI/Table/Report are Tk font tuples. Plot is used for Matplotlib/PyVista sizes.
+    "font_family_ui": "Segoe UI",
+    "font_size_ui": 9,
+
+    "font_family_table": "Segoe UI",
+    "font_size_table": 10,
+
+    "font_family_report": "Consolas",
+    "font_size_report": 9,
+
+    "font_family_plot": "DejaVu Sans",
+    "font_size_plot": 9,
+
+    "font_scale": 1.0,
 }
 
 
@@ -50,9 +66,9 @@ def parse_tk_geometry(geometry: str):
     Parse a Tk geometry string.
 
     Accepted examples:
-        1200x880
-        1200x880+100+100
-        1200x880-10+50
+        1250x850
+        1250x850+100+100
+        1250x850-10+50
 
     Returns:
         (width, height, x, y) or None
@@ -165,6 +181,18 @@ def _coerce_settings(raw: dict) -> dict:
     if theme_accent in ("blue", "green", "orange", "purple"):
         cfg["theme_accent"] = theme_accent
 
+    # font family strings
+    for key in (
+        "font_family_ui",
+        "font_family_table",
+        "font_family_report",
+        "font_family_plot",
+    ):
+        if key in raw:
+            value = str(raw.get(key, cfg[key])).strip()
+            if value:
+                cfg[key] = value
+
     # bools
     for key in (
         "open_2d_plot_on_start",
@@ -190,6 +218,14 @@ def _coerce_settings(raw: dict) -> dict:
     except Exception:
         pass
 
+    for key in ("font_size_ui", "font_size_table", "font_size_report", "font_size_plot"):
+        try:
+            v = int(raw.get(key, cfg[key]))
+            if 6 <= v <= 48:
+                cfg[key] = v
+        except Exception:
+            pass
+
     # floats
     try:
         cfg["default_dchi_ax"] = float(raw.get("default_dchi_ax", cfg["default_dchi_ax"]))
@@ -208,6 +244,13 @@ def _coerce_settings(raw: dict) -> dict:
 
     try:
         cfg["default_pcs_interval"] = float(raw.get("default_pcs_interval", cfg["default_pcs_interval"]))
+    except Exception:
+        pass
+
+    try:
+        font_scale = float(raw.get("font_scale", cfg["font_scale"]))
+        if 0.5 <= font_scale <= 2.5:
+            cfg["font_scale"] = font_scale
     except Exception:
         pass
 
@@ -230,7 +273,7 @@ def load_app_state() -> dict:
         {
             "app_settings": {...},
             "recent_files": [...],
-            "main_window_geometry": "1200x880+100+100" | None,
+            "main_window_geometry": "1250x850+100+100" | None,
         }
     """
     path = get_settings_path()

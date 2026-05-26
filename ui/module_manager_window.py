@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from ui.style import get_app_fonts
 
 from plugin_system.plugin_registry import (
     INSTALLED_DIR,
@@ -42,6 +43,8 @@ def open_module_manager_window(state: dict):
     outer = ttk.Frame(win, padding=10)
     outer.pack(fill="both", expand=True)
 
+    fonts = get_app_fonts(state)
+
     # ============================================================
     # Header
     # ============================================================
@@ -51,7 +54,7 @@ def open_module_manager_window(state: dict):
     ttk.Label(
         title_row,
         text="Installed Modules",
-        font=("Segoe UI", 11, "bold"),
+        font=fonts.get("section_large", ("Segoe UI", 11, "bold")),
     ).pack(side="left")
 
     ttk.Label(

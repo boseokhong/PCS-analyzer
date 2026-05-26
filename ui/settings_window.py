@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
-from logic.app_settings import save_app_state
+from logic.app_settings import save_app_state, build_default_settings
 
 def open_settings_window(state: dict):
     root = state["root"]
@@ -19,25 +19,12 @@ def open_settings_window(state: dict):
         except Exception:
             pass
 
-    app_settings = state.setdefault("app_settings", {
-        "theme_variant": "light",
-        "theme_accent": "green",
-        "open_2d_plot_on_start": True,
-        "auto_open_3d_on_load": True,
-        "remember_window_geometry": True,
-        "remember_recent_files": True,
-        "max_recent_files": 8,
-        "default_dchi_ax": -2.0,
-        "default_pcs_min": -10.0,
-        "default_pcs_max": 10.0,
-        "default_pcs_interval": 0.5,
-        "export_default_dpi": 600,
-    })
+    app_settings = state.setdefault("app_settings", build_default_settings())
 
     win = tk.Toplevel(root)
     win.title("Settings")
-    win.geometry("620x540")
-    win.minsize(560, 440)
+    win.geometry("700x660")
+    win.minsize(640, 540)
     state["settings_window"] = win
 
     outer = ttk.Frame(win, padding=10)
@@ -68,6 +55,15 @@ def open_settings_window(state: dict):
         "export_default_dpi": tk.StringVar(value=str(app_settings.get("export_default_dpi", 600))),
         "theme_variant": tk.StringVar(value=str(app_settings.get("theme_variant", "light"))),
         "theme_accent": tk.StringVar(value=str(app_settings.get("theme_accent", "green"))),
+        "font_family_ui": tk.StringVar(value=str(app_settings.get("font_family_ui", "Segoe UI"))),
+        "font_size_ui": tk.StringVar(value=str(app_settings.get("font_size_ui", 10))),
+        "font_family_table": tk.StringVar(value=str(app_settings.get("font_family_table", "Segoe UI"))),
+        "font_size_table": tk.StringVar(value=str(app_settings.get("font_size_table", 10))),
+        "font_family_report": tk.StringVar(value=str(app_settings.get("font_family_report", "Consolas"))),
+        "font_size_report": tk.StringVar(value=str(app_settings.get("font_size_report", 9))),
+        "font_family_plot": tk.StringVar(value=str(app_settings.get("font_family_plot", "DejaVu Sans"))),
+        "font_size_plot": tk.StringVar(value=str(app_settings.get("font_size_plot", 9))),
+        "font_scale": tk.StringVar(value=str(app_settings.get("font_scale", 1.0))),
     }
 
     # ----------------------------
@@ -166,6 +162,54 @@ def open_settings_window(state: dict):
         width=14,
     ).grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(10, 2))
 
+    fonts_box = ttk.LabelFrame(tab_appearance, text="Fonts", padding=10)
+    fonts_box.pack(fill="x", padx=10, pady=6)
+    fonts_box.columnconfigure(1, weight=1)
+
+    common_ui_fonts = ["Segoe UI", "Arial", "Helvetica", "TkDefaultFont"]
+    common_report_fonts = ["Consolas", "Courier New", "Menlo", "Monaco", "TkFixedFont"]
+    common_plot_fonts = ["DejaVu Sans", "Arial", "Helvetica", "Segoe UI"]
+
+    def _font_row(row, label, family_key, size_key, values):
+        ttk.Label(fonts_box, text=label).grid(row=row, column=0, sticky="w", pady=2)
+        ttk.Combobox(
+            fonts_box,
+            textvariable=vars_[family_key],
+            values=values,
+            width=18,
+        ).grid(row=row, column=1, sticky="ew", padx=(10, 8), pady=2)
+        ttk.Spinbox(
+            fonts_box,
+            from_=6,
+            to=48,
+            textvariable=vars_[size_key],
+            width=6,
+        ).grid(row=row, column=2, sticky="w", pady=2)
+
+    _font_row(0, "UI font:", "font_family_ui", "font_size_ui", common_ui_fonts)
+    _font_row(1, "Table font:", "font_family_table", "font_size_table", common_ui_fonts)
+    _font_row(2, "Report font:", "font_family_report", "font_size_report", common_report_fonts)
+    _font_row(3, "Plot font:", "font_family_plot", "font_size_plot", common_plot_fonts)
+
+    ttk.Label(fonts_box, text="Global scale:").grid(row=4, column=0, sticky="w", pady=(8, 2))
+    ttk.Combobox(
+        fonts_box,
+        textvariable=vars_["font_scale"],
+        values=["0.85", "0.90", "1.0", "1.10", "1.20", "1.35", "1.50"],
+        width=8,
+    ).grid(row=4, column=1, sticky="w", padx=(10, 0), pady=(8, 2))
+
+    ttk.Label(
+        fonts_box,
+        text=(
+            "UI/Table/Report fonts affect Tk widgets. Plot font size is used as the "
+            "base size for Matplotlib/PyVista labels."
+        ),
+        foreground="#666666",
+        wraplength=600,
+        justify="left",
+    ).grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
     ttk.Label(
         tab_appearance,
         text="Changes to appearance are applied when you click Apply or OK.",
@@ -186,6 +230,11 @@ def open_settings_window(state: dict):
             default_pcs_max = float(vars_["default_pcs_max"].get())
             default_pcs_interval = float(vars_["default_pcs_interval"].get())
             export_default_dpi = int(vars_["export_default_dpi"].get())
+            font_size_ui = int(vars_["font_size_ui"].get())
+            font_size_table = int(vars_["font_size_table"].get())
+            font_size_report = int(vars_["font_size_report"].get())
+            font_size_plot = int(vars_["font_size_plot"].get())
+            font_scale = float(vars_["font_scale"].get())
         except Exception:
             raise ValueError("One or more numeric settings are invalid.")
 
@@ -197,6 +246,20 @@ def open_settings_window(state: dict):
             raise ValueError("Default PCS interval must be greater than 0.")
         if export_default_dpi <= 0:
             raise ValueError("Default export DPI must be greater than 0.")
+        for label, size in (
+            ("UI font size", font_size_ui),
+            ("Table font size", font_size_table),
+            ("Report font size", font_size_report),
+            ("Plot font size", font_size_plot),
+        ):
+            if not (6 <= size <= 48):
+                raise ValueError(f"{label} must be between 6 and 48.")
+        if not (0.5 <= font_scale <= 2.5):
+            raise ValueError("Global font scale must be between 0.5 and 2.5.")
+
+        def _font_family(key, fallback):
+            value = vars_[key].get().strip()
+            return value or fallback
 
         return {
             "theme_variant": vars_["theme_variant"].get().strip(),
@@ -211,6 +274,15 @@ def open_settings_window(state: dict):
             "default_pcs_max": default_pcs_max,
             "default_pcs_interval": default_pcs_interval,
             "export_default_dpi": export_default_dpi,
+            "font_family_ui": _font_family("font_family_ui", "Segoe UI"),
+            "font_size_ui": font_size_ui,
+            "font_family_table": _font_family("font_family_table", "Segoe UI"),
+            "font_size_table": font_size_table,
+            "font_family_report": _font_family("font_family_report", "Consolas"),
+            "font_size_report": font_size_report,
+            "font_family_plot": _font_family("font_family_plot", "DejaVu Sans"),
+            "font_size_plot": font_size_plot,
+            "font_scale": font_scale,
         }
 
     def _apply_settings():
@@ -225,11 +297,14 @@ def open_settings_window(state: dict):
         # Appearance: apply immediately
         try:
             from ui.style import apply_style
-            apply_style(
+            style = apply_style(
                 state["root"],
                 variant=state["app_settings"]["theme_variant"],
                 accent=state["app_settings"]["theme_accent"],
+                settings=state["app_settings"],
             )
+            state["style"] = style
+            state["fonts"] = getattr(state["root"], "_app_fonts", {})
         except Exception:
             pass
 

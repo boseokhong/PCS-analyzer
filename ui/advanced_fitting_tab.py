@@ -25,6 +25,7 @@ from logic.advanced_physics import (
     fit_multilanthanid,
 )
 from logic.xyz_loader import load_structure
+from ui.style import get_app_fonts
 
 # ============================================================================
 # Public builder
@@ -102,9 +103,21 @@ def _fill_listbox(lb, lines):
     for line in lines:
         lb.insert("end", line)
 
+def _plot_font_sizes(state: dict | None = None):
+    fonts = get_app_fonts(state or {})
+    return {
+        "title": fonts.get("plot_title", 9),
+        "label": fonts.get("plot_label", 8),
+        "tick": fonts.get("plot_tick", 7),
+        "legend": fonts.get("plot_legend", 7),
+        "annotation": fonts.get("plot_annotation", 7),
+    }
+
 def _build_result_panel(parent, state: dict, key_prefix: str, text_height: int = 5, fig_size=(4.0, 2.0)):
     body = ttk.Frame(parent, padding=(6, 2, 6, 6))
     body.pack(fill="both", expand=True)
+
+    fonts = get_app_fonts(state)
 
     summary_frame = ttk.LabelFrame(body, text="Fit Summary", padding=4)
     summary_frame.pack(fill="both", expand=True)
@@ -114,7 +127,7 @@ def _build_result_panel(parent, state: dict, key_prefix: str, text_height: int =
         summary_frame,
         height=text_height,
         wrap="none",
-        font=("Consolas", 9),
+        font=fonts.get("report", ("Consolas", 9)),
     )
     state[text_key].pack(fill="both", expand=True)
 
@@ -130,15 +143,16 @@ def _build_result_panel(parent, state: dict, key_prefix: str, text_height: int =
 
     return body
 
-def _draw_identity_scatter(ax, x, y, title, xlabel="Exp.", ylabel="Pred."):
+def _draw_identity_scatter(ax, x, y, title, xlabel="Exp.", ylabel="Pred.", state: dict | None = None):
     vmin = min(x.min(), y.min()) * 1.1
     vmax = max(x.max(), y.max()) * 1.1
+    fs = _plot_font_sizes(state)
     ax.plot([vmin, vmax], [vmin, vmax], "--", color="gray", alpha=0.5)
     ax.scatter(x, y, s=24, alpha=0.85)
-    ax.set_xlabel(xlabel, fontsize=8)
-    ax.set_ylabel(ylabel, fontsize=8)
-    ax.set_title(title, fontsize=9)
-    ax.tick_params(labelsize=7)
+    ax.set_xlabel(xlabel, fontsize=fs["label"])
+    ax.set_ylabel(ylabel, fontsize=fs["label"])
+    ax.set_title(title, fontsize=fs["title"])
+    ax.tick_params(labelsize=fs["tick"])
 
 def _build_placeholder_tab(nb: ttk.Notebook, title: str, message: str):
     tab = ttk.Frame(nb)
@@ -483,19 +497,19 @@ def _mc_draw_result_plot(state: dict, result: dict):
     ax2 = fig.add_subplot(gs[0, 1])
     ax3 = fig.add_subplot(gs[0, 2])
 
-    _draw_identity_scatter(ax1, exp_v, pred_v, "Correlation")
+    _draw_identity_scatter(ax1, exp_v, pred_v, "Correlation", state=state)
 
     ax2.bar(range(len(res_v)), res_v, alpha=0.8)
     ax2.axhline(0, color="gray", lw=0.8)
-    ax2.set_title("Residuals", fontsize=9)
-    ax2.set_ylabel("pred - exp", fontsize=8)
-    ax2.tick_params(labelsize=7)
+    ax2.set_title("Residuals", fontsize=_plot_font_sizes(state)["title"])
+    ax2.set_ylabel("pred - exp", fontsize=_plot_font_sizes(state)["label"])
+    ax2.tick_params(labelsize=_plot_font_sizes(state)["tick"])
 
     labels = [f"C{i+1}" for i in range(len(result["weights"]))]
     ax3.bar(labels, result["weights"], alpha=0.85)
-    ax3.set_title("Weights", fontsize=9)
-    ax3.set_ylabel("Weight", fontsize=8)
-    ax3.tick_params(labelsize=7)
+    ax3.set_title("Weights", fontsize=_plot_font_sizes(state)["title"])
+    ax3.set_ylabel("Weight", fontsize=_plot_font_sizes(state)["label"])
+    ax3.tick_params(labelsize=_plot_font_sizes(state)["tick"])
 
     fig.tight_layout()
     state["advfit_mc_canvas"].draw_idle()
@@ -728,21 +742,21 @@ def _rdc_draw_result_plot(state: dict, result: dict):
     res_pcs = np.array([p[3] for p in pcs_points], dtype=float)
 
     ax1 = fig.add_subplot(gs[0, 0])
-    _draw_identity_scatter(ax1, exp_pcs, pred_pcs, "PCS Corr.", xlabel="PCS exp.", ylabel="PCS pred.")
+    _draw_identity_scatter(ax1, exp_pcs, pred_pcs, "PCS Corr.", xlabel="PCS exp.", ylabel="PCS pred.", state=state)
 
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.bar(range(len(res_pcs)), res_pcs, alpha=0.8)
     ax2.axhline(0, color="gray", lw=0.8)
-    ax2.set_title("PCS Residuals", fontsize=9)
-    ax2.set_ylabel("pred - exp", fontsize=8)
-    ax2.tick_params(labelsize=7)
+    ax2.set_title("PCS Residuals", fontsize=_plot_font_sizes(state)["title"])
+    ax2.set_ylabel("pred - exp", fontsize=_plot_font_sizes(state)["label"])
+    ax2.tick_params(labelsize=_plot_font_sizes(state)["tick"])
 
     if rdc_points:
         exp_rdc = np.array([r["rdc_exp"] for r in rdc_points], dtype=float)
         pred_rdc = np.array([r["rdc_pred"] for r in rdc_points], dtype=float)
 
         ax3 = fig.add_subplot(gs[0, 2])
-        _draw_identity_scatter(ax3, exp_rdc, pred_rdc, "RDC Corr.", xlabel="RDC exp.", ylabel="RDC pred.")
+        _draw_identity_scatter(ax3, exp_rdc, pred_rdc, "RDC Corr.", xlabel="RDC exp.", ylabel="RDC pred.", state=state)
 
     fig.tight_layout()
     state["advfit_rdc_canvas"].draw_idle()
@@ -941,19 +955,19 @@ def _pre_draw_result_plot(state: dict, result: dict):
         ax1.scatter(r_obs, g2_pred, s=18, marker="^", alpha=0.85)
 
     ax1.set_yscale("log")
-    ax1.set_xlabel("r [Å]", fontsize=8)
-    ax1.set_ylabel("Gamma2 [s^-1]", fontsize=8)
-    ax1.set_title("PRE Profile", fontsize=9)
-    ax1.tick_params(labelsize=7)
+    ax1.set_xlabel("r [Å]", fontsize=_plot_font_sizes(state)["label"])
+    ax1.set_ylabel("Gamma2 [s^-1]", fontsize=_plot_font_sizes(state)["label"])
+    ax1.set_title("PRE Profile", fontsize=_plot_font_sizes(state)["title"])
+    ax1.tick_params(labelsize=_plot_font_sizes(state)["tick"])
 
     tau_range = np.logspace(-11, -7, 250)
     g2_tau = pre_gamma2(np.full(250, 10.0), mu_eff, tau_range, omega_H)
     ax2.semilogx(tau_range * 1e9, g2_tau, lw=1.5)
     ax2.axvline(tau_c * 1e9, ls="--", lw=1.2)
-    ax2.set_xlabel("tau_c [ns]", fontsize=8)
-    ax2.set_ylabel("Gamma2 (r=10 Å)", fontsize=8)
-    ax2.set_title("tau_c Dependence", fontsize=9)
-    ax2.tick_params(labelsize=7)
+    ax2.set_xlabel("tau_c [ns]", fontsize=_plot_font_sizes(state)["label"])
+    ax2.set_ylabel("Gamma2 (r=10 Å)", fontsize=_plot_font_sizes(state)["label"])
+    ax2.set_title("tau_c Dependence", fontsize=_plot_font_sizes(state)["title"])
+    ax2.tick_params(labelsize=_plot_font_sizes(state)["tick"])
 
     fig.tight_layout()
     state["advfit_pre_canvas"].draw_idle()

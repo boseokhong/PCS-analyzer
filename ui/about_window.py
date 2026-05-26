@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 import webbrowser
 from app_version import APP_NAME, APP_VERSION, GITHUB_RELEASES_URL, ZENODO_DOI, ZENODO_URL
+from ui.style import get_app_fonts
 
 def open_about_window(state: dict):
     root = state["root"]
@@ -28,6 +29,7 @@ def open_about_window(state: dict):
     outer.pack(fill="both", expand=True)
 
     app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
+    fonts = get_app_fonts(state)
     variant = state.get("app_settings", {}).get("theme_variant", "light")
     link_fg = "#1a73e8" if variant == "light" else "#7fb2ff"
 
@@ -42,7 +44,7 @@ def open_about_window(state: dict):
             justify="left",
             bd=0,
             relief="flat",
-            font=("Segoe UI", 9, "underline"),
+            font=fonts.get("link", ("Segoe UI", 9, "underline")),
         )
         lbl.pack(anchor="w", pady=pady)
         lbl.bind("<Button-1>", lambda e: webbrowser.open(url))
@@ -51,7 +53,7 @@ def open_about_window(state: dict):
     ttk.Label(
         outer,
         text=APP_NAME,
-        font=("Segoe UI", 12, "bold"),
+        font=fonts.get("title", ("Segoe UI", 12, "bold")),
     ).pack(anchor="w", pady=(0, 4))
 
     ttk.Label(
@@ -75,7 +77,7 @@ def open_about_window(state: dict):
     ttk.Label(
         outer,
         text="Links",
-        font=("Segoe UI", 10, "bold"),
+        font=fonts.get("section", ("Segoe UI", 10, "bold")),
     ).pack(anchor="w", pady=(0, 4))
 
     make_link(
@@ -95,7 +97,7 @@ def open_about_window(state: dict):
     ttk.Label(
         outer,
         text="Rights",
-        font=("Segoe UI", 10, "bold"),
+        font=fonts.get("section", ("Segoe UI", 10, "bold")),
     ).pack(anchor="w", pady=(0, 4))
 
     ttk.Label(

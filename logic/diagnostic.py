@@ -303,6 +303,12 @@ def plot_residual_vs_phi_and_grh(state, result, fig=None):
         raise RuntimeError("diag_fig_resphi not found in state.")
 
     fig.clf()
+    fonts = state.get("fonts", {}) or {}
+    plot_title = fonts.get("plot_title", 10)
+    plot_label = fonts.get("plot_label", 9)
+    plot_tick = fonts.get("plot_tick", 8)
+    plot_annotation = fonts.get("plot_annotation", 9)
+
     ax1 = fig.add_subplot(1, 2, 1)
     ax2 = fig.add_subplot(1, 2, 2)
 
@@ -312,17 +318,19 @@ def plot_residual_vs_phi_and_grh(state, result, fig=None):
 
     # (1) resid vs phi
     ax1.scatter(phi_deg, resid)
-    ax1.set_xlabel("φ (deg)")
-    ax1.set_ylabel("Residual (ppm)")
-    ax1.set_title("Residual vs φ")
+    ax1.set_xlabel("φ (deg)", fontsize=plot_label)
+    ax1.set_ylabel("Residual (ppm)", fontsize=plot_label)
+    ax1.set_title("Residual vs φ", fontsize=plot_title)
     ax1.set_xlim(0, 360)
+    ax1.tick_params(axis="both", labelsize=plot_tick)
     ax1.axhline(0, linewidth=1)
 
     # (2) resid vs Grh
     ax2.scatter(Grh, resid)
-    ax2.set_xlabel("G_rh")
-    ax2.set_ylabel("Residual (ppm)")
-    ax2.set_title("Residual vs G_rh")
+    ax2.set_xlabel("G_rh", fontsize=plot_label)
+    ax2.set_ylabel("Residual (ppm)", fontsize=plot_label)
+    ax2.set_title("Residual vs G_rh", fontsize=plot_title)
+    ax2.tick_params(axis="both", labelsize=plot_tick)
     ax2.axhline(0, linewidth=1)
 
     # regression guide line
@@ -340,7 +348,7 @@ def plot_residual_vs_phi_and_grh(state, result, fig=None):
             0.02, 0.98, txt,
             transform=ax2.transAxes,
             va="top", ha="left",
-            fontsize=9,
+            fontsize=plot_annotation,
             bbox=dict(boxstyle="round", facecolor="white", alpha=0.7, edgecolor="none"),
         )
 

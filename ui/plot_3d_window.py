@@ -347,15 +347,15 @@ def _draw_3d_plot(state):
         pick_pairs.append((pt, rid))
 
         if show_labels:
-            ax.text(x, y, z, str(label), fontsize=8)
+            ax.text(x, y, z, str(label), fontsize=plot_label)
 
     axis_len = max(np.ptp(coords[:, 0]), np.ptp(coords[:, 1]), np.ptp(coords[:, 2]), 1.0) * 0.35
     add_arrow3d(ax, 0, 0, 0, axis_len, 0, 0, mutation_scale=18, ec="black", fc="blue")
     add_arrow3d(ax, 0, 0, 0, 0, axis_len, 0, mutation_scale=18, ec="black", fc="green")
     add_arrow3d(ax, 0, 0, 0, 0, 0, axis_len, mutation_scale=18, ec="black", fc="red")
-    ax.text(axis_len, 0, 0, "X", color="blue", fontsize=11, weight="bold")
-    ax.text(0, axis_len, 0, "Y", color="green", fontsize=11, weight="bold")
-    ax.text(0, 0, axis_len, "Z", color="red", fontsize=11, weight="bold")
+    ax.text(axis_len, 0, 0, "X", color="blue", fontsize=viewer_label, weight="bold")
+    ax.text(0, axis_len, 0, "Y", color="green", fontsize=viewer_label, weight="bold")
+    ax.text(0, 0, axis_len, "Z", color="red", fontsize=viewer_label, weight="bold")
 
     ax.grid(False)
     ax.set_xticks([])
@@ -384,8 +384,8 @@ def _draw_3d_plot(state):
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.03)
-        cbar.set_label("PCS [ppm]", fontsize=8)
-        cbar.ax.tick_params(labelsize=7)
+        cbar.set_label("PCS [ppm]", fontsize=plot_label)
+        cbar.ax.tick_params(labelsize=plot_tick)
 
     old_cid = state.get("plot3d_click_cid")
     if old_cid is not None:

@@ -13,7 +13,117 @@ from tkinter import ttk
 USE_TTKBOOTSTRAP = False
 
 
-def apply_style(root, variant="light", accent=None):
+def _scaled_size(value, scale=1.0, minimum=6, maximum=72):
+    """Return a safe integer font size after applying the global font scale."""
+    try:
+        size = int(round(float(value) * float(scale)))
+    except Exception:
+        size = int(minimum)
+    return max(int(minimum), min(int(maximum), size))
+
+
+def build_fonts(settings=None):
+    """
+    Build all application font roles from app_settings.
+
+    Only a small set of user-facing settings is stored:
+      - UI font family/size
+      - Table font family/size
+      - Report font family/size
+      - Plot font family/size
+      - Global font scale
+
+    Other roles are derived here so individual UI files do not hard-code
+    platform-specific font tuples such as ("Segoe UI", 9) or ("Consolas", 9).
+    """
+    settings = settings or {}
+
+    try:
+        scale = float(settings.get("font_scale", 1.0) or 1.0)
+    except Exception:
+        scale = 1.0
+    scale = max(0.5, min(2.5, scale))
+
+    ui_family = str(settings.get("font_family_ui", "Segoe UI") or "Segoe UI").strip()
+    ui_size = _scaled_size(settings.get("font_size_ui", 10), scale, 7)
+
+    table_family = str(settings.get("font_family_table", ui_family) or ui_family).strip()
+    table_size = _scaled_size(settings.get("font_size_table", ui_size), scale, 7)
+
+    report_family = str(settings.get("font_family_report", "Consolas") or "Consolas").strip()
+    report_size = _scaled_size(settings.get("font_size_report", 9), scale, 7)
+
+    plot_family = str(settings.get("font_family_plot", "DejaVu Sans") or "DejaVu Sans").strip()
+    plot_size = _scaled_size(settings.get("font_size_plot", 9), scale, 6)
+
+    return {
+        # Tk / ttk UI fonts
+        "ui": (ui_family, ui_size),
+        "ui_bold": (ui_family, ui_size, "bold"),
+        "ui_small": (ui_family, max(ui_size - 1, 7)),
+        "ui_small_bold": (ui_family, max(ui_size - 1, 7), "bold"),
+
+        # Structural labels / headers
+        "section": (ui_family, ui_size, "bold"),
+        "section_large": (ui_family, ui_size + 1, "bold"),
+        "title": (ui_family, ui_size + 2, "bold"),
+        "link": (ui_family, max(ui_size - 1, 7), "underline"),
+
+        # Treeview / tables
+        "table": (table_family, table_size),
+        "table_heading": (table_family, table_size, "bold"),
+        "table_rowheight": max(18, int(round(table_size * 2.0))),
+
+        # Report/log/result text boxes
+        "report": (report_family, report_size),
+        "report_small": (report_family, max(report_size - 1, 7)),
+
+        # Matplotlib / PyVista text sizes
+        "plot_family": plot_family,
+        "plot_base": plot_size,
+        "plot_title": plot_size + 1,
+        "plot_label": plot_size,
+        "plot_tick": max(plot_size - 1, 6),
+        "plot_legend": max(plot_size - 2, 6),
+        "plot_annotation": max(plot_size - 2, 6),
+        "viewer_label_size": plot_size + 1,
+    }
+
+
+def get_app_fonts(state_or_root=None):
+    """
+    Return the current font-role dictionary from a state dict or Tk root.
+    Falls back to default fonts if no runtime font dictionary exists.
+    """
+    if isinstance(state_or_root, dict):
+        fonts = state_or_root.get("fonts")
+        if isinstance(fonts, dict):
+            return fonts
+        root = state_or_root.get("root")
+        if root is not None:
+            fonts = getattr(root, "_app_fonts", None)
+            if isinstance(fonts, dict):
+                return fonts
+        return build_fonts(state_or_root.get("app_settings", {}))
+
+    if state_or_root is not None:
+        fonts = getattr(state_or_root, "_app_fonts", None)
+        if isinstance(fonts, dict):
+            return fonts
+
+        # Tk child widgets do not carry _app_fonts themselves. Try their root.
+        try:
+            root = state_or_root._root()
+            fonts = getattr(root, "_app_fonts", None)
+            if isinstance(fonts, dict):
+                return fonts
+        except Exception:
+            pass
+
+    return build_fonts({})
+
+
+def apply_style(root, variant="light", accent=None, settings=None):
     """
     Apply application-wide ttk/tk styling.
 
@@ -23,6 +133,9 @@ def apply_style(root, variant="light", accent=None):
     accent:
         Kept for backward compatibility with app_settings.
         In the default plain ttk mode, accent is intentionally ignored.
+
+    settings:
+        Optional app_settings dictionary. Font-related keys are read from here.
     """
 
     variant = str(variant or "light").lower().strip()
@@ -30,6 +143,8 @@ def apply_style(root, variant="light", accent=None):
         variant = "light"
 
     accent = str(accent or "blue").lower().strip()
+    fonts = build_fonts(settings or {})
+    base_font = fonts["ui"]
 
     # -------------------------------------------------
     # Theme engine
@@ -128,17 +243,15 @@ def apply_style(root, variant="light", accent=None):
     except Exception:
         pass
 
-    base_font = ("Segoe UI", 10)
-
     # -------------------------------------------------
     # Global defaults
     # -------------------------------------------------
-    style.configure(".", padding=0)
+    style.configure(".", padding=0, font=fonts["ui"])
 
     style.configure("TFrame", padding=6, background=panel_bg)
     style.configure("TLabelframe", background=panel_bg)
-    style.configure("TLabelframe.Label", background=panel_bg, foreground=fg)
-    style.configure("TLabel", padding=(2, 1), background=panel_bg, foreground=fg)
+    style.configure("TLabelframe.Label", background=panel_bg, foreground=fg, font=fonts["section"])
+    style.configure("TLabel", padding=(2, 1), background=panel_bg, foreground=fg, font=fonts["ui"])
 
     style.configure("TNotebook", background=panel_bg)
     style.configure(
@@ -146,6 +259,7 @@ def apply_style(root, variant="light", accent=None):
         padding=(6, 2),
         background=heading_bg if variant == "light" else "#D8D5CC",
         foreground="#111111" if variant == "light" else "#111111",
+        font=fonts["ui"],
     )
     style.map(
         "TNotebook.Tab",
@@ -160,7 +274,7 @@ def apply_style(root, variant="light", accent=None):
         expand=[("selected", [1, 1, 1, 0])],
     )
 
-    style.configure("TButton", padding=(6, 2))
+    style.configure("TButton", padding=(6, 2), font=fonts["ui"])
 
     # -------------------------------------------------
     # Entry / Combobox
@@ -172,6 +286,7 @@ def apply_style(root, variant="light", accent=None):
         background=input_bg,
         foreground=input_fg,
         insertcolor=input_fg,
+        font=fonts["ui"],
     )
     style.map(
         "TEntry",
@@ -192,6 +307,7 @@ def apply_style(root, variant="light", accent=None):
         background=input_bg,
         foreground=input_fg,
         arrowcolor=fg,
+        font=fonts["ui"],
     )
     style.map(
         "TCombobox",
@@ -211,7 +327,7 @@ def apply_style(root, variant="light", accent=None):
     disabled_fg = "#8A8F98" if variant == "light" else "#7C828A"
     disabled_bg = panel_bg
 
-    style.configure("TCheckbutton", background=panel_bg, foreground=fg)
+    style.configure("TCheckbutton", background=panel_bg, foreground=fg, font=fonts["ui"])
     style.map(
         "TCheckbutton",
         background=[
@@ -226,7 +342,7 @@ def apply_style(root, variant="light", accent=None):
         ],
     )
 
-    style.configure("TRadiobutton", background=panel_bg, foreground=fg)
+    style.configure("TRadiobutton", background=panel_bg, foreground=fg, font=fonts["ui"])
     style.map(
         "TRadiobutton",
         background=[
@@ -246,8 +362,8 @@ def apply_style(root, variant="light", accent=None):
     # -------------------------------------------------
     style.configure(
         "Treeview",
-        rowheight=18,
-        font=base_font,
+        rowheight=fonts["table_rowheight"],
+        font=fonts["table"],
         background=tree_bg,
         fieldbackground=tree_bg,
         foreground=tree_fg,
@@ -261,7 +377,7 @@ def apply_style(root, variant="light", accent=None):
     style.configure(
         "Treeview.Heading",
         padding=(2, 1),
-        font=(base_font[0], base_font[1], "bold"),
+        font=fonts["table_heading"],
         background=heading_bg,
         foreground="#111111",
     )
@@ -280,6 +396,8 @@ def apply_style(root, variant="light", accent=None):
     # -------------------------------------------------
     root.option_add("*Font", base_font)
     root.option_add("*Entry.Font", base_font)
+    root.option_add("*Text.Font", fonts["report"])
+    root.option_add("*Listbox.Font", fonts["ui"])
     root.option_add("*TCombobox*Listbox.Font", base_font)
 
     root.option_add("*Scale.troughColor", scale_trough)
@@ -306,5 +424,6 @@ def apply_style(root, variant="light", accent=None):
     setattr(root, "_app_bg", bg)
     setattr(root, "_app_fg", fg)
     setattr(root, "_theme_variant", variant)
+    setattr(root, "_app_fonts", fonts)
 
     return style

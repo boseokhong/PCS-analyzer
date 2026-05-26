@@ -50,6 +50,8 @@ from ui.settings_window import open_settings_window
 from logic.app_settings import load_app_state, save_app_state, is_reasonable_main_geometry
 from ui.about_window import open_about_window
 from ui.update_window import check_for_updates_ui
+from logic.project_io import save_project_dialog, load_project_dialog
+from ui.drag_drop import enable_main_window_dnd
 
 #plugins
 from plugin_system.plugin_api import PluginApp
@@ -680,6 +682,10 @@ def build_app():
     state["rebuild_recent_files_menu"] = lambda: rebuild_recent_files_menu(state)
     state["refresh_checklist_ui"] = lambda: create_checklist(state) if state.get("atom_data") else None
     state["apply_scale_theme"] = lambda w: _apply_scale_theme(w, state)
+    # Project I/O callbacks used by logic.project_io during .pcsp loading.
+    state["create_checklist"] = create_checklist
+    state["apply_symavg_to_state"] = apply_symavg_to_state
+    state["populate_fitting_controls"] = populate_fitting_controls
 
     # Tk and common modules
     state['tk'] = tk; state['ttk'] = ttk
@@ -725,12 +731,19 @@ def build_app():
 
     # Window size
     #root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1190x900"); state['root'] = root
-    root = tk.Tk()
+    try:
+        from tkinterdnd2 import TkinterDnD
+        root = TkinterDnD.Tk()
+        state["dnd_available"] = True
+    except Exception:
+        root = tk.Tk()
+        state["dnd_available"] = False
+
     root.title("PCS Analyzer")
     state['root'] = root
 
     saved_geo = persisted.get("main_window_geometry")
-    default_geo = "1200x880"
+    default_geo = "1250x850"
 
     if (
         state["app_settings"].get("remember_window_geometry", True)
@@ -798,6 +811,17 @@ def build_app():
     state["recent_files_menu"] = recent_files_menu
     file_menu.add_cascade(label="Recent files", menu=recent_files_menu)
     rebuild_recent_files_menu(state)
+
+    file_menu.add_separator()
+
+    file_menu.add_command(
+        label="Open PCS Project...",
+        command=lambda: load_project_dialog(state)
+    )
+    file_menu.add_command(
+        label="Save PCS Project As...",
+        command=lambda: save_project_dialog(state)
+    )
 
     file_menu.add_separator()
 
@@ -1994,6 +2018,44 @@ def build_app():
     state['root'].after(250, lambda: state['update_graph']())
 
     root.protocol("WM_DELETE_WINDOW", _on_main_close)
+
+    # ============================================================
+    # Drag and drop support (.pcsp / structure files)
+    # ============================================================
+    state["load_structure_file"] = lambda path: _load_xyz_from_path(state, path)
+
+    def _open_project_file_from_path(path: str):
+        try:
+            import logic.project_io as project_io
+
+            # Preferred direct path loaders, depending on project_io version.
+            for name in (
+                "load_project_from_path",
+                "load_project_file",
+                "load_project",
+                "open_project_file",
+            ):
+                fn = getattr(project_io, name, None)
+                if callable(fn):
+                    try:
+                        return fn(state, path)
+                    except TypeError:
+                        return fn(path, state)
+
+            state["messagebox"].showerror(
+                "Open PCS Project",
+                "No path-based project loader was found in logic.project_io.\n"
+                "Please expose load_project_from_path(state, path) or equivalent.",
+            )
+        except Exception as e:
+            state["messagebox"].showerror("Open PCS Project", f"Failed to open project:\n{e}")
+
+    state["open_project_file"] = _open_project_file_from_path
+
+    try:
+        state["drag_drop_enabled"] = enable_main_window_dnd(state)
+    except Exception:
+        state["drag_drop_enabled"] = False
 
     # ============================================================
     # Load enabled plugins

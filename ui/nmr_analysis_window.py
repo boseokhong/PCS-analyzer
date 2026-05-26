@@ -78,6 +78,7 @@ class NMRAnalysisWindow(tk.Toplevel):
     def __init__(self, parent: tk.Misc, state: dict):
         super().__init__(parent)
         self.state = state
+        self.fonts = state.get("fonts", {}) or getattr(parent._root(), "_app_fonts", {}) or {}
         self.title("NMR Analysis")
         self.geometry("1150x650")
 
@@ -205,9 +206,9 @@ class NMRAnalysisWindow(tk.Toplevel):
 
         # ---- histogram ----
         self.ax_h.clear()
-        self.ax_h.set_xlabel("δ_nonPCS (ppm)", fontsize=8)
-        self.ax_h.set_ylabel("count", fontsize=8)
-        self.ax_h.tick_params(axis="both", labelsize=8)
+        self.ax_h.set_xlabel("δ_nonPCS (ppm)", fontsize=self.fonts.get("plot_label", 8))
+        self.ax_h.set_ylabel("count", fontsize=self.fonts.get("plot_label", 8))
+        self.ax_h.tick_params(axis="both", labelsize=self.fonts.get("plot_tick", 8))
 
         if len(nonpcs_vals) >= 1:
             arr = np.asarray(nonpcs_vals, dtype=float)
@@ -217,14 +218,14 @@ class NMRAnalysisWindow(tk.Toplevel):
             self.ax_h.axvline(-thr, linestyle="--")
         else:
             self.ax_h.text(0.5, 0.5, "No δ_nonPCS data (need δ_pcs + δ_para).",
-                           transform=self.ax_h.transAxes, ha="center", va="center", fontsize=10)
+                           transform=self.ax_h.transAxes, ha="center", va="center", fontsize=self.fonts.get("plot_title", 10))
         self.canvas_h.draw_idle()
 
         # ---- per-peak bar plot ----
         self.ax_b.clear()
-        self.ax_b.set_xlabel("ppm", fontsize=8)
-        self.ax_b.set_ylabel("Ref (Atom)", fontsize=8)
-        self.ax_b.tick_params(axis="both", labelsize=8)
+        self.ax_b.set_xlabel("ppm", fontsize=self.fonts.get("plot_label", 8))
+        self.ax_b.set_ylabel("Ref (Atom)", fontsize=self.fonts.get("plot_label", 8))
+        self.ax_b.tick_params(axis="both", labelsize=self.fonts.get("plot_tick", 8))
 
         # collect eligible points: need PCS + δ_para (=> nonpcs defined)
         pts = []
@@ -243,7 +244,7 @@ class NMRAnalysisWindow(tk.Toplevel):
         if not pts:
             self.ax_b.text(
                 0.5, 0.5, "No per-peak data (need PCS + δ_para).",
-                transform=self.ax_b.transAxes, ha="center", va="center", fontsize=10
+                transform=self.ax_b.transAxes, ha="center", va="center", fontsize=self.fonts.get("plot_title", 10)
             )
             self.canvas_b.draw_idle()
             return
@@ -289,5 +290,5 @@ class NMRAnalysisWindow(tk.Toplevel):
         self.ax_b.set_yticklabels(labels)
         self.ax_b.invert_yaxis()  # biggest |nonPCS| at top
 
-        self.ax_b.legend(fontsize=8)
+        self.ax_b.legend(fontsize=self.fonts.get("plot_legend", 8))
         self.canvas_b.draw_idle()

@@ -44,6 +44,9 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
         return
 
     plot_90 = state["plot_90_var"].get()
+    fonts = state.get("fonts", {}) or {}
+    plot_tick = fonts.get("plot_tick", 8)
+    plot_legend = fonts.get("plot_legend", 6)
 
     fig.clear()
     ax = fig.add_subplot(1, 1, 1, projection="polar")
@@ -56,14 +59,14 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
         ax.set_position([0.2, 0.1, 0.4, 0.8])
         ax.set_thetamax(90)
         ax.set_xticks([0, np.pi / 12, np.pi / 6, np.pi / 4, np.pi / 3, 5 * np.pi / 12, np.pi / 2])
-        ax.set_xticklabels(["0°", "15°", "30°", "45°", "60°", "75°", "90°"], fontsize=8)
+        ax.set_xticklabels(["0°", "15°", "30°", "45°", "60°", "75°", "90°"], fontsize=plot_tick)
         bbox = (1.3, 0.5)
     else:
         theta_range = theta_values
         ax.set_position([0.0, 0.1, 0.8, 0.8])
         ax.set_thetamax(180)
         ax.set_xticks([0, np.pi / 6, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 5 * np.pi / 6, np.pi])
-        ax.set_xticklabels(["0°", "30°", "60°", "90°", "120°", "150°", "180°"], fontsize=8)
+        ax.set_xticklabels(["0°", "30°", "60°", "90°", "120°", "150°", "180°"], fontsize=plot_tick)
         bbox = (0.9, 0.5)
 
     # PCS contour lines
@@ -151,14 +154,14 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
     r_ticks = [0, 2, 4, 6, 8, 10]
     ax.set_yticks(r_ticks)
     ax.set_yticklabels([f"{r} Å" for r in r_ticks])
-    ax.tick_params(axis="y", labelsize=8)
+    ax.tick_params(axis="y", labelsize=plot_tick)
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
     ax.set_ylim(0, 10)
     ax.set_thetamax(90 if plot_90 else 180)
 
     leg = ax.legend(
-        fontsize=6,
+        fontsize=plot_legend,
         bbox_to_anchor=bbox,
         loc="center left",
         ncol=2,
@@ -171,7 +174,7 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
         handlelength=1.0,
         handleheight=1.0,
     )
-    leg.set_title("PCS legend (ppm)", prop={"size": 6, "weight": "bold"})
+    leg.set_title("PCS legend (ppm)", prop={"size": plot_legend, "weight": "bold"})
 
     # Disconnect previous click handler for this specific figure
     if store_click_key:

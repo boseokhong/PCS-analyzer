@@ -22,6 +22,7 @@ else:
     _IMPORT_ERROR = None
 
 from ui.plot_3d_window import _get_3d_view_data, calculate_bonds
+from ui.style import get_app_fonts
 from logic.chem_constants import covalent_radii, CPK_COLORS
 
 # Default per-level style entries used when building the level table.
@@ -224,7 +225,7 @@ def _add_atoms(
         plotter.add_mesh(sphere, color=color, smooth_shading=True, specular=0.25, ambient=0.18)
 
 
-def _add_labels(plotter, coords: np.ndarray, labels: list[str], ref_ids: list[int]) -> None:
+def _add_labels(plotter, coords: np.ndarray, labels: list[str], ref_ids: list[int], state: dict | None = None) -> None:
     if len(coords) == 0:
         return
     label_points = np.asarray(coords, dtype=float)
@@ -232,7 +233,7 @@ def _add_labels(plotter, coords: np.ndarray, labels: list[str], ref_ids: list[in
     plotter.add_point_labels(
         label_points,
         label_text,
-        font_size=10,
+        font_size=get_app_fonts(state).get("viewer_label_size", 10),
         point_size=0,
         shape_opacity=0.0,
         always_visible=False,
@@ -406,7 +407,7 @@ def _populate_pcs_scene(
     if show_atoms:
         _add_atoms(plotter, coords, labels, elements, ref_ids, selected_ref=selected_ref)
     if show_labels:
-        _add_labels(plotter, coords, labels, ref_ids)
+        _add_labels(plotter, coords, labels, ref_ids, state=state)
 
     plotter.add_axes()
 
@@ -692,20 +693,21 @@ def open_pyvista_field(state: dict) -> None:
     ENTRY_BG = "#FFFFFF"
 
     _s = ttk.Style()
+    fonts = get_app_fonts(state)
     # Do NOT call _s.theme_use() here — it is process-wide.
     _s.configure("PCS.TFrame",      background=BG)
-    _s.configure("PCS.TLabel",      background=BG, foreground=FG, font=("Segoe UI", 9))
+    _s.configure("PCS.TLabel",      background=BG, foreground=FG, font=fonts.get("ui", ("Segoe UI", 9)))
     _s.configure("PCS.TLabelframe", background=BG, foreground=FG)
     _s.configure("PCS.TLabelframe.Label",
-                 background=BG, foreground=ACCENT, font=("Segoe UI", 9, "bold"))
-    _s.configure("PCS.TCheckbutton", background=BG, foreground=FG, font=("Segoe UI", 9))
-    _s.configure("PCS.TRadiobutton", background=BG, foreground=FG, font=("Segoe UI", 9))
+                 background=BG, foreground=ACCENT, font=fonts.get("section", ("Segoe UI", 9, "bold")))
+    _s.configure("PCS.TCheckbutton", background=BG, foreground=FG, font=fonts.get("ui", ("Segoe UI", 9)))
+    _s.configure("PCS.TRadiobutton", background=BG, foreground=FG, font=fonts.get("ui", ("Segoe UI", 9)))
     _s.configure("PCS.TEntry",       fieldbackground=ENTRY_BG, foreground=FG)
     _s.configure("PCS.TCombobox",    fieldbackground=ENTRY_BG, foreground=FG)
-    _s.configure("PCS.TButton",      font=("Segoe UI", 9))
+    _s.configure("PCS.TButton",      font=fonts.get("ui", ("Segoe UI", 9)))
     _s.configure("PCS.TSeparator",   background=SEP_CLR)
     _s.configure("PCS.Accent.TButton",
-                 foreground="white", background=ACCENT, font=("Segoe UI", 9, "bold"))
+                 foreground="white", background=ACCENT, font=fonts.get("section", ("Segoe UI", 9, "bold")))
     _s.map("PCS.Accent.TButton",
            background=[("active", "#1A4F99"), ("pressed", "#163E80")])
 
@@ -819,7 +821,7 @@ def open_pyvista_field(state: dict) -> None:
         ("Style", 11), ("Opacity", 8), ("", 3),
     ]):
         ttk.Label(hdr, text=txt, style="PCS.TLabel",
-                  font=("Segoe UI", 8, "bold"), width=w, anchor="w").grid(
+                  font=fonts.get("ui_small_bold", ("Segoe UI", 8, "bold")), width=w, anchor="w").grid(
             row=0, column=col, padx=2, sticky="w")
 
     level_rows_frame = ttk.Frame(sec_levels, style="PCS.TFrame")
@@ -991,7 +993,7 @@ def open_pyvista_field(state: dict) -> None:
     _separator(outer)
     status_var = tk.StringVar(value="Ready.")
     ttk.Label(outer, textvariable=status_var, style="PCS.TLabel",
-              foreground="#666666", font=("Segoe UI", 8)).pack(
+              foreground="#666666", font=fonts.get("ui_small", ("Segoe UI", 8))).pack(
         fill="x", pady=(0, 6))
 
     # -----------------------------------------------------------------------

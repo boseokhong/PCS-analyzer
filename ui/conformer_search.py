@@ -54,6 +54,7 @@ from scipy.optimize import differential_evolution, minimize
 from scipy.spatial.distance import cdist
 
 from logic.chem_constants import VDW_RADII, covalent_radii, METAL_ELEMENTS
+from ui.style import get_app_fonts
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PHYSICAL / CHEMICAL CONSTANTS
@@ -2111,6 +2112,7 @@ class ConformerSearchGUI:
 
         self.on_preview_result = on_preview_result
         self.initial_data = initial_data or {}
+        self.fonts = get_app_fonts(self.root)
 
         self.mol = None
         self.rotatable_all = []
@@ -2522,7 +2524,7 @@ class ConformerSearchGUI:
             ttk.Label(
                 grid,
                 text=key,
-                font=("TkDefaultFont", 9, "bold"),
+                font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
                 width=14,
                 anchor="w",
             ).grid(row=r, column=0, sticky="nw", padx=(0, 10), pady=2)
@@ -2661,7 +2663,7 @@ class ConformerSearchGUI:
         ttk.Label(
             r_preset,
             text="Optimization level:",
-            font=("TkDefaultFont", 9, "bold"),
+            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
         ).pack(side="left")
 
         preset_box = ttk.Combobox(
@@ -2686,7 +2688,7 @@ class ConformerSearchGUI:
         ttk.Label(
             r2,
             text="Custom values:",
-            font=("TkDefaultFont", 9, "bold"),
+            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
         ).pack(side="left", padx=(0, 8))
 
         ttk.Label(r2, text="DE iterations").pack(side="left")
@@ -2722,7 +2724,7 @@ class ConformerSearchGUI:
         ttk.Label(
             rsm1,
             text="Constraint model:",
-            font=("TkDefaultFont", 9, "bold"),
+            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
         ).pack(side="left")
 
         constraint_cb = ttk.Combobox(
@@ -2746,7 +2748,7 @@ class ConformerSearchGUI:
         ttk.Label(
             rsm2,
             text="Output mode:",
-            font=("TkDefaultFont", 9, "bold"),
+            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
         ).pack(side="left")
 
         output_cb = ttk.Combobox(
@@ -2840,7 +2842,7 @@ class ConformerSearchGUI:
         ttk.Label(
             hdr,
             text="Fix atoms that should stay unchanged",
-            font=("TkDefaultFont", 11, "bold"),
+            font=self.fonts.get("section_large", ("TkDefaultFont", 11, "bold")),
         ).pack(anchor="w")
 
         ttk.Label(
@@ -2869,7 +2871,7 @@ class ConformerSearchGUI:
             fg="#284b7a",
             justify="left",
             anchor="w",
-            font=("TkDefaultFont", 9),
+            font=self.fonts.get("ui", ("TkDefaultFont", 9)),
             padx=8,
             pady=6,
         ).pack(anchor="w", fill="x")
@@ -2930,7 +2932,7 @@ class ConformerSearchGUI:
         ttk.Label(
             hdr,
             text="Choose which bonds are allowed to rotate",
-            font=("TkDefaultFont", 11, "bold"),
+            font=self.fonts.get("section_large", ("TkDefaultFont", 11, "bold")),
         ).pack(anchor="w")
 
         ttk.Label(
@@ -2961,7 +2963,7 @@ class ConformerSearchGUI:
             fg="#284b7a",
             justify="left",
             anchor="w",
-            font=("TkDefaultFont", 9),
+            font=self.fonts.get("ui", ("TkDefaultFont", 9)),
             padx=8,
             pady=6,
         ).pack(anchor="w", fill="x")
@@ -3046,7 +3048,7 @@ class ConformerSearchGUI:
                    command=self._show_plot).pack(side="left")
 
         self._result_box = scrolledtext.ScrolledText(
-            p, font=("Consolas", 9), state="disabled")
+            p, font=self.fonts.get("report", ("Consolas", 9)), state="disabled")
         self._result_box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
     # ── Actions ───────────────────────────────────────────────────────────────
@@ -3259,7 +3261,7 @@ class ConformerSearchGUI:
         for txt, w in [("Fix?", 5), ("Ref", 7), ("Atom", 5),
                         ("x [Å]", 9), ("y [Å]", 9), ("z [Å]", 9),
                         ("Bonds to", 20)]:
-            ttk.Label(header, text=txt, font=("default", 8, "bold"),
+            ttk.Label(header, text=txt, font=self.fonts.get("ui_small_bold", ("default", 8, "bold")),
                       width=w, anchor="center").pack(side="left")
         ttk.Separator(self._fix_inner, orient="horizontal").pack(fill="x", pady=2)
 
@@ -3276,7 +3278,7 @@ class ConformerSearchGUI:
                 self._fix_inner,
                 text=f"⚠ Skipped suspicious metal contacts: {shown}",
                 foreground="#b35a00",
-                font=("default", 8, "bold"),
+                font=self.fonts.get("ui_small_bold", ("default", 8, "bold")),
                 wraplength=850,
                 justify="left",
             ).pack(anchor="w", padx=6, pady=(2, 4))
@@ -3298,12 +3300,12 @@ class ConformerSearchGUI:
             ttk.Checkbutton(row, variable=v).pack(side="left")
             ttk.Label(row, text=str(idx+1), width=7, anchor="e").pack(side="left")
             ttk.Label(row, text=el, width=5, anchor="center",
-                      font=("default", 9, "bold")).pack(side="left")
+                      font=self.fonts.get("section", ("default", 9, "bold"))).pack(side="left")
             for val in xyz:
                 ttk.Label(row, text=f"{val:+8.3f}", width=9,
-                          anchor="e", font=("Consolas", 8)).pack(side="left")
+                          anchor="e", font=self.fonts.get("report_small", ("Consolas", 8))).pack(side="left")
             ttk.Label(row, text=", ".join(nbs[:8]) + ("…" if len(nbs) > 8 else ""),
-                      font=("default", 8), foreground="#555"
+                      font=self.fonts.get("ui_small", ("default", 8)), foreground="#555"
                       ).pack(side="left", padx=(4, 0))
 
             self._fix_rows.append((v, el, idx, row))
@@ -3384,7 +3386,7 @@ class ConformerSearchGUI:
         ttk.Label(self._bond_inner,
                   text=(f"{len(self.rotatable_all)} rotatable bonds  "
                         f"({n_free} free 🔓,  {n_locked} locked 🔒)"),
-                  font=("default", 9, "bold")
+                  font=self.fonts.get("section", ("default", 9, "bold"))
                   ).pack(anchor="w", padx=6, pady=(4, 2))
 
         for i, j in self.rotatable_all:
@@ -3444,7 +3446,7 @@ class ConformerSearchGUI:
                       text="⚠ All bonds locked in strict mode.\n"
                            "Try enabling 'Anchor mode' (checkbox above) — "
                            "fixed atoms then act as pivots instead of blockers.",
-                      foreground='#c0392b', font=('default',9,'bold'),
+                      foreground='#c0392b', font=self.fonts.get('section', ('default', 9, 'bold')),
                       wraplength=700, justify='left').pack(anchor='w', padx=8, pady=4)
         self._refresh_search_setup_summary()
         self._nb.select(1 if getattr(self, '_embedded', False) else 2)
@@ -3754,7 +3756,7 @@ class ConformerSearchGUI:
         """(Re)build radio-button row in the results tab."""
         frame = self._candidate_selector_frame
         style = ttk.Style()
-        style.configure("Candidate.TRadiobutton", font=("Segoe UI", 8))
+        style.configure("Candidate.TRadiobutton", font=self.fonts.get("ui_small", ("Segoe UI", 8)))
         for w in frame.winfo_children():
             w.destroy()
         self._candidate_var = tk.IntVar(value=0)
@@ -3889,7 +3891,7 @@ class ConformerSearchGUI:
         ttk.Label(
             header,
             text="Conformer Candidates",
-            font=("TkDefaultFont", 12, "bold")
+            font=self.fonts.get("title", ("TkDefaultFont", 12, "bold"))
         ).pack(side="left")
 
         ttk.Label(
@@ -4056,18 +4058,18 @@ class ConformerSearchGUI:
             if proj_var.get() == "0-90":
                 ax.set_thetamax(90)
                 ax.set_xticks([0, np.pi / 6, np.pi / 3, np.pi / 2])
-                ax.set_xticklabels(["0°", "30°", "60°", "90°"], fontsize=9)
+                ax.set_xticklabels(["0°", "30°", "60°", "90°"], fontsize=self.fonts.get("plot_label", 9))
             else:
                 ax.set_thetamax(180)
                 ax.set_xticks([0, np.pi / 6, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 5 * np.pi / 6, np.pi])
-                ax.set_xticklabels(["0°", "30°", "60°", "90°", "120°", "150°", "180°"], fontsize=9)
+                ax.set_xticklabels(["0°", "30°", "60°", "90°", "120°", "150°", "180°"], fontsize=self.fonts.get("plot_label", 9))
 
             ax.set_ylim(0, r_max)
 
             # cleaner radial ticks
             rticks = np.linspace(0, r_max, 5)
             ax.set_yticks(rticks[1:])
-            ax.set_yticklabels([f"{v:.1f}" for v in rticks[1:]], fontsize=8, color="#666666")
+            ax.set_yticklabels([f"{v:.1f}" for v in rticks[1:]], fontsize=self.fonts.get("plot_annotation", 8), color="#666666")
 
             ax.grid(True, alpha=0.22, lw=0.8, color="#7F8C99")
             ax.spines["polar"].set_color("#D5DAE0")
@@ -4120,7 +4122,7 @@ class ConformerSearchGUI:
             if handles:
                 leg = ax.legend(
                     handles=handles,
-                    fontsize=8,
+                    fontsize=self.fonts.get("plot_annotation", 8),
                     loc="upper right",
                     frameon=True,
                     fancybox=True,
@@ -4130,7 +4132,7 @@ class ConformerSearchGUI:
                 leg.get_frame().set_edgecolor("#D9DEE5")
                 leg.get_frame().set_linewidth(0.8)
 
-            ax.set_title("Polar structure comparison", fontsize=11, pad=16)
+            ax.set_title("Polar structure comparison", fontsize=self.fonts.get("plot_title", 11), pad=16)
             summary_var.set(_build_summary_text())
 
             canvas.draw_idle()
@@ -4366,12 +4368,12 @@ class ConformerSearchGUI:
         for i, t in enumerate(lbl):
             ax1.annotate(t, (exp[i], pred[i]),
                          xytext=(3, 3), textcoords="offset points",
-                         fontsize=5, color="gray")
+                         fontsize=max(self.fonts.get("plot_annotation", 7) - 2, 5), color="gray")
         fig.colorbar(sc, ax=ax1, label="Residual [ppm]", fraction=0.04)
         ax1.set_xlabel("δ_exp [ppm]")
         ax1.set_ylabel("δ_pred [ppm]")
         r2s = f"{self.result['r2']:.4f}" if not math.isnan(self.result['r2']) else "—"
-        ax1.set_title(f"Correlation  R²={r2s}  RMSD={self.result['rmsd']:.4f} ppm", fontsize=9)
+        ax1.set_title(f"Correlation  R²={r2s}  RMSD={self.result['rmsd']:.4f} ppm", fontsize=self.fonts.get("plot_label", 9))
         ax1.set_aspect("equal", adjustable="box")
 
         ax2 = fig.add_subplot(gs[0, 1])
@@ -4380,11 +4382,11 @@ class ConformerSearchGUI:
         ax2.bar(range(len(res)), res, color=colours, alpha=0.82, edgecolor="none")
         ax2.axhline(0, color="gray", lw=0.8, ls="--")
         ax2.set_xticks(range(len(res)))
-        ax2.set_xticklabels(lbl, rotation=45, ha="right", fontsize=6)
+        ax2.set_xticklabels(lbl, rotation=45, ha="right", fontsize=self.fonts.get("plot_legend", 6))
         ax2.set_ylabel("pred − exp [ppm]")
-        ax2.set_title("Residuals", fontsize=9)
+        ax2.set_title("Residuals", fontsize=self.fonts.get("plot_label", 9))
 
-        fig.suptitle("Conformer search – PCS fit", fontsize=10)
+        fig.suptitle("Conformer search – PCS fit", fontsize=self.fonts.get("plot_title", 10))
         fig.tight_layout()
 
         win = tk.Toplevel(self.root)

@@ -33,6 +33,8 @@ def open_projection_window(state):
     outer = ttk.Frame(win)
     outer.pack(fill=tk.BOTH, expand=True)
 
+    state["projection_fonts"] = state.get("fonts", {}) or getattr(root, "_app_fonts", {}) or {}
+
     control = ttk.Frame(outer)
     control.pack(fill=tk.X, padx=8, pady=8)
 
@@ -218,6 +220,11 @@ def _draw_projection_plot(state):
         return
 
     fig.clear()
+    fonts = state.get("projection_fonts", {}) or state.get("fonts", {}) or {}
+    plot_title = fonts.get("plot_title", 10)
+    plot_label = fonts.get("plot_label", 9)
+    plot_tick = fonts.get("plot_tick", 8)
+    plot_legend = fonts.get("plot_legend", 8)
     click_pairs = []
 
     mode_var = state.get("projection_mode_var")
@@ -283,26 +290,26 @@ def _draw_projection_plot(state):
         )
 
         ax.set_aspect("equal", adjustable="box")
-        ax.set_xlabel("φ [rad]", fontsize=9)
-        ax.set_ylabel(r"$\cos\theta$", fontsize=9)
+        ax.set_xlabel("φ [rad]", fontsize=plot_label)
+        ax.set_ylabel(r"$\cos\theta$", fontsize=plot_label)
         ax.set_xlim(-np.pi, np.pi)
         ax.set_ylim(-1.0, 1.0)
         ax.set_xticks([-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi])
-        ax.set_xticklabels(["−π", "−π/2", "0", "π/2", "π"], fontsize=8)
+        ax.set_xticklabels(["−π", "−π/2", "0", "π/2", "π"], fontsize=plot_tick)
         ax.axhline(0, color="gray", lw=0.5, ls="--", alpha=0.4)
         ax.axvline(0, color="gray", lw=0.5, ls="--", alpha=0.4)
-        ax.tick_params(labelsize=8)
+        ax.tick_params(labelsize=plot_tick)
         ax.set_title(
             rf"$\phi$ / $\cos\theta$ projection   r={r_fixed:.2f} Å   "
             rf"$\Delta\chi_{{ax}}$={dchi_ax:+.2f}   "
             rf"$\Delta\chi_{{rh}}$={dchi_rh:+.2f}",
-            fontsize=9,
+            fontsize=plot_label,
         )
 
         cax = fig.add_axes([0.85, 0.10, 0.03, 0.82])
         cb = fig.colorbar(cf, cax=cax)
-        cb.set_label("PCS [ppm]", fontsize=8)
-        cb.ax.tick_params(labelsize=7)
+        cb.set_label("PCS [ppm]", fontsize=plot_tick)
+        cb.ax.tick_params(labelsize=plot_tick)
 
         if show_atoms:
             coords, labels, ref_ids = _get_projection_coords(state)
@@ -350,19 +357,19 @@ def _draw_projection_plot(state):
             alpha=0.5,
         )
 
-        ax.set_xlabel("φ [rad]", fontsize=8)
-        ax.set_ylabel(r"$\frac{\pi}{2}-\theta$ [rad]", fontsize=8)
+        ax.set_xlabel("φ [rad]", fontsize=plot_tick)
+        ax.set_ylabel(r"$\frac{\pi}{2}-\theta$ [rad]", fontsize=plot_tick)
         ax.grid(True, alpha=0.3)
         ax.set_title(
             rf"Mollweide projection   r={r_fixed:.2f} Å   "
             rf"$\Delta\chi_{{ax}}$={dchi_ax:+.2f}   "
             rf"$\Delta\chi_{{rh}}$={dchi_rh:+.2f}",
-            fontsize=9,
+            fontsize=plot_label,
         )
 
         cb = fig.colorbar(cf, ax=ax, fraction=0.025, pad=0.05)
-        cb.set_label("PCS [ppm]", fontsize=8)
-        cb.ax.tick_params(labelsize=7)
+        cb.set_label("PCS [ppm]", fontsize=plot_tick)
+        cb.ax.tick_params(labelsize=plot_tick)
 
         if show_atoms:
             coords, labels, ref_ids = _get_projection_coords(state)

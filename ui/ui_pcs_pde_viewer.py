@@ -23,6 +23,7 @@ else:
 from scipy.ndimage import map_coordinates, gaussian_filter
 
 from logic.logic_structure_helpers import get_cpk_color, radius_for_element, calculate_bonds
+from ui.style import get_app_fonts
 from logic.logic_pcs_pde import (
     compute_pcs_field_from_density,
     rank2_chi,
@@ -182,7 +183,7 @@ def _add_atoms_pretty(
         )
 
 
-def _add_labels(plotter, coords: np.ndarray, elements: list[str]) -> None:
+def _add_labels(plotter, coords: np.ndarray, elements: list[str], state: dict | None = None) -> None:
     if len(coords) == 0:
         return
 
@@ -190,7 +191,7 @@ def _add_labels(plotter, coords: np.ndarray, elements: list[str]) -> None:
     plotter.add_point_labels(
         coords,
         texts,
-        font_size=10,
+        font_size=get_app_fonts(state).get("viewer_label_size", 10),
         point_size=0,
         shape_opacity=0.0,
         always_visible=False,
@@ -383,6 +384,8 @@ def show_oblique_pcs_slice_plot(
     import matplotlib.pyplot as plt
     from matplotlib.colors import LinearSegmentedColormap
 
+    fonts = get_app_fonts({})
+
     grid_pcs = _make_uniform_grid_from_ext(
         np.asarray(ext, dtype=float),
         np.asarray(pcs_field, dtype=float),
@@ -480,7 +483,7 @@ def show_oblique_pcs_slice_plot(
                 ax_x,
                 ax_y,
                 f"{idx}:{el}",
-                fontsize=7,
+                fontsize=fonts.get("plot_annotation", 7),
                 ha="left",
                 va="bottom",
                 color="#333333",
@@ -511,8 +514,8 @@ def show_oblique_pcs_slice_plot(
         shrink=0.90,
         aspect=30,
     )
-    cbar.ax.tick_params(labelsize=9)
-    cbar.set_label("PCS (ppm)", fontsize=10)
+    cbar.ax.tick_params(labelsize=fonts.get("plot_tick", 9))
+    cbar.set_label("PCS (ppm)", fontsize=fonts.get("plot_label", 10))
 
     plt.tight_layout()
 

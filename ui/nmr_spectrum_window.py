@@ -33,6 +33,7 @@ class NMRSpectrumWindow(tk.Toplevel):
 
         # --------- state ---------
         self.state = state  # shared app state (table/pcs/etc)
+        self.fonts = (state.get("fonts", {}) if isinstance(state, dict) else {}) or getattr(parent._root(), "_app_fonts", {}) or {}
         self.plot_cartesian_graph_fn = plot_cartesian_graph_fn
 
         self._shifts: np.ndarray | None = None
@@ -83,7 +84,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             xy=(0, 0),
             xytext=(10, 10),
             textcoords="offset points",
-            fontsize=7,
+            fontsize=self.fonts.get("plot_annotation", 7),
             bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
             arrowprops=dict(arrowstyle="->", color="0.3"),
         )
@@ -177,7 +178,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             xy=(0, 0),
             xytext=(10, 10),
             textcoords="offset points",
-            fontsize=7,
+            fontsize=self.fonts.get("plot_annotation", 7),
             bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
             arrowprops=dict(arrowstyle="->", color="0.3"),
         )
@@ -516,14 +517,14 @@ class NMRSpectrumWindow(tk.Toplevel):
             xy=(0, 0),
             xytext=(10, 10),
             textcoords="offset points",
-            fontsize=7,
+            fontsize=self.fonts.get("plot_annotation", 7),
             bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
             arrowprops=dict(arrowstyle="->", color="0.3"),
         )
         self._hover_annot.set_visible(False)
 
-        self.ax.set_xlabel("ppm", fontsize=8)
-        self.ax.set_ylabel("a.u.", fontsize=8)
+        self.ax.set_xlabel("ppm", fontsize=self.fonts.get("plot_label", 8))
+        self.ax.set_ylabel("a.u.", fontsize=self.fonts.get("plot_label", 8))
         self.ax.set_yticks([])
 
         self._stick_x = np.asarray(sticks["x"], dtype=float)
@@ -568,13 +569,13 @@ class NMRSpectrumWindow(tk.Toplevel):
                         continue
                     y = float(counts[k]) + 0.03
                     self.ax.text(c["center"], y, f"n={c['n']}",
-                                 ha="center", va="bottom", fontsize=7, clip_on=True)
+                                 ha="center", va="bottom", fontsize=self.fonts.get("plot_annotation", 7), clip_on=True)
 
             for k in sorted(self._pinned_clusters):
                 if 0 <= k < len(self._clusters):
                     c = self._clusters[k]
                     self.ax.text(c["center"], 1.10, self._cluster_label(k),
-                                 ha="center", va="top", fontsize=7, clip_on=True)
+                                 ha="center", va="top", fontsize=self.fonts.get("plot_annotation", 7), clip_on=True)
 
             # Fix y-limits so texts don't hit the border
             self.ax.set_ylim(0.0, 1.15)
@@ -615,7 +616,7 @@ class NMRSpectrumWindow(tk.Toplevel):
         # NMR convention: left = higher ppm
         lo, hi2 = meta["x_range"]
         self.ax.set_xlim(hi2, lo)
-        self.ax.tick_params(axis="both", labelsize=8)
+        self.ax.tick_params(axis="both", labelsize=self.fonts.get("plot_tick", 8))
 
         self.canvas.draw_idle()
 
@@ -663,7 +664,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             rotation=0,
             ha="left",
             va="center",
-            fontsize=7 if force else 6,
+            fontsize=self.fonts.get("plot_annotation", 7) if force else max(self.fonts.get("plot_annotation", 7) - 1, 6),
             fontweight="bold" if force else "normal",
             clip_on=True,
         )
@@ -857,7 +858,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             xy=(0, 0),
             xytext=(10, 10),
             textcoords="offset points",
-            fontsize=7,
+            fontsize=self.fonts.get("plot_annotation", 7),
             bbox=dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9),
             arrowprops=dict(arrowstyle="->", color="0.3"),
         )
@@ -889,10 +890,10 @@ class NMRSpectrumWindow(tk.Toplevel):
         xmin, xmax = float(np.min(all_x)), float(np.max(all_x))
 
         # match main plot style
-        ax.set_xlabel("ppm", fontsize=8)
-        ax.set_ylabel("a.u.", fontsize=8)
+        ax.set_xlabel("ppm", fontsize=self.fonts.get("plot_label", 8))
+        ax.set_ylabel("a.u.", fontsize=self.fonts.get("plot_label", 8))
         ax.set_yticks([])
-        ax.tick_params(axis="both", labelsize=8)
+        ax.tick_params(axis="both", labelsize=self.fonts.get("plot_tick", 8))
 
         for i, layer in enumerate(layers):
             c = self._layer_color(layer.name)
@@ -916,7 +917,7 @@ class NMRSpectrumWindow(tk.Toplevel):
             # layer name tag (keep, but light)
             ax.text(
                 0.01, 0.98 - i * 0.12, layer.name,
-                transform=ax.transAxes, va="top", fontsize=8, color=c
+                transform=ax.transAxes, va="top", fontsize=self.fonts.get("plot_label", 8), color=c
             )
 
             # hover payload
@@ -990,10 +991,10 @@ class NMRSpectrumWindow(tk.Toplevel):
         #     # Keep light: only annotate when there are not too many peaks
         #     if len(shifts) <= 40:
         #         for x, yy, lab in zip(shifts, y, layer.labels):
-        #             self.ax.text(x, yy + 0.05, lab, fontsize=8, rotation=90, va="bottom", ha="center")
+        #             self.ax.text(x, yy + 0.05, lab, fontsize=self.fonts.get("plot_label", 8), rotation=90, va="bottom", ha="center")
         #     # All label version:
         #     # for x, yy, lab in zip(shifts, y, layer.labels):
-        #     #     self.ax.text(x, yy + 0.05, lab, fontsize=8, rotation=90, va="bottom", ha="center")
+        #     #     self.ax.text(x, yy + 0.05, lab, fontsize=self.fonts.get("plot_label", 8), rotation=90, va="bottom", ha="center")
         #
         #     # Layer title on the left
         #     self.ax.text(0.01, 0.95 - i * 0.08, layer.name, transform=self.ax.transAxes, va="top")

@@ -409,12 +409,13 @@ def _install_hover_handler(state, ax, rows, artists):
         except Exception:
             pass
 
+    fonts = state.get("fonts", {}) or {}
     annot = ax.annotate(
         "",
         xy=(0, 0),
         xytext=(10, 10),
         textcoords="offset points",
-        fontsize=8,
+        fontsize=fonts.get("plot_annotation", 8),
         bbox=dict(boxstyle="round", fc="white", ec="0.5", alpha=0.95),
         arrowprops=dict(arrowstyle="->", color="0.3"),
         zorder=20,
@@ -579,6 +580,12 @@ def plot_cartesian_graph(state):
 
     fig.clear()
     ax = fig.add_subplot(111)
+    fonts = state.get("fonts", {}) or {}
+    plot_title = fonts.get("plot_title", 10)
+    plot_label = fonts.get("plot_label", 9)
+    plot_tick = fonts.get("plot_tick", 8)
+    plot_legend = fonts.get("plot_legend", 8)
+    plot_annotation = fonts.get("plot_annotation", 7)
     ax.set_axisbelow(True)
 
     if not rows:
@@ -694,15 +701,16 @@ def plot_cartesian_graph(state):
                 xy=(sel["gi"], sel["dexp"]),
                 xytext=(14, 14),
                 textcoords="offset points",
-                fontsize=8,
+                fontsize=plot_annotation,
                 bbox=dict(boxstyle="round", fc="white", ec="gold", alpha=0.95),
                 arrowprops=dict(arrowstyle="->", color="goldenrod"),
                 zorder=15,
             )
 
-    ax.set_xlabel("Gᵢ")
-    ax.set_ylabel("δ (ppm)")
-    ax.set_title("Geometrical factor (Gᵢ) vs Chemical shift (δ_Exp)")
+    ax.set_xlabel("Gᵢ", fontsize=plot_label)
+    ax.set_ylabel("δ (ppm)", fontsize=plot_label)
+    ax.set_title("Geometrical factor (Gᵢ) vs Chemical shift (δ_Exp)", fontsize=plot_title)
+    ax.tick_params(axis="both", labelsize=plot_tick)
     ax.grid(True, alpha=0.25, linewidth=0.6)
     # origin axes
     ax.axhline(0, color="#444444", linewidth=1.0, alpha=0.9, zorder=1)
@@ -710,13 +718,13 @@ def plot_cartesian_graph(state):
 
 
     if len(rows) >= 2:
-        ax.legend(fontsize=8)
+        ax.legend(fontsize=plot_legend)
         ax.text(
             0.98, 0.02,
             "red: δ_PCS > 0\nblue: δ_PCS < 0",
             transform=ax.transAxes,
             ha="right", va="bottom",
-            fontsize=7,
+            fontsize=plot_annotation,
             color="#555555",
         )
 
