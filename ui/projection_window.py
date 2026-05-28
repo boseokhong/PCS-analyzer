@@ -308,7 +308,7 @@ def _draw_projection_plot(state):
 
         cax = fig.add_axes([0.85, 0.10, 0.03, 0.82])
         cb = fig.colorbar(cf, cax=cax)
-        cb.set_label("PCS [ppm]", fontsize=plot_tick)
+        cb.set_label("PCS (ppm)", fontsize=plot_tick)
         cb.ax.tick_params(labelsize=plot_tick)
 
         if show_atoms:
@@ -368,7 +368,7 @@ def _draw_projection_plot(state):
         )
 
         cb = fig.colorbar(cf, ax=ax, fraction=0.025, pad=0.05)
-        cb.set_label("PCS [ppm]", fontsize=plot_tick)
+        cb.set_label("PCS (ppm)", fontsize=plot_tick)
         cb.ax.tick_params(labelsize=plot_tick)
 
         if show_atoms:

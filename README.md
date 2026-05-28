@@ -33,8 +33,14 @@ Release **v1.3.3**
 - Interface and workflow
   - Added a main menu bar and settings menu.
     - Moved the **Load XYZ Structure** action to the main menu.
+  - Added font options in the Settings window.
+  - Changed the main-window control panel UI.
+  - Refactored parts of the codebase.
   - Added a Modules/Plugins menu.
   - Added a Module Manager window for managing available modules and plugins.
+- Project file I/O and loading
+  - Added support for `.pcsp` project file I/O for project reproducibility.
+  - Added drag-and-drop loading support for `.pcsp`, `.xyz`, `.out`, and `.log` files.
 - Conformer Search
   - Added a new constraint-mode selector with two modes:
     - **Position mode**: legacy fitting mode introduced in v1.3.0. Fixed atoms are kept close to their original Cartesian coordinates, making this mode suitable for conservative, scaffold-preserving searches.
@@ -43,6 +49,8 @@ Release **v1.3.3**
   - Added rigid mode for conformer searches.
 - Gᵢ vs δExp plot
   - Added lasso selection functionality for selecting subsets of data points directly from the plot.
+- 2D polar contour plot
+  - Improved 2D polar contour plot visualization.
 
 Release **v1.3.2**
 - added **PCS Workbench**, a standalone workspace for FFT-based PDE PCS analysis from ORCA magnetic susceptibility tensors and spin-density grids `.3d`
@@ -286,8 +294,14 @@ PCS Analyzer supports export of:
 - Interface and workflow
   - Added a main menu bar and settings menu.
     - Moved the **Load XYZ Structure** action to the main menu.
+  - Added font options in the Settings window.
+  - Changed the main-window control panel UI.
+  - Refactored parts of the codebase.
   - Added a Modules/Plugins menu.
   - Added a Module Manager window for managing available modules and plugins.
+- Project file I/O and loading
+  - Added support for `.pcsp` project file I/O for project reproducibility.
+  - Added drag-and-drop loading support for `.pcsp`, `.xyz`, `.out`, and `.log` files.
 - Conformer Search
   - Added a new constraint-mode selector with two modes:
     - **Position mode**: legacy fitting mode introduced in v1.3.0. Fixed atoms are kept close to their original Cartesian coordinates, making this mode suitable for conservative, scaffold-preserving searches.
@@ -296,6 +310,8 @@ PCS Analyzer supports export of:
   - Added rigid mode for conformer searches.
 - Gᵢ vs δExp plot
   - Added lasso selection functionality for selecting subsets of data points directly from the plot.
+- 2D polar contour plot
+  - Improved 2D polar contour plot visualization.
 
 </details>
 

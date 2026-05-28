@@ -37,17 +37,70 @@ def add_arrow3d(ax, x, y, z, dx, dy, dz, *args, **kwargs):
     arrow = Arrow3D(x, y, z, dx, dy, dz, *args, **kwargs)
     ax.add_artist(arrow)
 
+def _get_plot_font_settings(state):
+    """
+    Read Matplotlib plot font settings from app settings.
+
+    Uses:
+        font_family_plot
+        font_size_plot
+        font_scale
+
+    These are shared plot-level settings for Matplotlib/PyVista-style viewers.
+    """
+    cfg = state.get("app_settings", {}) or {}
+
+    family = str(cfg.get("font_family_plot", "DejaVu Sans")).strip() or "DejaVu Sans"
+
+    try:
+        base_size = int(cfg.get("font_size_plot", 9))
+    except Exception:
+        base_size = 9
+
+    try:
+        scale = float(cfg.get("font_scale", 1.0))
+    except Exception:
+        scale = 1.0
+
+    # Keep values in a safe visual range.
+    if base_size < 6:
+        base_size = 6
+    if base_size > 48:
+        base_size = 48
+
+    if scale < 0.5:
+        scale = 0.5
+    if scale > 2.5:
+        scale = 2.5
+
+    plot_label = max(6, int(round(base_size * scale)))
+    plot_tick = max(5, int(round((base_size - 1) * scale)))
+    viewer_label = max(6, int(round((base_size + 1) * scale)))
+
+    return {
+        "family": family,
+        "plot_label": plot_label,
+        "plot_tick": plot_tick,
+        "viewer_label": viewer_label,
+    }
 
 def get_cpk_color(atom_label: str) -> str:
     if not atom_label:
         return CPK_COLORS["default"]
+
     s = str(atom_label).strip()
-    if len(s) >= 2 and s[1].islower():
+
+    # Pseudo labels used by symmetry averaging, if they ever reach the 3D viewer.
+    if s.startswith("MeH@"):
+        el = "H"
+    elif s.startswith("CF3F@"):
+        el = "F"
+    elif len(s) >= 2 and s[1].islower():
         el = s[:2]   # Cl, Br, Nd, Dy ...
     else:
         el = s[:1]   # C, H, N, O ...
-    return CPK_COLORS.get(el, CPK_COLORS["default"])
 
+    return CPK_COLORS.get(el, CPK_COLORS["default"])
 
 def set_axes_equal(ax):
     xlim = ax.get_xlim3d()
@@ -67,28 +120,99 @@ def set_axes_equal(ax):
     ax.set_ylim3d([ym - radius, ym + radius])
     ax.set_zlim3d([zm - radius, zm + radius])
 
+def _get_3d_bond_scale(state):
+    """
+    Read bond tolerance from the main components UI.
 
-def calculate_bonds(atom_coords, atom_elements):
+    components.py stores:
+        state["bond_tol_entry"]
+
+    The entry value is interpreted as an additive tolerance:
+        actual bond scale = 1.00 + tol
+
+    Example:
+        entry = 0.05  -> scale = 1.05
+        entry = 0.10  -> scale = 1.10
+    """
+    fallback = 1.05
+
+    entry = state.get("bond_tol_entry")
+    if entry is not None:
+        try:
+            text = str(entry.get()).strip()
+            tol = float(text) if text else 0.05
+            scale = 1.00 + tol
+
+            # Safe range to avoid absurd bonding.
+            if 0.50 <= scale <= 3.00:
+                return scale
+        except Exception:
+            pass
+
+    return fallback
+
+def calculate_bonds(atom_coords, atom_elements, bond_scale=1.05):
     from scipy.spatial.distance import pdist, squareform
+
+    atom_coords = np.asarray(atom_coords, dtype=float)
+    if len(atom_coords) < 2:
+        return []
+
+    def _radius_key(label):
+        s = str(label).strip()
+
+        if s.startswith("MeH@"):
+            return "H"
+        if s.startswith("CF3F@"):
+            return "F"
+        if len(s) >= 2 and s[1].islower():
+            return s[:2]
+        return s[:1]
+
+    try:
+        bond_scale = float(bond_scale)
+    except Exception:
+        bond_scale = 1.05
+
+    if not (0.50 <= bond_scale <= 3.00):
+        bond_scale = 1.05
 
     bonds = []
     distances = squareform(pdist(atom_coords))
+    elements = [_radius_key(el) for el in atom_elements]
 
     for i in range(len(atom_coords)):
         for j in range(i + 1, len(atom_coords)):
-            rsum = covalent_radii.get(atom_elements[i], 0.0) + covalent_radii.get(atom_elements[j], 0.0)
-            if distances[i, j] <= rsum * 1.05:
-                bonds.append((i, j))
-    return bonds
+            ri = covalent_radii.get(elements[i], 0.0)
+            rj = covalent_radii.get(elements[j], 0.0)
+            rsum = ri + rj
 
+            if rsum <= 0.0:
+                continue
+
+            if distances[i, j] <= rsum * bond_scale:
+                bonds.append((i, j))
+
+    return bonds
 
 def _get_3d_structure(state):
     """
-    Return the structure used for the 3D viewer.
-    Prefer effective coordinates when symmetry averaging is enabled.
+    Return the raw structure used for the 3D viewer.
+
+    The 3D Structure viewer should display the real molecular structure.
+    Symmetry-averaged pseudo atoms are used only for 2D/table/fitting views.
     """
-    atom_data = state.get("atom_data_eff") or state.get("atom_data_raw") or state.get("atom_data") or []
-    ref_ids = state.get("atom_ids_eff") or state.get("atom_ids_raw") or list(range(1, len(atom_data) + 1))
+    atom_data = (
+        state.get("atom_data_raw")
+        or state.get("atom_data")
+        or []
+    )
+
+    ref_ids = state.get("atom_ids_raw")
+
+    if not ref_ids or len(ref_ids) != len(atom_data):
+        ref_ids = list(range(1, len(atom_data) + 1))
+
     return atom_data, ref_ids
 
 
@@ -183,7 +307,15 @@ def _get_3d_view_data(state):
 
     rows = []
     for label, coord, rid in zip(labels, coords_rot, ref_ids):
-        element = label
+        s = str(label).strip()
+        if s.startswith("MeH@"):
+            element = "H"
+        elif s.startswith("CF3F@"):
+            element = "F"
+        elif len(s) >= 2 and s[1].islower():
+            element = s[:2]
+        else:
+            element = s[:1]
         if selected_elements is not None and element not in selected_elements:
             continue
         rows.append((label, coord, rid))
@@ -213,17 +345,53 @@ def _get_show_labels(state):
     var = state.get("plot3d_show_labels_var")
     return bool(var.get()) if var is not None else False
 
+def _get_3d_atom_scale(state):
+    """
+    Read atom marker scale from the main components UI.
+    components.py stores:
+        state["atom_scale_entry"]
+    Default:
+        1.0
+    """
+    fallback = 1.0
+
+    entry = state.get("atom_scale_entry")
+    if entry is not None:
+        try:
+            text = str(entry.get()).strip()
+            scale = float(text) if text else fallback
+
+            # Safe range to avoid invisible or enormous atoms.
+            if 0.10 <= scale <= 10.0:
+                return scale
+        except Exception:
+            pass
+
+    return fallback
 
 def _build_atom_colors_and_sizes(state, labels, ref_ids):
     """
     Return per-atom colors and marker sizes based on the selected color mode.
     """
     color_mode = _get_color_mode(state)
+    atom_scale = _get_3d_atom_scale(state)
 
     sizes = []
-    for el in labels:
+
+    for label in labels:
+        s = str(label).strip()
+
+        if s.startswith("MeH@"):
+            el = "H"
+        elif s.startswith("CF3F@"):
+            el = "F"
+        elif len(s) >= 2 and s[1].islower():
+            el = s[:2]
+        else:
+            el = s[:1]
+
         radius = covalent_radii.get(el, 1.0)
-        sizes.append(radius * 55)
+        sizes.append(radius * 55 * atom_scale)
 
     if color_mode == "PCS":
         pcs_by_id = state.get("pcs_by_id", {}) or {}
@@ -263,6 +431,12 @@ def _draw_3d_plot(state):
     if fig is None or canvas is None:
         return
 
+    font_cfg = _get_plot_font_settings(state)
+    plot_font_family = font_cfg["family"]
+    plot_label = font_cfg["plot_label"]
+    plot_tick = font_cfg["plot_tick"]
+    viewer_label = font_cfg["viewer_label"]
+
     saved_view = None
     saved_limits = None
 
@@ -300,7 +474,8 @@ def _draw_3d_plot(state):
 
     colors, sizes, norm, cmap = _build_atom_colors_and_sizes(state, labels, ref_ids)
 
-    bonds = calculate_bonds(coords, elements)
+    bond_scale = _get_3d_bond_scale(state)
+    bonds = calculate_bonds(coords, elements, bond_scale=bond_scale)
     for i, j in bonds:
         ax.plot(
             [coords[i, 0], coords[j, 0]],
@@ -347,16 +522,20 @@ def _draw_3d_plot(state):
         pick_pairs.append((pt, rid))
 
         if show_labels:
-            ax.text(x, y, z, str(label), fontsize=plot_label)
+            ax.text(
+                x, y, z,
+                str(label),
+                fontsize=plot_label,
+                fontfamily=plot_font_family,
+            )
 
     axis_len = max(np.ptp(coords[:, 0]), np.ptp(coords[:, 1]), np.ptp(coords[:, 2]), 1.0) * 0.35
     add_arrow3d(ax, 0, 0, 0, axis_len, 0, 0, mutation_scale=18, ec="black", fc="blue")
     add_arrow3d(ax, 0, 0, 0, 0, axis_len, 0, mutation_scale=18, ec="black", fc="green")
     add_arrow3d(ax, 0, 0, 0, 0, 0, axis_len, mutation_scale=18, ec="black", fc="red")
-    ax.text(axis_len, 0, 0, "X", color="blue", fontsize=viewer_label, weight="bold")
-    ax.text(0, axis_len, 0, "Y", color="green", fontsize=viewer_label, weight="bold")
-    ax.text(0, 0, axis_len, "Z", color="red", fontsize=viewer_label, weight="bold")
-
+    ax.text(axis_len, 0, 0, "X", color="blue", fontsize=viewer_label, fontfamily=plot_font_family, weight="bold")
+    ax.text(0, axis_len, 0, "Y", color="green", fontsize=viewer_label, fontfamily=plot_font_family, weight="bold")
+    ax.text(0, 0, axis_len, "Z", color="red", fontsize=viewer_label, fontfamily=plot_font_family, weight="bold")
     ax.grid(False)
     ax.set_xticks([])
     ax.set_yticks([])
@@ -384,8 +563,11 @@ def _draw_3d_plot(state):
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.03)
-        cbar.set_label("PCS [ppm]", fontsize=plot_label)
+        cbar.set_label("PCS (ppm)", fontsize=plot_label, fontfamily=plot_font_family)
         cbar.ax.tick_params(labelsize=plot_tick)
+
+        for tick_label in cbar.ax.get_yticklabels():
+            tick_label.set_fontfamily(plot_font_family)
 
     old_cid = state.get("plot3d_click_cid")
     if old_cid is not None:
@@ -413,9 +595,135 @@ def _draw_3d_plot(state):
 
     state["plot3d_click_cid"] = fig.canvas.mpl_connect("button_press_event", _on_click)
 
-    fig.tight_layout(pad=0.1)
+    try:
+        fig.tight_layout(pad=0.1)
+    except Exception:
+        pass
+
     canvas.draw_idle()
 
+def open_pyvista_structure_window(state):
+    """
+    Open a separate PyVista/Qt 3D structure viewer.
+
+    This viewer reuses the same 3D data pipeline as the Matplotlib viewer:
+    - raw structure
+    - metal-centered coordinates
+    - fit override
+    - x/y/z rotation
+    - element checklist
+    - bond tolerance
+    - atom scale
+    """
+    try:
+        import pyvista as pv
+        from pyvistaqt import BackgroundPlotter
+    except Exception as exc:
+        state["messagebox"].showerror(
+            "PyVista 3D Viewer",
+            "PyVista viewer requires pyvista and pyvistaqt.\n\n"
+            "Install with:\n"
+            "python -m pip install pyvista pyvistaqt\n\n"
+            f"Error:\n{exc}"
+        )
+        return
+
+    data = _get_3d_view_data(state)
+    if data is None:
+        state["messagebox"].showwarning(
+            "PyVista 3D Viewer",
+            "No visible atoms."
+        )
+        return
+
+    labels = data["labels"]
+    coords = data["coords"]
+    ref_ids = data["ref_ids"]
+    elements = data["elements"]
+
+    atom_scale = _get_3d_atom_scale(state)
+    bond_scale = _get_3d_bond_scale(state)
+
+    plotter = BackgroundPlotter(title="PyVista 3D Structure")
+    plotter.set_background("white")
+
+    # Bonds
+    bonds = calculate_bonds(coords, elements, bond_scale=bond_scale)
+    for i, j in bonds:
+        p0 = coords[i]
+        p1 = coords[j]
+        line = pv.Line(p0, p1)
+        plotter.add_mesh(
+            line,
+            color="gray",
+            line_width=4,
+            name=f"bond_{i}_{j}",
+        )
+
+    # Atoms
+    for idx, (label, xyz, rid) in enumerate(zip(labels, coords, ref_ids)):
+        color = get_cpk_color(label)
+
+        s = str(label).strip()
+        if s.startswith("MeH@"):
+            el = "H"
+        elif s.startswith("CF3F@"):
+            el = "F"
+        elif len(s) >= 2 and s[1].islower():
+            el = s[:2]
+        else:
+            el = s[:1]
+
+        radius = covalent_radii.get(el, 1.0)
+        sphere_radius = max(0.05, radius * 0.25 * atom_scale)
+
+        sphere = pv.Sphere(
+            radius=sphere_radius,
+            center=tuple(float(v) for v in xyz),
+            theta_resolution=32,
+            phi_resolution=32,
+        )
+
+        plotter.add_mesh(
+            sphere,
+            color=color,
+            smooth_shading=True,
+            name=f"atom_{rid}_{idx}",
+        )
+
+    # Axis arrows
+    axis_len = max(
+        np.ptp(coords[:, 0]),
+        np.ptp(coords[:, 1]),
+        np.ptp(coords[:, 2]),
+        1.0,
+    ) * 0.35
+
+    plotter.add_arrows(
+        np.array([[0.0, 0.0, 0.0]]),
+        np.array([[axis_len, 0.0, 0.0]]),
+        color="blue",
+        mag=1.0,
+    )
+    plotter.add_arrows(
+        np.array([[0.0, 0.0, 0.0]]),
+        np.array([[0.0, axis_len, 0.0]]),
+        color="green",
+        mag=1.0,
+    )
+    plotter.add_arrows(
+        np.array([[0.0, 0.0, 0.0]]),
+        np.array([[0.0, 0.0, axis_len]]),
+        color="red",
+        mag=1.0,
+    )
+
+    plotter.add_text("PyVista 3D Structure", font_size=10)
+    plotter.show_axes()
+    plotter.reset_camera()
+
+    # Keep a reference so the window is not immediately garbage-collected.
+    state["plot3d_pyvista_plotter"] = plotter
 
 def open_3d_plot_window(state):
     """
@@ -440,7 +748,7 @@ def open_3d_plot_window(state):
 
     win = tk.Toplevel(state["root"])
     win.title("3D Structure")
-    win.geometry("600x560")
+    win.geometry("650x560")
 
     outer = ttk.Frame(win)
     outer.pack(fill=tk.BOTH, expand=True)
@@ -480,6 +788,12 @@ def open_3d_plot_window(state):
         control,
         text="💾 Export plot",
         command=lambda: _save_3d_figure(state),
+    ).pack(side=tk.RIGHT, padx=(0, 6))
+
+    ttk.Button(
+        control,
+        text="Open PyVista",
+        command=lambda: open_pyvista_structure_window(state),
     ).pack(side=tk.RIGHT, padx=(0, 6))
 
     fig_frame = ttk.Frame(outer)
