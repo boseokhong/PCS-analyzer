@@ -12,7 +12,7 @@ The software integrates molecular structure import, 2D and 3D PCS visualization,
 
 > [!NOTE]
 > Required Python packages: `numpy`, `scipy`, `matplotlib`, `pandas`, and `openpyxl`  
-> Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, and `imageio`
+> Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, `tkinterdnd2`, and `imageio`
 > - `pyvista` for 3D PCS field / molecular visualization, and `ttkbootstrap` for enhanced GUI styling
 > - `pyfftw` is optional. The code falls back to `numpy.fft` if it is not installed.
 > - `imageio` is required for GIF export [PyVista's `Plotter.open_gif()`].

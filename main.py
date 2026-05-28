@@ -2,7 +2,7 @@
 PCS analyzer
 
 The following code requires the numpy, matplotlib, pandas, and openpyxl module packages to run.
-(Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, and `imageio`)
+(Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, `tkinterdnd2`, and `imageio`)
 A tool for PCS analysis and 2D/3D visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
 v.1.3.3 updates
@@ -127,7 +127,7 @@ def resource_path(relative_path: str) -> Path:
 
         candidates = [
             exe_dir / rel,
-            exe_dir / "_internal" / rel,
+            exe_dir / "lib" / rel,
         ]
 
         for path in candidates:
