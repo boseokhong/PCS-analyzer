@@ -6,16 +6,16 @@ The following code requires the numpy, matplotlib, pandas, and openpyxl module p
 A tool for PCS analysis and 2D/3D visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
 v.1.3.3 updates
-- Added a main menu bar and settings menu for improved workflow organization.
-- Added a Modules/Plugins menu with a dedicated Module Manager window.
-- Added lasso selection to the Gᵢ vs δExp plot for interactive subset selection.
+- *New: Added a main menu bar and settings menu for improved workflow organization.
+- *New: Added a Modules/Plugins menu with a dedicated Module Manager window.
+- *New: Added lasso selection to the Gᵢ vs δExp plot for interactive subset selection.
+- *New: Support `.pcsp` project file I/O for project reproducibility
 - Extended Conformer Search with a new constraint-mode selector:
   - **Position mode**: legacy v1.3.0 mode that keeps fixed atoms close to their original Cartesian coordinates.
   - **Angular mode**: preserves metal-centered donor directions while allowing radial relaxation, suitable for flexible coordination-complex searches.
   - Added false-bond detection and skipped-bond handling to Conformer Search.
   - Added **Rigid mode** for fully constrained conformer-search workflows.
 - Fonts options in Settings window, code refactoring
-- Support `.pcsp` project file I/O for project reproducibility
 - Drag & Drop to load `.pcsp`,`.xyz`,`.out`,`.log` files
 - Improved 2D polar contour plot visualization
 - Main window control panel UI changed

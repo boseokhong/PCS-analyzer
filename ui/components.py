@@ -794,7 +794,7 @@ def build_app():
     state['atom_data_original'] = None
 
     # Window size
-    #root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1190x900"); state['root'] = root
+    #root = tk.Tk(); root.title("PCS Analyzer"); root.geometry("1320x930"); state['root'] = root
     try:
         from tkinterdnd2 import TkinterDnD
         root = TkinterDnD.Tk()
@@ -807,7 +807,7 @@ def build_app():
     state['root'] = root
 
     saved_geo = persisted.get("main_window_geometry")
-    default_geo = "1250x850"
+    default_geo = "1320x930"
 
     if (
         state["app_settings"].get("remember_window_geometry", True)

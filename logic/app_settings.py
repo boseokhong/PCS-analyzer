@@ -8,7 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 
 
-DEFAULT_MAIN_GEOMETRY = "1250x850"
+DEFAULT_MAIN_GEOMETRY = "1320x930"
 MIN_MAIN_WIDTH = 900
 MIN_MAIN_HEIGHT = 650
 
@@ -66,9 +66,9 @@ def parse_tk_geometry(geometry: str):
     Parse a Tk geometry string.
 
     Accepted examples:
-        1250x850
-        1250x850+100+100
-        1250x850-10+50
+        1320x930
+        1320x930+100+100
+        1320x930-10+50
 
     Returns:
         (width, height, x, y) or None
@@ -273,7 +273,7 @@ def load_app_state() -> dict:
         {
             "app_settings": {...},
             "recent_files": [...],
-            "main_window_geometry": "1250x850+100+100" | None,
+            "main_window_geometry": "1320x930+100+100" | None,
         }
     """
     path = get_settings_path()
