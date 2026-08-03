@@ -1,7 +1,5 @@
-# PCS Analyzer Plugin Distribution Guide
+# PCS Analyzer Plugin Distribution Guide v0.1
 
-**Document status:** Draft specification  
-**Target application:** PCS Analyzer  
 **Recommended scope:** External plugin authors, internal module developers, and future maintainers
 
 This document defines the recommended packaging, installation, loading, and distribution rules for PCS Analyzer plugins.
