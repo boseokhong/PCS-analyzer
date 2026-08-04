@@ -333,6 +333,12 @@ Contact: [bshong66@gmail.com](mailto:bshong66@gmail.com)
 
 GitHub: [boseokhong/PCS-analyzer](https://github.com/boseokhong/PCS-analyzer)
 
+## License
+
+The source code is distributed under the BSD 3-Clause License. See `LICENSE` for details.
+
+The PCS analyzer name and logo are not licensed under the BSD 3-Clause License. Use of the project name and logo is subject to the terms described in `TRADEMARKS.md`.
+
 ## Acknowledgements
 
 This project includes code or implementation ideas derived in part from the work of **Sebastian Dechert** for aspects of the 3D molecular scatter-plot functionality, distributed under the BSD 3-Clause License. The original project is available at:
