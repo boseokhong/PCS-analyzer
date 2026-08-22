@@ -165,10 +165,12 @@ class ControlPanel(ttk.Frame):
         "fft_pad_factor": 2,
         "normalize_density": True,
         "normalization_target": 1.0,
-        "auto_scale_pcs_levels": True,
-        "density_iso": 0.005,
+        "density_isovalue": 0.005,
         "show_atoms": False,
+        "atom_elements": [],
         "show_bonds": True,
+        "bond_color": "#555A60",
+        "bond_tolerance": 0.05,
         "show_density": False,
         "show_pcs": True,
         "show_labels": False,
@@ -176,15 +178,17 @@ class ControlPanel(ttk.Frame):
         "show_outline": False,
         "background_color": "white",
         "camera_preset": "iso",
+        "camera_projection": "perspective",
         "density_color": "#27af91",
         "density_style": "both",
         "density_opacity": 0.15,
         "ambient_light": 0.50,
         "smooth_pcs_display": False,
         "smooth_pcs_sigma": 1.0,
-        "png_dpi": 600,
+        "png_dpi": 150,
         "png_width_inch": 6.0,
         "png_transparent": False,
+        "export_view": "preset",
         "level_styles": DEFAULT_LEVEL_STYLES,
     }
 
@@ -194,6 +198,15 @@ class ControlPanel(ttk.Frame):
         on_run_callback: Callable[[dict], None],
         on_refresh_view_callback: Optional[Callable[[dict], None]] = None,
         on_export_png_callback: Optional[Callable[[dict], None]] = None,
+        on_oblique_slice_callback: Optional[Callable[[], None]] = None,
+        on_compare_plot_callback: Optional[Callable[[], None]] = None,
+        on_residual_plot_callback: Optional[Callable[[], None]] = None,
+        on_tensor_spheroid_callback: Optional[Callable[[], None]] = None,
+        on_export_numpy_callback: Optional[Callable[[], None]] = None,
+        on_export_atom_csv_callback: Optional[Callable[[], None]] = None,
+        on_apply_camera_callback: Optional[Callable[[dict], None]] = None,
+        on_save_camera_callback: Optional[Callable[[], None]] = None,
+        on_restore_camera_callback: Optional[Callable[[], None]] = None,
         temperatures: Optional[list[float]] = None,
         initial_params: Optional[dict] = None,
         **kwargs,
@@ -202,9 +215,25 @@ class ControlPanel(ttk.Frame):
         self._on_run = on_run_callback
         self._on_refresh_view = on_refresh_view_callback
         self._on_export_png = on_export_png_callback
+        self._on_oblique_slice = on_oblique_slice_callback
+        self._on_compare_plot = on_compare_plot_callback
+        self._on_residual_plot = on_residual_plot_callback
+        self._on_tensor_spheroid = on_tensor_spheroid_callback
+        self._on_export_numpy = on_export_numpy_callback
+        self._on_export_atom_csv = on_export_atom_csv_callback
+        self._on_apply_camera = on_apply_camera_callback
+        self._on_save_camera = on_save_camera_callback
+        self._on_restore_camera = on_restore_camera_callback
         self._temperatures = temperatures or []
+        self._elements: list[str] = []
+        self._atom_element_vars: dict[str, tk.BooleanVar] = {}
 
-        params = {**self.DEFAULTS, **(initial_params or {})}
+        initial = dict(initial_params or {})
+        if "density_isovalue" not in initial and "density_iso" in initial:
+            initial["density_isovalue"] = initial["density_iso"]
+        initial.pop("density_iso", None)
+        initial.pop("auto_scale_pcs_levels", None)
+        params = {**self.DEFAULTS, **initial}
         if "level_styles" not in params or not params["level_styles"]:
             params["level_styles"] = list(self.DEFAULT_LEVEL_STYLES)
 
@@ -300,7 +329,7 @@ class ControlPanel(ttk.Frame):
                 opacity_val=ls.get("opacity", 0.30),
             )
 
-    def _build_ui(self, params: dict):
+    def _build_ui_legacy(self, params: dict):
         self.columnconfigure(0, weight=1)
 
         canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
@@ -373,10 +402,6 @@ class ControlPanel(ttk.Frame):
         _labeled_check(inner, r, "Normalize density integral", self._vars["normalize_density"])
         r += 1
 
-        self._vars["auto_scale_pcs_levels"] = tk.BooleanVar(value=bool(params["auto_scale_pcs_levels"]))
-        _labeled_check(inner, r, "Auto-scale PCS contour levels", self._vars["auto_scale_pcs_levels"])
-        r += 1
-
         self._vars["normalization_target"] = tk.DoubleVar(value=float(params["normalization_target"]))
         _labeled_entry(inner, r, "Normalization target", self._vars["normalization_target"])
         r += 1
@@ -384,8 +409,8 @@ class ControlPanel(ttk.Frame):
         _section_header(inner, r, "Density Surface")
         r += 2
 
-        self._vars["density_iso"] = tk.DoubleVar(value=float(params["density_iso"]))
-        _labeled_entry(inner, r, "Density isovalue fraction", self._vars["density_iso"])
+        self._vars["density_isovalue"] = tk.DoubleVar(value=float(params["density_isovalue"]))
+        _labeled_entry(inner, r, "Density isovalue (a.u.)", self._vars["density_isovalue"])
         r += 1
 
         self._vars["density_style"] = tk.StringVar(value=str(params["density_style"]))
@@ -587,6 +612,344 @@ class ControlPanel(ttk.Frame):
             justify="left",
         ).grid(row=r, column=0, columnspan=2, pady=(10, 4), sticky="w")
 
+    def _build_ui(self, params: dict):
+        """Build the compact tabbed control panel.
+
+        The application menu remains available; buttons in the Analysis tab
+        are additional entry points wired to the same AppWindow callbacks.
+        """
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        notebook = ttk.Notebook(self)
+        notebook.grid(row=0, column=0, sticky="nsew")
+        self._notebook = notebook
+
+        def _scroll_tab(title: str):
+            tab = ttk.Frame(notebook)
+            notebook.add(tab, text=title)
+            tab.columnconfigure(0, weight=1)
+            tab.rowconfigure(0, weight=1)
+
+            canvas = tk.Canvas(tab, borderwidth=0, highlightthickness=0)
+            sb = ttk.Scrollbar(tab, orient="vertical", command=canvas.yview)
+            canvas.configure(yscrollcommand=sb.set)
+            canvas.grid(row=0, column=0, sticky="nsew")
+            sb.grid(row=0, column=1, sticky="ns")
+
+            inner = ttk.Frame(canvas, padding=(12, 8, 12, 10))
+            win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+            inner.columnconfigure(1, weight=1)
+            inner.bind("<Configure>", lambda _e, c=canvas: c.configure(scrollregion=c.bbox("all")))
+            canvas.bind("<Configure>", lambda e, c=canvas, w=win_id: c.itemconfigure(w, width=e.width))
+
+            def _wheel(event, c=canvas):
+                delta = -1 if getattr(event, "delta", 0) > 0 or getattr(event, "num", 0) == 4 else 1
+                c.yview_scroll(delta, "units")
+
+            canvas.bind("<MouseWheel>", _wheel)
+            canvas.bind("<Button-4>", _wheel)
+            canvas.bind("<Button-5>", _wheel)
+            inner.bind("<MouseWheel>", _wheel)
+            return inner
+
+        calc = _scroll_tab("Calculation")
+        surf = _scroll_tab("Surfaces")
+        view = _scroll_tab("View & Export")
+        analysis = _scroll_tab("Analysis")
+
+        # Calculation -----------------------------------------------------
+        r = 0
+        _section_header(calc, r, "Data")
+        r += 2
+        self._vars["temperature"] = tk.StringVar(value=str(params["temperature"]))
+        ttk.Label(calc, text="Temperature (K)").grid(row=r, column=0, sticky="w", padx=(0, 6), pady=2)
+        self._temp_summary_var = tk.StringVar(value="No temperature list loaded.")
+        self._temp_combo = ttk.Combobox(
+            calc,
+            textvariable=self._vars["temperature"],
+            values=[""] + [f"{t:g}" for t in sorted(self._temperatures)],
+            width=10,
+            state="readonly" if self._temperatures else "normal",
+        )
+        self._temp_combo.grid(row=r, column=1, sticky="ew", pady=2)
+        r += 1
+        self._temp_summary_label = ttk.Label(
+            calc, textvariable=self._temp_summary_var, foreground="gray",
+            font=get_app_fonts(self).get("ui_small", ("TkDefaultFont", 8)),
+            wraplength=260, justify="left",
+        )
+        self._temp_summary_label.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        self._refresh_temperature_summary()
+        r += 1
+
+        _section_header(calc, r, "FFT / PDE Settings")
+        r += 2
+        self._vars["fft_pad_factor"] = tk.IntVar(value=int(params["fft_pad_factor"]))
+        _labeled_entry(calc, r, "Padding factor", self._vars["fft_pad_factor"])
+        r += 1
+        self._vars["normalize_density"] = tk.BooleanVar(value=bool(params["normalize_density"]))
+        _labeled_check(calc, r, "Normalize density integral", self._vars["normalize_density"])
+        r += 1
+        self._vars["normalization_target"] = tk.DoubleVar(value=float(params["normalization_target"]))
+        _labeled_entry(calc, r, "Normalization target", self._vars["normalization_target"])
+        r += 1
+        ttk.Button(calc, text="▶ Run computation", style="Accent.TButton", command=self._run).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=(14, 4), ipady=4
+        )
+
+        # Surfaces --------------------------------------------------------
+        r = 0
+        _section_header(surf, r, "Density Surface")
+        r += 2
+        self._vars["density_isovalue"] = tk.DoubleVar(value=float(params["density_isovalue"]))
+        _labeled_entry(surf, r, "Density isovalue (a.u.)", self._vars["density_isovalue"])
+        r += 1
+        self._vars["density_style"] = tk.StringVar(value=str(params["density_style"]))
+        ttk.Label(surf, text="Density style").grid(row=r, column=0, sticky="w", padx=(0, 6), pady=2)
+        ttk.Combobox(surf, textvariable=self._vars["density_style"], values=list(STYLE_OPTIONS),
+                     state="readonly", width=10).grid(row=r, column=1, sticky="ew", pady=2)
+        r += 1
+        self._vars["density_color"] = tk.StringVar(value=str(params["density_color"]))
+        _labeled_color(surf, r, "Density color", self._vars["density_color"])
+        r += 1
+        self._vars["density_opacity"] = tk.DoubleVar(value=float(params["density_opacity"]))
+        _labeled_entry(surf, r, "Density opacity", self._vars["density_opacity"])
+        r += 1
+        self._vars["show_density"] = tk.BooleanVar(value=bool(params["show_density"]))
+        _labeled_check(surf, r, "Show spin density surface", self._vars["show_density"])
+        r += 1
+
+        _section_header(surf, r, "PCS Isosurface Levels")
+        r += 2
+        hdr = ttk.Frame(surf)
+        hdr.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 2))
+        for col, txt in enumerate(("ppm", "Pos", "Neg", "Style", "Opacity", "")):
+            ttk.Label(hdr, text=txt, font=get_app_fonts(self).get(
+                "ui_small_bold", ("TkDefaultFont", 8, "bold"))).grid(row=0, column=col, padx=2, sticky="w")
+        r += 1
+        self._level_rows_frame = ttk.Frame(surf)
+        self._level_rows_frame.grid(row=r, column=0, columnspan=2, sticky="ew")
+        self._rebuild_level_rows(params.get("level_styles", self.DEFAULT_LEVEL_STYLES))
+        r += 1
+        ttk.Button(surf, text="+ Add level", command=lambda: self._add_level_row(self._level_rows_frame)).grid(
+            row=r, column=0, columnspan=2, sticky="w", pady=(3, 0))
+        r += 1
+        self._vars["show_pcs"] = tk.BooleanVar(value=bool(params["show_pcs"]))
+        _labeled_check(surf, r, "Show PCS isosurfaces", self._vars["show_pcs"])
+        r += 1
+        self._vars["smooth_pcs_display"] = tk.BooleanVar(value=bool(params["smooth_pcs_display"]))
+        _labeled_check(surf, r, "Smooth PCS display (Gaussian)", self._vars["smooth_pcs_display"])
+        r += 1
+        self._vars["smooth_pcs_sigma"] = tk.DoubleVar(value=float(params["smooth_pcs_sigma"]))
+        _labeled_entry(surf, r, "Smooth sigma (voxels)", self._vars["smooth_pcs_sigma"])
+        r += 1
+        ttk.Button(surf, text="Open / Refresh Viewer", command=self._refresh_view).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=(14, 4), ipady=3)
+
+        # View & Export ---------------------------------------------------
+        r = 0
+        _section_header(view, r, "Display")
+        r += 2
+        self._vars["show_atoms"] = tk.BooleanVar(value=bool(params["show_atoms"]))
+        _labeled_check(view, r, "Show atoms", self._vars["show_atoms"])
+        r += 1
+
+        self._atom_details_open = tk.BooleanVar(value=False)
+        self._atom_details_button = ttk.Button(
+            view, text="▸ Atom elements…", command=self._toggle_atom_details,
+        )
+        self._atom_details_button.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 3))
+        r += 1
+        self._atom_elements_frame = ttk.Frame(view, padding=(8, 2, 0, 5))
+        self._atom_elements_frame.grid(row=r, column=0, columnspan=2, sticky="ew")
+        self._atom_elements_frame.grid_remove()
+        self._rebuild_atom_element_checks(
+            [], selected=params.get("atom_elements", [])
+        )
+        r += 1
+
+        self._vars["show_bonds"] = tk.BooleanVar(value=bool(params["show_bonds"]))
+        _labeled_check(view, r, "Show bonds", self._vars["show_bonds"])
+        r += 1
+        self._vars["bond_color"] = tk.StringVar(value=str(params.get("bond_color", "#555A60")))
+        _labeled_color(view, r, "Bond color", self._vars["bond_color"],
+                       "Colour used for all rendered bond tubes.")
+        r += 1
+        self._vars["bond_tolerance"] = tk.DoubleVar(value=float(params.get("bond_tolerance", 0.05)))
+        _labeled_entry(
+            view, r, "Bond tolerance", self._vars["bond_tolerance"],
+            "Bond cutoff = (r_cov,i + r_cov,j) × (1 + tolerance).",
+        )
+        r += 1
+
+        for key, label in (("show_labels", "Show labels"), ("show_grid", "Show grid"),
+                           ("show_outline", "Show outline")):
+            self._vars[key] = tk.BooleanVar(value=bool(params[key]))
+            _labeled_check(view, r, label, self._vars[key])
+            r += 1
+        _section_header(view, r, "Appearance")
+        r += 2
+        self._vars["background_color"] = tk.StringVar(value=str(params["background_color"]))
+        _labeled_color(view, r, "Background", self._vars["background_color"])
+        r += 1
+        self._vars["ambient_light"] = tk.DoubleVar(value=float(params["ambient_light"]))
+        _labeled_entry(view, r, "Ambient light", self._vars["ambient_light"])
+        r += 1
+        _section_header(view, r, "Camera")
+        r += 2
+        self._vars["camera_preset"] = tk.StringVar(value=str(params["camera_preset"]))
+        ttk.Label(view, text="Camera preset").grid(row=r, column=0, sticky="w", padx=(0, 6), pady=2)
+        ttk.Combobox(view, textvariable=self._vars["camera_preset"], values=list(CAMERA_PRESETS),
+                     state="readonly", width=10).grid(row=r, column=1, sticky="ew", pady=2)
+        r += 1
+        self._vars["camera_projection"] = tk.StringVar(
+            value=str(params.get("camera_projection", "perspective"))
+        )
+        ttk.Label(view, text="Projection").grid(row=r, column=0, sticky="w", padx=(0, 6), pady=2)
+        ttk.Combobox(
+            view, textvariable=self._vars["camera_projection"],
+            values=["perspective", "orthographic"], state="readonly", width=12,
+        ).grid(row=r, column=1, sticky="ew", pady=2)
+        r += 1
+        camera_buttons = ttk.Frame(view)
+        camera_buttons.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(5, 2))
+        camera_buttons.columnconfigure((0, 1, 2), weight=1)
+        ttk.Button(camera_buttons, text="Apply", command=self._apply_camera).grid(
+            row=0, column=0, sticky="ew", padx=(0, 3))
+        ttk.Button(camera_buttons, text="Save view", command=lambda: self._call_optional(self._on_save_camera)).grid(
+            row=0, column=1, sticky="ew", padx=3)
+        ttk.Button(camera_buttons, text="Restore", command=lambda: self._call_optional(self._on_restore_camera)).grid(
+            row=0, column=2, sticky="ew", padx=(3, 0))
+        r += 1
+        ttk.Label(
+            view, text="Camera controls affect the complete 3D scene.",
+            foreground="gray", wraplength=260, justify="left",
+        ).grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        r += 1
+        _section_header(view, r, "Export PNG")
+        r += 2
+        self._vars["png_dpi"] = tk.IntVar(value=int(params["png_dpi"]))
+        _labeled_entry(view, r, "DPI", self._vars["png_dpi"])
+        r += 1
+        self._vars["png_width_inch"] = tk.DoubleVar(value=float(params["png_width_inch"]))
+        _labeled_entry(view, r, "Width (inch)", self._vars["png_width_inch"])
+        r += 1
+        self._vars["png_transparent"] = tk.BooleanVar(value=bool(params["png_transparent"]))
+        _labeled_check(view, r, "Transparent background", self._vars["png_transparent"])
+        r += 1
+        self._vars["export_view"] = tk.StringVar(value=str(params.get("export_view", "preset")))
+        ttk.Label(view, text="Export view").grid(row=r, column=0, sticky="w", padx=(0, 6), pady=2)
+        ttk.Combobox(
+            view, textvariable=self._vars["export_view"],
+            values=["current", "preset"], state="readonly", width=10,
+        ).grid(row=r, column=1, sticky="ew", pady=2)
+        r += 1
+        ttk.Button(view, text="Export PNG…", command=self._export_png).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=(10, 3))
+        r += 1
+        preset_buttons = ttk.Frame(view)
+        preset_buttons.grid(row=r, column=0, columnspan=2, sticky="ew", pady=3)
+        preset_buttons.columnconfigure((0, 1), weight=1)
+        ttk.Button(preset_buttons, text="Save preset…", command=self._save_preset).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        ttk.Button(preset_buttons, text="Load preset…", command=self._load_preset).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+        r += 1
+        ttk.Button(view, text="Reset to defaults", command=self._reset).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=(3, 8))
+
+        # Analysis --------------------------------------------------------
+        r = 0
+        _section_header(analysis, r, "PCS Slice")
+        r += 2
+        ttk.Label(analysis, text="Oblique PCS plane through the metal centre.", foreground="gray",
+                  wraplength=260, justify="left").grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 5))
+        r += 1
+        ttk.Button(analysis, text="Open Oblique PCS Slice…",
+                   command=lambda: self._call_optional(self._on_oblique_slice)).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=2)
+        r += 1
+        _section_header(analysis, r, "PDE Comparison")
+        r += 2
+        ttk.Button(analysis, text="PDE PCS vs Point-dipole PCS…",
+                   command=lambda: self._call_optional(self._on_compare_plot)).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=2)
+        r += 1
+        ttk.Button(analysis, text="PDE − Point residuals…",
+                   command=lambda: self._call_optional(self._on_residual_plot)).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=2)
+        r += 1
+        _section_header(analysis, r, "Tensor")
+        r += 2
+        ttk.Button(analysis, text="Tensor spheroid…",
+                   command=lambda: self._call_optional(self._on_tensor_spheroid)).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=2)
+        r += 1
+        _section_header(analysis, r, "Data Export")
+        r += 2
+        ttk.Button(analysis, text="Export atom PCS to CSV…",
+                   command=lambda: self._call_optional(self._on_export_atom_csv)).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=2)
+        r += 1
+        ttk.Button(analysis, text="Export PCS to NumPy…",
+                   command=lambda: self._call_optional(self._on_export_numpy)).grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=2)
+
+    @staticmethod
+    def _call_optional(callback):
+        if callback is not None:
+            callback()
+
+    def _apply_camera(self):
+        if self._on_apply_camera is not None:
+            self._on_apply_camera(self.get_params())
+
+    def _toggle_atom_details(self):
+        opened = not bool(self._atom_details_open.get())
+        self._atom_details_open.set(opened)
+        if opened:
+            self._atom_elements_frame.grid()
+            self._atom_details_button.configure(text="▾ Atom elements…")
+        else:
+            self._atom_elements_frame.grid_remove()
+            self._atom_details_button.configure(text="▸ Atom elements…")
+
+    def _rebuild_atom_element_checks(self, elements: list[str], selected=None):
+        frame = getattr(self, "_atom_elements_frame", None)
+        if frame is None:
+            return
+        for child in frame.winfo_children():
+            child.destroy()
+
+        unique = sorted({str(el).strip() for el in elements if str(el).strip()})
+        self._elements = unique
+        selected_set = {str(el) for el in (unique if selected is None else selected)}
+        self._atom_element_vars = {}
+
+        if not unique:
+            ttk.Label(frame, text="Load an ORCA output to list elements.", foreground="gray").grid(
+                row=0, column=0, sticky="w")
+            return
+
+        for idx, el in enumerate(unique):
+            var = tk.BooleanVar(value=el in selected_set)
+            self._atom_element_vars[el] = var
+            ttk.Checkbutton(frame, text=el, variable=var).grid(
+                row=idx // 4, column=idx % 4, sticky="w", padx=(0, 12), pady=1)
+
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=(len(unique) + 3) // 4, column=0, columnspan=4, sticky="w", pady=(4, 0))
+        ttk.Button(buttons, text="All", width=6,
+                   command=lambda: [v.set(True) for v in self._atom_element_vars.values()]).pack(side="left")
+        ttk.Button(buttons, text="None", width=6,
+                   command=lambda: [v.set(False) for v in self._atom_element_vars.values()]).pack(side="left", padx=(4, 0))
+
+    def set_elements(self, elements: list[str]):
+        had_element_controls = bool(self._atom_element_vars)
+        previous = {el for el, var in self._atom_element_vars.items() if bool(var.get())}
+        new_unique = sorted({str(el).strip() for el in elements if str(el).strip()})
+        selected = previous.intersection(new_unique) if had_element_controls else new_unique
+        self._rebuild_atom_element_checks(new_unique, selected=selected)
+
     def _levels_to_list(self) -> list[dict]:
         out = []
         for row in self._level_rows:
@@ -625,19 +988,33 @@ class ControlPanel(ttk.Frame):
         raw["fft_pad_factor"] = int(raw.get("fft_pad_factor", 2))
         raw["normalize_density"] = bool(raw.get("normalize_density", True))
         raw["normalization_target"] = float(raw.get("normalization_target", 1.0))
-        raw["density_iso"] = float(raw.get("density_iso", 0.005))
+        raw["density_isovalue"] = float(raw.get("density_isovalue", 0.005))
         raw["density_opacity"] = float(raw.get("density_opacity", 0.15))
+        raw["atom_elements"] = [
+            el for el, var in self._atom_element_vars.items() if bool(var.get())
+        ]
+        raw["bond_color"] = str(raw.get("bond_color", "#555A60"))
+        raw["bond_tolerance"] = float(raw.get("bond_tolerance", 0.05))
         raw["ambient_light"] = float(raw.get("ambient_light", 0.50))
         raw["smooth_pcs_display"] = bool(raw.get("smooth_pcs_display", False))
         raw["smooth_pcs_sigma"] = float(raw.get("smooth_pcs_sigma", 1.0))
-        raw["png_dpi"] = int(raw.get("png_dpi", 600))
+        raw["png_dpi"] = int(raw.get("png_dpi", 150))
         raw["png_width_inch"] = float(raw.get("png_width_inch", 6.0))
         raw["png_transparent"] = bool(raw.get("png_transparent", False))
+        raw["camera_projection"] = str(raw.get("camera_projection", "perspective"))
+        raw["export_view"] = str(raw.get("export_view", "preset"))
         raw["level_styles"] = self._levels_to_list()
         return raw
 
     def apply_params(self, params: dict):
-        merged = {**self.DEFAULTS, **(params or {})}
+        incoming = dict(params or {})
+        # Backward compatibility for presets saved before density_isovalue
+        # became the canonical key.
+        if "density_isovalue" not in incoming and "density_iso" in incoming:
+            incoming["density_isovalue"] = incoming["density_iso"]
+        incoming.pop("density_iso", None)
+        incoming.pop("auto_scale_pcs_levels", None)
+        merged = {**self.DEFAULTS, **incoming}
 
         for k, v in merged.items():
             if k == "level_styles":
@@ -650,6 +1027,10 @@ class ControlPanel(ttk.Frame):
                     pass
 
         self._rebuild_level_rows(merged.get("level_styles", self.DEFAULT_LEVEL_STYLES))
+        if self._elements:
+            self._rebuild_atom_element_checks(
+                self._elements, selected=merged.get("atom_elements", self._elements)
+            )
 
     def set_temperatures(self, temps: list[float]):
         self._temperatures = sorted(float(t) for t in temps)

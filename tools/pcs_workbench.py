@@ -30,10 +30,14 @@ from ui.ui_pcs_pde_viewer import (
     export_pcs_pde_png,
     close_pcs_pde_view,
     show_oblique_pcs_slice_plot,
+    capture_camera_state,
+    restore_camera_state,
+    apply_camera_preset,
 )
 from logic.logic_pcs_pde import rank2_chi, PYFFTW_AVAILABLE, PYFFTW_THREADS
 
 AVOGADRO = 6.02214129e23
+PCS_WORKBENCH_VERSION = "0.1.0"
 
 
 def convert_orca_chi_to_angstrom3(chi_raw: np.ndarray, temperature: float) -> np.ndarray:
@@ -42,6 +46,24 @@ def convert_orca_chi_to_angstrom3(chi_raw: np.ndarray, temperature: float) -> np
     if T <= 0.0:
         raise ValueError("Temperature must be positive.")
     return (4.0 * np.pi * 1.0e24 * chi_raw) / (AVOGADRO * T)
+
+
+def _fit_toplevel_to_content(
+    win: tk.Toplevel,
+    *,
+    min_width: int = 360,
+    min_height: int = 240,
+    margin: int = 24,
+) -> None:
+    """Resize a dialog to its requested content size without exceeding screen bounds."""
+    win.update_idletasks()
+    width = max(int(min_width), int(win.winfo_reqwidth()) + int(margin))
+    height = max(int(min_height), int(win.winfo_reqheight()) + int(margin))
+    width = min(width, max(int(min_width), int(win.winfo_screenwidth()) - 80))
+    height = min(height, max(int(min_height), int(win.winfo_screenheight()) - 100))
+    x = max(20, int(win.winfo_rootx()))
+    y = max(20, int(win.winfo_rooty()))
+    win.geometry(f"{width}x{height}+{x}+{y}")
 
 
 class InfoPanel(ttk.Frame):
@@ -159,6 +181,10 @@ class InfoPanel(ttk.Frame):
             an = _anisotropy_summary(np.asarray(r2, dtype=float))
             vals = np.asarray(an["eigvals"], dtype=float)
             vecs = np.asarray(an["eigvecs"], dtype=float)
+            iso_converted = (
+                float(np.trace(np.asarray(converted, dtype=float)) / 3.0)
+                if converted is not None else np.nan
+            )
 
             lines.append("  [4] Eigenvalues in Mehring order  |xx| < |yy| < |zz|\n\n")
             lines.append(f"      eig_1 = {vals[0]:+14.6e} Å³    ({_to_e32_m3(vals[0]):+12.6f} ×10^-32 m³)\n")
@@ -179,9 +205,12 @@ class InfoPanel(ttk.Frame):
 
             lines.append("  [7] Rhombicity ratio and isotropic part\n")
             lines.append("      rh_rel = abs((eigvals(1)-eigvals(2))/eigvals(1))\n")
-            lines.append("      iso    = trace(chi)/3\n\n")
+            lines.append("      iso    = trace(chi_converted)/3\n\n")
             lines.append(f"      rh_rel = {an['rh_rel']:.6f}\n")
-            lines.append(f"      iso    = {an['iso']:+14.6e} Å³    ({_to_e32_m3(an['iso']):+12.6f} ×10^-32 m³)\n\n")
+            lines.append(
+                f"      iso    = {iso_converted:+14.6e} Å³    "
+                f"({_to_e32_m3(iso_converted):+12.6f} ×10^-32 m³)\n\n"
+            )
 
             lines.append("  [8] Principal axes (columns = eigenvectors for eig_1, eig_2, eig_3)\n\n")
             _fmt_mat(lines, vecs, indent=6)
@@ -286,9 +315,6 @@ def _anisotropy_summary(chi: np.ndarray) -> dict:
     # rhombicity ratio
     rh_rel = abs((e1 - e2) / e1) if abs(e1) > 1e-20 else np.nan
 
-    # isotropic part
-    iso = float(np.trace(chi) / 3.0)
-
     return {
         "eigvals": vals,
         "eigvecs": vecs,
@@ -297,7 +323,6 @@ def _anisotropy_summary(chi: np.ndarray) -> dict:
         "ax_2": float(ax_2),
         "rh_2": float(rh_2),
         "rh_rel": float(rh_rel) if np.isfinite(rh_rel) else np.nan,
-        "iso": float(iso),
     }
 
 
@@ -324,7 +349,7 @@ def _tensor_view_defaults() -> dict:
         "tensor_scale": 3.2,
 
         "camera_preset": "iso",    # iso / xy / xz / yz
-        "png_dpi": 600,
+        "png_dpi": 150,
         "png_width_inch": 6.0,
         "png_transparent": False,
 
@@ -417,7 +442,7 @@ def _save_tensor_plotter_png(
     opts: dict,
     metal_xyz: np.ndarray,
     global_max_abs: float | None = None,
-    dpi: int = 600,
+    dpi: int = 150,
     width_inch: float = 6.0,
     transparent: bool = False,
 ):
@@ -1204,7 +1229,7 @@ class AppWindow(tk.Toplevel):
     def __init__(self, master=None):
         super().__init__(master)
 
-        self.title("PCS Workbench")
+        self.title(f"PCS Workbench v{PCS_WORKBENCH_VERSION}")
         self.geometry("1040x760")
         self.minsize(760, 520)
 
@@ -1214,11 +1239,16 @@ class AppWindow(tk.Toplevel):
         self._tensor_view_opts = _tensor_view_defaults()
         self._tensor_view_plotter = None
         self._tensor_view_ctrl = None
+        self._saved_pcs_camera_state = None
+        self._vtk_update_busy = False
+        self._vtk_update_suspended = False
+        self._vtk_update_interval_ms = 75
 
         self._build_menu()
         self._build_body()
         self._build_statusbar()
         self._update_info()
+        self.after(30, self._pump_pyvista_events)
 
         # PDE vs PD pcs plot
         self._pcs_plot_settings_compare = _default_pcs_plot_settings("compare")
@@ -1269,17 +1299,26 @@ class AppWindow(tk.Toplevel):
         paned = ttk.PanedWindow(self, orient="horizontal")
         paned.pack(fill="both", expand=True, padx=6, pady=6)
 
-        left_frame = ttk.LabelFrame(paned, text="Parameters", padding=0)
+        left_frame = ttk.LabelFrame(paned, text="Controls", padding=0)
         self._ctrl = ControlPanel(
             left_frame,
             on_run_callback=self._on_run,
             on_refresh_view_callback=self._refresh_viewer,
             on_export_png_callback=self._export_png,
+            on_oblique_slice_callback=self._open_oblique_slice_dialog,
+            on_compare_plot_callback=lambda: self._open_pcs_plot_options(kind="compare"),
+            on_residual_plot_callback=lambda: self._open_pcs_plot_options(kind="residual"),
+            on_tensor_spheroid_callback=self._open_tensor_spheroid_options,
+            on_export_numpy_callback=self._export_npy,
+            on_export_atom_csv_callback=self._export_atom_pcs_csv,
+            on_apply_camera_callback=self._apply_pcs_camera,
+            on_save_camera_callback=self._save_pcs_camera,
+            on_restore_camera_callback=self._restore_pcs_camera,
         )
         self._ctrl.pack(fill="both", expand=True)
         paned.add(left_frame, weight=0)
 
-        right_frame = ttk.LabelFrame(paned, text="Session", padding=0)
+        right_frame = ttk.LabelFrame(paned, text="Results & Information", padding=0)
         self._info = InfoPanel(right_frame)
         self._info.pack(fill="both", expand=True)
         paned.add(right_frame, weight=1)
@@ -1291,10 +1330,76 @@ class AppWindow(tk.Toplevel):
     def _update_info(self):
         self._info.update_from_session(self._session)
 
+    def _pump_pyvista_events(self):
+        plotter = self._session.viewer_plotter
+
+        if plotter is not None:
+            if not self._is_plotter_alive(plotter):
+                self._session.viewer_plotter = None
+
+            else:
+                try:
+                    plotter.update()
+
+                except Exception:
+                    self._session.viewer_plotter = None
+
+                    try:
+                        plotter.close()
+                    except Exception:
+                        pass
+
+        try:
+            if self.winfo_exists():
+                self.after(30, self._pump_pyvista_events)
+        except tk.TclError:
+            pass
+
+    def _apply_pcs_camera(self, params: Optional[dict] = None):
+        plotter = self._session.viewer_plotter
+        if not self._is_plotter_alive(plotter):
+            messagebox.showinfo("No viewer", "Open the PCS viewer first.")
+            return
+        params = params or self._ctrl.get_params()
+        try:
+            apply_camera_preset(
+                plotter,
+                str(params.get("camera_preset", "iso")),
+                str(params.get("camera_projection", "perspective")),
+            )
+            self._status.set("Camera preset applied.")
+        except Exception as exc:
+            messagebox.showerror("Camera error", str(exc))
+
+    def _save_pcs_camera(self):
+        plotter = self._session.viewer_plotter
+        if not self._is_plotter_alive(plotter):
+            messagebox.showinfo("No viewer", "Open the PCS viewer first.")
+            return
+        state = capture_camera_state(plotter)
+        if state is None:
+            messagebox.showerror("Camera error", "Could not capture the current camera state.")
+            return
+        self._saved_pcs_camera_state = state
+        self._status.set("Current PCS camera view saved.")
+
+    def _restore_pcs_camera(self):
+        plotter = self._session.viewer_plotter
+        if not self._is_plotter_alive(plotter):
+            messagebox.showinfo("No viewer", "Open the PCS viewer first.")
+            return
+        if self._saved_pcs_camera_state is None:
+            messagebox.showinfo("No saved view", "Save a camera view first.")
+            return
+        if restore_camera_state(plotter, self._saved_pcs_camera_state):
+            self._status.set("Saved PCS camera view restored.")
+        else:
+            messagebox.showerror("Camera error", "Could not restore the saved camera state.")
+
     def _show_about(self):
         messagebox.showinfo(
             "About PCS Workbench",
-            "PCS Workbench\n\n"
+            f"PCS Workbench v{PCS_WORKBENCH_VERSION}\n\n"
             "Distributed PCS field analysis from ORCA susceptibility tensors "
             "and spin-density grids.\n\n"
             "Method:\n"
@@ -1337,6 +1442,7 @@ class AppWindow(tk.Toplevel):
 
         temps = sorted(orca["tensors_by_temp"].keys())
         self._ctrl.set_temperatures(temps)
+        self._ctrl.set_elements([atom[0] for atom in orca["atoms"]])
 
         t, chi_raw = pick_orca_tensor_at_temperature(orca["tensors_by_temp"], None)
         self._session.temperature = t
@@ -1461,15 +1567,21 @@ class AppWindow(tk.Toplevel):
                     self._session.viewer_plotter = None
 
             if self._session.viewer_plotter is not None:
+                self._vtk_update_suspended = True
+
                 try:
                     self._session.viewer_plotter = open_or_refresh_pcs_pde_view(
                         self._session.last_result,
                         params or self._session.last_view_params or self._ctrl.get_params(),
                         plotter=self._session.viewer_plotter,
                     )
+
                 except Exception as exc:
                     self._session.viewer_plotter = None
                     messagebox.showerror("Viewer refresh error", str(exc))
+
+                finally:
+                    self._vtk_update_suspended = False
         else:
             self._status.stop_busy("Computation failed.")
             messagebox.showerror("Computation error", f"PCS computation failed:\n{error}")
@@ -1487,6 +1599,8 @@ class AppWindow(tk.Toplevel):
         if not self._is_plotter_alive(self._session.viewer_plotter):
             self._session.viewer_plotter = None
 
+        self._vtk_update_suspended = True
+
         try:
             self._session.viewer_plotter = open_or_refresh_pcs_pde_view(
                 self._session.last_result,
@@ -1494,9 +1608,13 @@ class AppWindow(tk.Toplevel):
                 plotter=self._session.viewer_plotter,
             )
             self._status.set("Viewer opened/refreshed.")
+
         except Exception as exc:
             self._session.viewer_plotter = None
             messagebox.showerror("Viewer error", str(exc))
+
+        finally:
+            self._vtk_update_suspended = False
 
     def _export_png(self, params: Optional[dict] = None):
         if params is None:
@@ -1514,18 +1632,26 @@ class AppWindow(tk.Toplevel):
         if not path:
             return
 
+        self._vtk_update_suspended = True
+
         try:
             export_pcs_pde_png(
                 self._session.last_result,
                 params,
                 path,
-                dpi=int(params.get("png_dpi", 600)),
+                dpi=int(params.get("png_dpi", 150)),
                 width_inch=float(params.get("png_width_inch", 6.0)),
                 transparent=bool(params.get("png_transparent", False)),
+                live_plotter=self._session.viewer_plotter,
+                export_view=str(params.get("export_view", "preset")),
             )
             self._status.set(f"PNG exported: {path}")
+
         except Exception as exc:
             messagebox.showerror("Export PNG error", str(exc))
+
+        finally:
+            self._vtk_update_suspended = False
 
     def _export_npy(self, params: Optional[dict] = None):
         if self._session.last_result is None:
@@ -1971,6 +2097,7 @@ class AppWindow(tk.Toplevel):
                                                                                                        sticky="ew",
                                                                                                        padx=4)
         ttk.Button(btns, text="Close", command=win.destroy).grid(row=0, column=2, sticky="ew", padx=(4, 0))
+        _fit_toplevel_to_content(win, min_width=420, min_height=520)
 
     def _reset_pcs_plot_options(self, kind, vars_):
         defaults = _default_pcs_plot_settings(kind)
@@ -2661,9 +2788,33 @@ class AppWindow(tk.Toplevel):
     def _is_plotter_alive(self, plotter) -> bool:
         if plotter is None:
             return False
+
         try:
-            _ = plotter.renderer.actors
+            # Explicitly marked by the VTK ExitEvent callback.
+            if bool(getattr(plotter, "_pcs_viewer_closed", False)):
+                return False
+
+            # PyVista internal close state.
+            if bool(getattr(plotter, "_closed", False)):
+                return False
+
+            renderer = getattr(plotter, "renderer", None)
+            ren_win = getattr(plotter, "ren_win", None)
+            iren_wrapper = getattr(plotter, "iren", None)
+
+            if renderer is None or ren_win is None or iren_wrapper is None:
+                return False
+
+            vtk_interactor = getattr(iren_wrapper, "interactor", None)
+
+            if vtk_interactor is None:
+                return False
+
+            if not bool(vtk_interactor.GetInitialized()):
+                return False
+
             return True
+
         except Exception:
             return False
 
@@ -2809,7 +2960,7 @@ class AppWindow(tk.Toplevel):
                 show_atom_labels=bool(show_atom_labels),
                 title=f"PCS slice | metal + {axis_label} + atom {atom_index_1based}",
                 save_path=save_path,
-                dpi=600,
+                dpi=150,
                 transparent=False,
             )
         except Exception as exc:
@@ -2998,6 +3149,7 @@ class AppWindow(tk.Toplevel):
         ttk.Button(btns, text="Close", command=win.destroy).grid(
             row=0, column=2, sticky="ew", padx=(4, 0)
         )
+        _fit_toplevel_to_content(win, min_width=520, min_height=360)
 
 
 def main():

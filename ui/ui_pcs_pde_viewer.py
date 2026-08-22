@@ -144,9 +144,17 @@ def _print_atom_pcs_tsv(rows: list[dict]) -> None:
         print(f"\n[PCS summary] n={int(valid.sum())}  RMSD={rmsd:.6f} ppm  max|Δ|={max_abs:.6f} ppm")
 
 
-def _add_bonds_tube(plotter, coords: np.ndarray, elements: list[str]) -> None:
+def _add_bonds_tube(
+    plotter,
+    coords: np.ndarray,
+    elements: list[str],
+    *,
+    color: str = "#555A60",
+    tolerance: float = 0.05,
+) -> None:
+    scale = max(0.0, 1.0 + float(tolerance))
     try:
-        bonds = calculate_bonds(coords, elements)
+        bonds = calculate_bonds(coords, elements, scale=scale)
     except Exception:
         bonds = []
 
@@ -156,7 +164,7 @@ def _add_bonds_tube(plotter, coords: np.ndarray, elements: list[str]) -> None:
         tube = line.tube(radius=bond_radius)
         plotter.add_mesh(
             tube,
-            color="#555A60",
+            color=str(color),
             smooth_shading=True,
         )
 
@@ -166,8 +174,11 @@ def _add_atoms_pretty(
     coords: np.ndarray,
     elements: list[str],
     selected_index: int | None = None,
+    visible_elements: set[str] | None = None,
 ) -> None:
     for i, (xyz, el) in enumerate(zip(coords, elements)):
+        if visible_elements is not None and el not in visible_elements:
+            continue
         sphere = pv.Sphere(
             radius=radius_for_element(el),
             center=xyz,
@@ -183,13 +194,23 @@ def _add_atoms_pretty(
         )
 
 
-def _add_labels(plotter, coords: np.ndarray, elements: list[str], state: dict | None = None) -> None:
+def _add_labels(
+    plotter,
+    coords: np.ndarray,
+    elements: list[str],
+    state: dict | None = None,
+    visible_elements: set[str] | None = None,
+) -> None:
     if len(coords) == 0:
         return
 
-    texts = [f"{i + 1}:{el}" for i, el in enumerate(elements)]
+    keep = [i for i, el in enumerate(elements) if visible_elements is None or el in visible_elements]
+    if not keep:
+        return
+    label_coords = coords[keep]
+    texts = [f"{i + 1}:{elements[i]}" for i in keep]
     plotter.add_point_labels(
-        coords,
+        label_coords,
         texts,
         font_size=get_app_fonts(state).get("viewer_label_size", 10),
         point_size=0,
@@ -207,6 +228,7 @@ def _add_single_isosurface_style(
     opacity: float,
     ambient: float,
     name_base: str,
+    line_width: float = 1.0,
 ) -> None:
     if surf is None or surf.n_points == 0:
         return
@@ -228,7 +250,7 @@ def _add_single_isosurface_style(
             color=color,
             opacity=min(opacity * 1.5, 1.0),
             style="wireframe",
-            line_width=1,
+            line_width=float(line_width),
             name=name_base + "_wire",
         )
 
@@ -243,6 +265,7 @@ def _add_isosurface_for_level(
     opacity: float,
     level_index: int,
     ambient: float = 0.2,
+    line_width: float = 1.0,
 ) -> None:
     def _add(surf, color: str, suffix: str):
         name_base = f"pcs_lv{level_index}_{suffix}"
@@ -263,7 +286,7 @@ def _add_isosurface_for_level(
                 color=color,
                 opacity=min(opacity * 1.5, 1.0),
                 style="wireframe",
-                line_width=1,
+                line_width=float(line_width),
                 name=name_base + "_wire",
             )
 
@@ -375,7 +398,7 @@ def show_oblique_pcs_slice_plot(
     show_atom_labels: bool = False,
     title: str = "PCS oblique slice",
     save_path: str | None = None,
-    dpi: int = 600,
+    dpi: int = 150,
     transparent: bool = False,
 ):
     if pv is None:
@@ -643,6 +666,8 @@ def _populate_pcs_pde_scene(
     plotter,
     result: dict,
     params: dict,
+    *,
+    apply_camera: bool = True,
 ) -> None:
     if pv is None:
         raise RuntimeError(f"PyVista import failed: {_PV_ERROR}")
@@ -656,9 +681,18 @@ def _populate_pcs_pde_scene(
     pcs_field = np.asarray(result["pcs_field"], dtype=float)
     ext_used = np.asarray(result["ext"], dtype=float)
 
-    density_iso_frac = float(params.get("density_iso", 0.005))
+    density_isovalue = abs(float(
+        params.get("density_isovalue", params.get("density_iso", 0.005))
+    ))
     show_atoms = bool(params.get("show_atoms", True))
     show_bonds = bool(params.get("show_bonds", True))
+    atom_elements_param = params.get("atom_elements", None)
+    visible_atom_elements = (
+        None if atom_elements_param is None
+        else {str(el) for el in atom_elements_param}
+    )
+    bond_color = str(params.get("bond_color", "#555A60"))
+    bond_tolerance = float(params.get("bond_tolerance", 0.05))
     show_density = bool(params.get("show_density", True))
     show_pcs = bool(params.get("show_pcs", True))
     show_labels = bool(params.get("show_labels", False))
@@ -675,18 +709,28 @@ def _populate_pcs_pde_scene(
     smooth_pcs_sigma = float(params.get("smooth_pcs_sigma", 1.0))
     camera_preset = str(params.get("camera_preset", "iso"))
     level_styles = list(params.get("level_styles", []))
+    mesh_line_width = max(1.0, float(params.get("_mesh_line_scale", 1.0)))
 
     plotter.clear()
     plotter.set_background(background)
 
     if show_atoms:
-        _add_atoms_pretty(plotter, coords, elements, selected_index=metal_idx)
+        _add_atoms_pretty(
+            plotter, coords, elements, selected_index=metal_idx,
+            visible_elements=visible_atom_elements,
+        )
 
     if show_bonds and len(coords) >= 2:
-        _add_bonds_tube(plotter, coords, elements)
+        _add_bonds_tube(
+            plotter, coords, elements,
+            color=bond_color, tolerance=bond_tolerance,
+        )
 
     if show_labels:
-        _add_labels(plotter, coords, elements)
+        _add_labels(
+            plotter, coords, elements,
+            visible_elements=visible_atom_elements,
+        )
 
     grid_rho = _make_uniform_grid_from_ext(ext_used, rho_used)
 
@@ -696,8 +740,7 @@ def _populate_pcs_pde_scene(
         pcs_for_display = pcs_field
     grid_pcs = _make_uniform_grid_from_ext(ext_used, pcs_for_display)
 
-    rho_max = float(np.max(np.abs(rho_used)))
-    density_iso = max(rho_max * density_iso_frac, 1e-12)
+    density_iso = max(density_isovalue, 1e-12)
 
     if show_density:
         try:
@@ -710,6 +753,7 @@ def _populate_pcs_pde_scene(
                 opacity=density_opacity,
                 ambient=ambient_light,
                 name_base="density_iso",
+                line_width=mesh_line_width,
             )
         except Exception as exc:
             print(f"[viewer] density contour failed: {exc}")
@@ -730,22 +774,77 @@ def _populate_pcs_pde_scene(
                     opacity=float(item["opacity"]),
                     level_index=idx,
                     ambient=ambient_light,
+                    line_width=mesh_line_width,
                 )
             except Exception as exc:
                 print(f"[viewer] level render failed ({item}): {exc}")
 
     if show_outline:
-        plotter.add_mesh(grid_rho.outline(), color="gray", line_width=1)
+        plotter.add_mesh(
+            grid_rho.outline(),
+            color="gray",
+            line_width=mesh_line_width,
+        )
 
     plotter.add_axes()
 
     if show_grid:
         plotter.show_grid()
 
+    if apply_camera:
+        apply_camera_preset(
+            plotter,
+            camera_preset,
+            str(params.get("camera_projection", "perspective")),
+        )
+
+
+def capture_camera_state(plotter) -> dict | None:
+    """Capture a reproducible camera view from a live PyVista plotter."""
+    if plotter is None:
+        return None
     try:
-        plotter.camera_position = CAMERA_PRESETS.get(camera_preset, "iso")
+        cam = plotter.camera
+        return {
+            "position": tuple(float(v) for v in cam.position),
+            "focal_point": tuple(float(v) for v in cam.focal_point),
+            "view_up": tuple(float(v) for v in cam.up),
+            "view_angle": float(cam.view_angle),
+            "parallel_projection": bool(cam.parallel_projection),
+            "parallel_scale": float(cam.parallel_scale),
+            "clipping_range": tuple(float(v) for v in cam.clipping_range),
+        }
     except Exception:
-        pass
+        return None
+
+
+def restore_camera_state(plotter, state: dict | None, *, render: bool = True) -> bool:
+    if plotter is None or not state:
+        return False
+    try:
+        cam = plotter.camera
+        cam.position = state["position"]
+        cam.focal_point = state["focal_point"]
+        cam.up = state["view_up"]
+        cam.view_angle = float(state["view_angle"])
+        cam.parallel_projection = bool(state["parallel_projection"])
+        cam.parallel_scale = float(state["parallel_scale"])
+        cam.clipping_range = state["clipping_range"]
+        if render:
+            plotter.render()
+        return True
+    except Exception:
+        return False
+
+
+def apply_camera_preset(plotter, preset: str, projection: str = "perspective") -> None:
+    plotter.camera_position = CAMERA_PRESETS.get(str(preset), "iso")
+    if str(projection).lower() == "orthographic":
+        plotter.enable_parallel_projection()
+    else:
+        plotter.disable_parallel_projection()
+    plotter.reset_camera_clipping_range()
+    plotter.render()
 
 
 def open_or_refresh_pcs_pde_view(
@@ -766,19 +865,36 @@ def open_or_refresh_pcs_pde_view(
 
     created = False
     if plotter is None:
-        plotter = pv.Plotter(title="PCS-PDE Viewer", window_size=window_size)
+        plotter = pv.Plotter(
+            title="PCS-PDE Viewer",
+            window_size=window_size,
+        )
         created = True
 
-    _populate_pcs_pde_scene(plotter, result, params)
+        # Used by the Tkinter event pump to avoid updating a closed OpenGL render window.
+        plotter._pcs_viewer_closed = False
 
-    if created:
-        plotter.show(auto_close=False)
-    else:
+        def _on_viewer_closed(*_args):
+            plotter._pcs_viewer_closed = True
+
         try:
-            plotter.render()
-            plotter.update()
+            vtk_interactor = plotter.iren.interactor
+            vtk_interactor.AddObserver(
+                "ExitEvent",
+                _on_viewer_closed,
+            )
         except Exception:
             pass
+
+    previous_camera = None if created else capture_camera_state(plotter)
+    _populate_pcs_pde_scene(plotter, result, params, apply_camera=created)
+    if previous_camera is not None:
+        restore_camera_state(plotter, previous_camera, render=False)
+
+    if created:
+        plotter.show(auto_close=False, interactive_update=True)
+    else:
+        plotter.render()
 
     return plotter
 
@@ -797,15 +913,41 @@ def export_pcs_pde_png(
     params: dict,
     path: str,
     *,
-    dpi: int = 600,
+    dpi: int = 150,
     width_inch: float = 6.0,
     transparent: bool = False,
+    live_plotter=None,
+    export_view: str = "preset",
+    camera_state: dict | None = None,
 ):
     if pv is None:
         raise RuntimeError(f"PyVista import failed: {_PV_ERROR}")
 
+    if str(export_view).lower() == "current" and live_plotter is not None:
+        try:
+            live_plotter.render()
+            live_plotter.screenshot(
+                path,
+                transparent_background=bool(transparent),
+                scale=1,
+                return_img=False,
+            )
+            return
+        except Exception as exc:
+            print(f"[export] current-view screenshot failed; using off-screen render: {exc}")
+
     target_px = int(round(float(width_inch) * int(dpi)))
+    render_params = dict(params)
+    render_params["_mesh_line_scale"] = max(1.0, target_px / 900.0)
     off = pv.Plotter(off_screen=True, window_size=(target_px, target_px))
-    _populate_pcs_pde_scene(off, result, params)
+    _populate_pcs_pde_scene(
+        off,
+        result,
+        render_params,
+        apply_camera=camera_state is None,
+    )
+    if camera_state is not None:
+        restore_camera_state(off, camera_state, render=False)
+        off.render()
     off.screenshot(path, transparent_background=bool(transparent))
     off.close()

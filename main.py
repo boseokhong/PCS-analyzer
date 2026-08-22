@@ -5,6 +5,14 @@ The following code requires the numpy, matplotlib, pandas, and openpyxl module p
 (Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, `tkinterdnd2`, and `imageio`)
 A tool for PCS analysis and 2D/3D visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
 
+v.1.3.4 updates
+Module update: PCS Workbench v0.1.0 updates
+- **Corrected isotropic susceptibility calculation.**
+- Reorganized the control panel
+- Improved interaction between the control panel and PyVista viewer.
+- Added camera presets, projection modes, view saving/restoration, and improved PNG export.
+
+
 v.1.3.3 updates
 - *New: Added a main menu bar and settings menu for improved workflow organization.
 - *New: Added a Modules/Plugins menu with a dedicated Module Manager window.
