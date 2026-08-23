@@ -12,6 +12,10 @@ Module update: PCS Workbench v0.1.0 updates
 - Improved interaction between the control panel and PyVista viewer.
 - Added camera presets, projection modes, view saving/restoration, and improved PNG export.
 
+3d pyvista view updates
+- Reorganized the control panel into a two-column layout.
+- Added bond appearance and hydrogen-visibility controls.
+- Added camera controls, view preservation, and improved PNG export.
 
 v.1.3.3 updates
 - *New: Added a main menu bar and settings menu for improved workflow organization.
