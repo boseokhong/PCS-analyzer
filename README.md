@@ -1,5 +1,5 @@
 # Pseudocontact Chemical Shift (PCS) Analyzer
-![version](https://img.shields.io/badge/version-1.3.3-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
+![version](https://img.shields.io/badge/version-1.3.4-blue) ![license](https://img.shields.io/badge/license-BSD%203--Clause-green) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
 <img width="400" height="230" alt="pcs_banner" src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf" />
 
@@ -12,8 +12,9 @@ The software integrates molecular structure import, 2D and 3D PCS visualization,
 
 > [!NOTE]
 > Required Python packages: `numpy`, `scipy`, `matplotlib`, `pandas`, and `openpyxl`  
-> Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, `tkinterdnd2`, and `imageio`
+> Optional / additional packages: `ttkbootstrap`, `pyvista`, `pyvistaqt`, `vtk`, `qtpy`, `PySide6`, `pyfftw`, `tkinterdnd2`, and `imageio`
 > - `pyvista` for 3D PCS field / molecular visualization, and `ttkbootstrap` for enhanced GUI styling
+> - `pyvistaqt`, `qtpy`, and `PySide6` are required for the interactive Qt-based 3D structure viewer.
 > - `pyfftw` is optional. The code falls back to `numpy.fft` if it is not installed.
 > - `imageio` is required for GIF export [PyVista's `Plotter.open_gif()`].
 ---
@@ -29,6 +30,18 @@ Core use cases include:
 - advanced fitting and conformer-assisted refinement
 
 ## Recent Changes
+
+Release **v1.3.4**
+- Module update: PCS Workbench v0.1.0 updates
+  - **Corrected isotropic susceptibility calculation.**
+  - Reorganized the control panel
+  - Improved interaction between the control panel and PyVista viewer.
+  - Added camera presets, projection modes, view saving/restoration, and improved PNG export.
+- 3d pyvista view updates
+  - Reorganized the control panel into a two-column layout.
+  - Added bond appearance and hydrogen-visibility controls.
+  - Added camera controls, view preservation, and improved PNG export.
+
 Release **v1.3.3**
 - Interface and workflow
   - Added a main menu bar and settings menu.
@@ -142,10 +155,10 @@ cd PCS-analyzer
 pip install numpy scipy matplotlib pandas openpyxl
 ```
 
-Optional packages for 3D visualization, FFT acceleration, and GIF export:
+Install the additional packages for enhanced GUI styling, 3D visualization, FFT acceleration, drag-and-drop support, and GIF export:
 
 ```bash
-pip install ttkbootstrap pyvista vtk pyfftw imageio
+pip install ttkbootstrap pyvista pyvistaqt vtk qtpy PySide6 pyfftw tkinterdnd2 imageio
 ```
 
 Run the program with:
@@ -312,6 +325,17 @@ PCS Analyzer supports export of:
   - Added lasso selection functionality for selecting subsets of data points directly from the plot.
 - 2D polar contour plot
   - Improved 2D polar contour plot visualization.
+
+**v1.3.4**
+- Module update: PCS Workbench v0.1.0 updates
+  - **Corrected isotropic susceptibility calculation.**
+  - Reorganized the control panel
+  - Improved interaction between the control panel and PyVista viewer.
+  - Added camera presets, projection modes, view saving/restoration, and improved PNG export.
+- 3d pyvista view updates
+  - Reorganized the control panel into a two-column layout.
+  - Added bond appearance and hydrogen-visibility controls.
+  - Added camera controls, view preservation, and improved PNG export.
 
 </details>
 
