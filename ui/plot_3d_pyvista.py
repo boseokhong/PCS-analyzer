@@ -46,6 +46,9 @@ CAMERA_PRESETS: dict[str, str] = {
     "Side":  "yz",
 }
 
+PROJECTION_OPTIONS = ("perspective", "orthographic")
+EXPORT_VIEW_OPTIONS = ("current", "preset")
+
 BACKGROUND_OPTIONS: dict[str, str] = {
     "White":      "white",
     "Light grey": "#EEEEEE",
@@ -90,6 +93,54 @@ def _parse_contour_levels(text: str) -> tuple[float, ...]:
     if not vals:
         return (1.0, 2.0, 4.0, 8.0)
     return tuple(vals)
+
+
+def _is_hydrogen(element: str) -> bool:
+    return str(element).strip().upper() == "H"
+
+
+def capture_camera_state(plotter) -> dict | None:
+    """Capture all camera properties needed for faithful view restoration."""
+    if plotter is None:
+        return None
+    try:
+        camera = plotter.camera
+        return {
+            "position": tuple(camera.position),
+            "focal_point": tuple(camera.focal_point),
+            "view_up": tuple(camera.up),
+            "view_angle": float(camera.view_angle),
+            "parallel_projection": bool(camera.parallel_projection),
+            "parallel_scale": float(camera.parallel_scale),
+            "clipping_range": tuple(camera.clipping_range),
+        }
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def restore_camera_state(plotter, camera_state: dict | None, *, render: bool = True) -> None:
+    """Restore a camera state captured by :func:`capture_camera_state`."""
+    if plotter is None or not camera_state:
+        return
+    camera = plotter.camera
+    camera.position = camera_state["position"]
+    camera.focal_point = camera_state["focal_point"]
+    camera.up = camera_state["view_up"]
+    camera.view_angle = camera_state["view_angle"]
+    camera.parallel_projection = camera_state["parallel_projection"]
+    camera.parallel_scale = camera_state["parallel_scale"]
+    camera.clipping_range = camera_state["clipping_range"]
+    if render:
+        plotter.render()
+
+
+def apply_camera_preset(plotter, preset: str, projection: str = "perspective") -> None:
+    plotter.camera_position = CAMERA_PRESETS.get(preset, preset)
+    if str(projection).lower() == "orthographic":
+        plotter.enable_parallel_projection()
+    else:
+        plotter.disable_parallel_projection()
+    plotter.reset_camera_clipping_range()
 
 
 # ---------------------------------------------------------------------------
@@ -195,18 +246,29 @@ def get_cpk_color(atom_label: str) -> str:
         return CPK_COLORS[atom_label[:2]]
     return CPK_COLORS.get(atom_label[0], CPK_COLORS["default"])
 
-def _add_bonds(plotter, coords: np.ndarray, elements: list[str]) -> None:
+def _add_bonds(
+    plotter,
+    coords: np.ndarray,
+    elements: list[str],
+    *,
+    show_hydrogens: bool = True,
+    color: str = "#555A60",
+    tolerance: float = 0.05,
+    radius: float = 0.08,
+) -> None:
     try:
+        bonds = calculate_bonds(coords, elements, scale=1.0 + float(tolerance))
+    except TypeError:
         bonds = calculate_bonds(coords, elements)
     except Exception:
         bonds = []
 
-    bond_radius = 0.08
-
     for i, j in bonds:
+        if not show_hydrogens and (_is_hydrogen(elements[i]) or _is_hydrogen(elements[j])):
+            continue
         line = pv.Line(coords[i], coords[j], resolution=1)
-        tube = line.tube(radius=bond_radius)
-        plotter.add_mesh(tube, color="#555A60", smooth_shading=True)
+        tube = line.tube(radius=max(float(radius), 1e-4))
+        plotter.add_mesh(tube, color=color, smooth_shading=True)
 
 
 def _add_atoms(
@@ -215,9 +277,11 @@ def _add_atoms(
     labels: list[str],
     elements: list[str],
     ref_ids: list[int],
-    selected_ref: int | None = None,
+    show_hydrogens: bool = True,
 ) -> None:
     for xyz, _lbl, el, rid in zip(coords, labels, elements, ref_ids):
+        if not show_hydrogens and _is_hydrogen(el):
+            continue
         radius = _radius_for_element(el)
         color = CPK_COLORS.get(el, CPK_COLORS["default"])
 
@@ -225,15 +289,20 @@ def _add_atoms(
         plotter.add_mesh(sphere, color=color, smooth_shading=True, specular=0.25, ambient=0.18)
 
 
-def _add_labels(plotter, coords: np.ndarray, labels: list[str], ref_ids: list[int], state: dict | None = None) -> None:
-    if len(coords) == 0:
+def _add_labels(
+    plotter, coords: np.ndarray, labels: list[str], elements: list[str],
+    ref_ids: list[int], state: dict | None = None, *,
+    show_hydrogens: bool = True, font_scale: float = 1.0,
+) -> None:
+    visible = [i for i, el in enumerate(elements) if show_hydrogens or not _is_hydrogen(el)]
+    if not visible:
         return
-    label_points = np.asarray(coords, dtype=float)
-    label_text = [f"{rid}:{lbl}" for rid, lbl in zip(ref_ids, labels)]
+    label_points = np.asarray(coords, dtype=float)[visible]
+    label_text = [f"{ref_ids[i]}:{labels[i]}" for i in visible]
     plotter.add_point_labels(
         label_points,
         label_text,
-        font_size=get_app_fonts(state).get("viewer_label_size", 10),
+        font_size=max(1, int(round(get_app_fonts(state).get("viewer_label_size", 10) * font_scale))),
         point_size=0,
         shape_opacity=0.0,
         always_visible=False,
@@ -250,6 +319,7 @@ def _add_isosurface_for_level(
     opacity: float,
     level_index: int,
     ambient: float = 0.2,
+    mesh_line_scale: float = 1.0,
 ) -> None:
     """Render positive and negative isosurfaces for a single PCS level."""
     mesh_kwargs_base = dict(smooth_shading=True)
@@ -265,7 +335,7 @@ def _add_isosurface_for_level(
         if style in ("mesh", "both"):
             plotter.add_mesh(
                 surf, color=color, opacity=min(opacity * 1.5, 1.0), style="wireframe",
-                line_width=1,
+                line_width=max(1.0, float(mesh_line_scale)),
                 name=name_base + "_wire",
             )
 
@@ -301,10 +371,18 @@ def _populate_pcs_scene(
     show_isosurfaces: bool = True,
     show_labels: bool = False,
     show_atoms: bool = True,
+    show_hydrogens: bool = True,
     show_bonds: bool = True,
+    show_grid: bool = False,
+    show_outline: bool = False,
+    bond_color: str = "#555A60",
+    bond_tolerance: float = 0.05,
+    bond_radius: float = 0.08,
     slice_opacity: float = 0.25,
     background: str = "white",
     ambient_light: float = 0.3,
+    mesh_line_scale: float = 1.0,
+    annotation_scale: float = 1.0,
 ) -> None:
     """Clear the plotter and rebuild the full PCS scene."""
     data = _get_3d_view_data(state)
@@ -332,17 +410,6 @@ def _populate_pcs_scene(
             coords, dchi_ax, dchi_rh, contour_levels,
             min_padding=10.0, max_padding=30.0, safety=2.0,
         )
-
-    # Determine selected atom highlight
-    tree = state.get("tree")
-    selected_ref = None
-    if tree is not None:
-        sel = tree.selection()
-        if sel:
-            try:
-                selected_ref = int(tree.item(sel[0], "values")[0])
-            except Exception:  # noqa: BLE001
-                pass
 
     grid, _pcs = _build_pcs_grid(
         coords, dchi_ax, dchi_rh,
@@ -399,17 +466,35 @@ def _populate_pcs_scene(
                 opacity=float(ls["opacity"]),
                 level_index=idx,
                 ambient=float(ambient_light),
+                mesh_line_scale=float(mesh_line_scale),
             )
 
     # --- Molecular structure ---
     if show_bonds:
-        _add_bonds(plotter, coords, elements)
+        _add_bonds(
+            plotter, coords, elements,
+            show_hydrogens=show_hydrogens,
+            color=bond_color,
+            tolerance=bond_tolerance,
+            radius=bond_radius,
+        )
     if show_atoms:
-        _add_atoms(plotter, coords, labels, elements, ref_ids, selected_ref=selected_ref)
+        _add_atoms(plotter, coords, labels, elements, ref_ids, show_hydrogens=show_hydrogens)
     if show_labels:
-        _add_labels(plotter, coords, labels, ref_ids, state=state)
+        _add_labels(
+            plotter, coords, labels, elements, ref_ids, state=state,
+            show_hydrogens=show_hydrogens, font_scale=annotation_scale,
+        )
+
+    if show_outline:
+        plotter.add_mesh(
+            grid.outline(), color="gray",
+            line_width=max(1.0, float(mesh_line_scale)),
+        )
 
     plotter.add_axes()
+    if show_grid:
+        plotter.show_grid()
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +513,9 @@ def refresh_pcs_viewer(state: dict, **kwargs) -> None:
         open_pcs_viewer(state, **kwargs)
         return
 
+    previous_camera = capture_camera_state(plotter)
     _populate_pcs_scene(plotter, state, **kwargs)
+    restore_camera_state(plotter, previous_camera, render=False)
     try:
         plotter.render()
         plotter.update()
@@ -511,9 +598,10 @@ def save_pcs_field_png(
     dpi: int = 600,
     width_inch: float = 6.0,
     transparent: bool = False,
+    export_view: str = "preset",
     scene_kwargs: dict | None = None,
 ) -> None:
-    """Export the current scene to a high-resolution PNG via an offscreen renderer."""
+    """Export either the live view or a high-resolution off-screen render."""
     plotter = state.get("pyvista_field_plotter")
     if plotter is None:
         mb = state.get("messagebox")
@@ -536,24 +624,31 @@ def save_pcs_field_png(
     if not path:
         return
 
-    target_px = int(round(float(width_inch) * int(dpi)))
-
+    off = None
     try:
-        off = pv.Plotter(off_screen=True, window_size=(target_px, target_px))
-        _populate_pcs_scene(off, state, **(scene_kwargs or {}))
-        try:
-            off.camera_position = plotter.camera_position
-        except Exception:  # noqa: BLE001
-            off.camera_position = "iso"
-
-        off.screenshot(path, transparent_background=bool(transparent))
-        off.close()
+        if str(export_view).lower() == "current":
+            plotter.screenshot(path, transparent_background=bool(transparent), scale=1)
+            size_text = "Live viewer resolution"
+        else:
+            target_px = int(round(float(width_inch) * int(dpi)))
+            if target_px <= 0:
+                raise ValueError("DPI and width must produce a positive image size.")
+            render_scale = max(1.0, target_px / 900.0)
+            render_kwargs = dict(scene_kwargs or {})
+            render_kwargs["mesh_line_scale"] = render_scale
+            render_kwargs["annotation_scale"] = render_scale
+            off = pv.Plotter(off_screen=True, window_size=(target_px, target_px))
+            _populate_pcs_scene(off, state, **render_kwargs)
+            camera_state = capture_camera_state(plotter)
+            restore_camera_state(off, camera_state, render=False)
+            off.screenshot(path, transparent_background=bool(transparent))
+            size_text = f"{target_px} × {target_px} px ({width_inch:.2f} in @ {dpi} dpi)"
 
         mb = state.get("messagebox")
         msg = (
             f"Saved: {path}\n\n"
-            f"Size: {target_px} × {target_px} px  "
-            f"({width_inch:.2f} in @ {dpi} dpi)\n"
+            f"Mode: {str(export_view).lower()}\n"
+            f"Size: {size_text}\n"
             f"Transparent background: {transparent}"
         )
         if mb:
@@ -567,6 +662,12 @@ def save_pcs_field_png(
             mb.showerror("Save PNG", f"Failed:\n{exc}")
         else:
             print(f"Save PNG failed: {exc}")
+    finally:
+        if off is not None:
+            try:
+                off.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -594,11 +695,20 @@ def _gather_preset(ui: dict) -> dict:
         "show_slices":      bool(ui["var_show_slices"].get()),
         "show_isosurfaces": bool(ui["var_show_iso"].get()),
         "show_atoms":       bool(ui["var_show_atoms"].get()),
+        "show_hydrogens":   bool(ui["var_show_hydrogens"].get()),
         "show_bonds":       bool(ui["var_show_bonds"].get()),
         "show_labels":      bool(ui["var_show_labels"].get()),
+        "show_grid":        bool(ui["var_show_grid"].get()),
+        "show_outline":     bool(ui["var_show_outline"].get()),
+        "bond_color":       ui["var_bond_color"].get(),
+        "bond_tolerance":   ui["var_bond_tolerance"].get(),
+        "bond_radius":      ui["var_bond_radius"].get(),
         "slice_opacity":    float(ui["var_slice_opacity"].get()),
         "background":       ui["var_background"].get(),
         "ambient_light":    float(ui["var_ambient"].get()),
+        "camera_preset":    ui["var_camera_preset"].get(),
+        "camera_projection": ui["var_camera_projection"].get(),
+        "export_view":      ui["var_export_view"].get(),
         "png_dpi":          ui["var_dpi"].get(),
         "png_width_inch":   ui["var_width_inch"].get(),
         "png_transparent":  bool(ui["var_png_transparent"].get()),
@@ -618,11 +728,20 @@ def _apply_preset(ui: dict, preset: dict) -> None:
     _set(ui["var_show_slices"],     "show_slices",      False)
     _set(ui["var_show_iso"],        "show_isosurfaces", True)
     _set(ui["var_show_atoms"],      "show_atoms",       True)
+    _set(ui["var_show_hydrogens"],  "show_hydrogens",   True)
     _set(ui["var_show_bonds"],      "show_bonds",       True)
     _set(ui["var_show_labels"],     "show_labels",      False)
+    _set(ui["var_show_grid"],       "show_grid",        False)
+    _set(ui["var_show_outline"],    "show_outline",     False)
+    _set(ui["var_bond_color"],      "bond_color",       "#555A60")
+    _set(ui["var_bond_tolerance"],  "bond_tolerance",   "0.05")
+    _set(ui["var_bond_radius"],     "bond_radius",      "0.08")
     _set(ui["var_slice_opacity"],   "slice_opacity",    0.25)
     _set(ui["var_background"],      "background",       "White")
     _set(ui["var_ambient"],         "ambient_light",    0.3)
+    _set(ui["var_camera_preset"],   "camera_preset",    "Iso")
+    _set(ui["var_camera_projection"], "camera_projection", "perspective")
+    _set(ui["var_export_view"],     "export_view",      "preset")
     _set(ui["var_dpi"],             "png_dpi",          "600")
     _set(ui["var_width_inch"],      "png_width_inch",   "6.0")
     _set(ui["var_png_transparent"], "png_transparent",  False)
@@ -716,7 +835,8 @@ def open_pyvista_field(state: dict) -> None:
     # -----------------------------------------------------------------------
     win = tk.Toplevel(root)
     win.title("PCS Field Viewer — Controls")
-    win.geometry("420x820")
+    win.geometry("730x820")
+    win.minsize(720, 560)
     win.configure(bg=BG)
     win.resizable(True, True)
     state["pyvista_field_ctrl_win"] = win
@@ -780,21 +900,39 @@ def open_pyvista_field(state: dict) -> None:
     var_show_iso    = tk.BooleanVar(value=True)
     var_show_labels = tk.BooleanVar(value=False)
     var_show_atoms  = tk.BooleanVar(value=True)
+    var_show_hydrogens = tk.BooleanVar(value=True)
     var_show_bonds  = tk.BooleanVar(value=True)
+    var_show_grid = tk.BooleanVar(value=False)
+    var_show_outline = tk.BooleanVar(value=False)
 
     var_slice_opacity   = tk.DoubleVar(value=0.25)
     var_ambient         = tk.DoubleVar(value=0.3)
     var_surface_opacity = tk.DoubleVar(value=0.22)  # kept for preset compatibility
 
     var_background      = tk.StringVar(value="White")
+    var_bond_color      = tk.StringVar(value="#555A60")
+    var_bond_tolerance  = tk.StringVar(value="0.05")
+    var_bond_radius     = tk.StringVar(value="0.08")
+    var_camera_preset   = tk.StringVar(value="Iso")
+    var_camera_projection = tk.StringVar(value="perspective")
+    var_export_view     = tk.StringVar(value="preset")
     var_png_transparent = tk.BooleanVar(value=False)
     var_dpi             = tk.StringVar(value="600")
     var_width_inch      = tk.StringVar(value="6.0")
 
+    columns = ttk.Frame(outer, style="PCS.TFrame")
+    columns.pack(fill="both", expand=True)
+    left_col = ttk.Frame(columns, style="PCS.TFrame")
+    right_col = ttk.Frame(columns, style="PCS.TFrame")
+    left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+    right_col.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+    columns.columnconfigure(0, weight=1, uniform="control")
+    columns.columnconfigure(1, weight=1, uniform="control")
+
     # -----------------------------------------------------------------------
     # Section: Grid parameters
     # -----------------------------------------------------------------------
-    sec_grid = _section(outer, "Grid Parameters")
+    sec_grid = _section(left_col, "Grid Parameters")
     _row_entry(sec_grid, "Grid spacing (Å)", var_spacing, 0)
     _row_entry(sec_grid, "Metal mask r (Å)", var_rmask,   1)
     _row_entry(sec_grid, "Clip ±ppm",        var_clip,    2)
@@ -812,7 +950,7 @@ def open_pyvista_field(state: dict) -> None:
     # -----------------------------------------------------------------------
     # Section: Isosurface levels (dynamic table)
     # -----------------------------------------------------------------------
-    sec_levels = _section(outer, "Isosurface Levels")
+    sec_levels = _section(left_col, "Isosurface Levels")
 
     hdr = ttk.Frame(sec_levels, style="PCS.TFrame")
     hdr.pack(fill="x")
@@ -907,15 +1045,18 @@ def open_pyvista_field(state: dict) -> None:
     # -----------------------------------------------------------------------
     # Section: Display toggles
     # -----------------------------------------------------------------------
-    sec_disp = _section(outer, "Display")
+    sec_disp = _section(right_col, "Display")
     disp_grid = ttk.Frame(sec_disp, style="PCS.TFrame")
     disp_grid.pack(fill="x")
     for i, (txt, var) in enumerate([
         ("Isosurfaces",  var_show_iso),
         ("Slice planes", var_show_slices),
         ("Atoms",        var_show_atoms),
+        ("H atoms",      var_show_hydrogens),
         ("Bonds",        var_show_bonds),
         ("Labels",       var_show_labels),
+        ("Grid",         var_show_grid),
+        ("Outline",      var_show_outline),
     ]):
         ttk.Checkbutton(disp_grid, text=txt, variable=var,
                         style="PCS.TCheckbutton").grid(
@@ -924,7 +1065,7 @@ def open_pyvista_field(state: dict) -> None:
     # -----------------------------------------------------------------------
     # Section: Appearance
     # -----------------------------------------------------------------------
-    sec_app = _section(outer, "Appearance")
+    sec_app = _section(right_col, "Appearance")
 
     bg_frame = ttk.Frame(sec_app, style="PCS.TFrame")
     bg_frame.pack(fill="x", pady=2)
@@ -935,50 +1076,88 @@ def open_pyvista_field(state: dict) -> None:
                  state="readonly", width=12,
                  style="PCS.TCombobox").pack(side="left")
 
-    def _slider_row(parent, label: str, variable: tk.DoubleVar) -> None:
-        f = ttk.Frame(parent, style="PCS.TFrame")
-        f.pack(fill="x", pady=3)
-        ttk.Label(f, text=label, width=14, style="PCS.TLabel").pack(side="left")
-        tk.Scale(
-            f, from_=0.05, to=1.0, resolution=0.01,
-            orient="horizontal", variable=variable,
-            bg=BG, highlightthickness=0, length=200,
-            troughcolor=SEP_CLR, sliderrelief="flat",
-        ).pack(side="left")
-        ttk.Label(f, textvariable=variable, width=4,
-                  style="PCS.TLabel").pack(side="left", padx=(4, 0))
-
-    _slider_row(sec_app, "Slice opacity", var_slice_opacity)
-    _slider_row(sec_app, "Ambient light", var_ambient)
+    app_grid = ttk.Frame(sec_app, style="PCS.TFrame")
+    app_grid.pack(fill="x", pady=(4, 0))
+    _row_entry(app_grid, "Slice opacity", var_slice_opacity, 0)
+    _row_entry(app_grid, "Ambient light", var_ambient, 1)
+    _row_entry(app_grid, "Bond tolerance", var_bond_tolerance, 2)
+    _row_entry(app_grid, "Bond radius (Å)", var_bond_radius, 3)
+    ttk.Label(app_grid, text="Bond color", style="PCS.TLabel").grid(
+        row=4, column=0, sticky="w", padx=(0, 6), pady=3)
+    bond_color_frame = ttk.Frame(app_grid, style="PCS.TFrame")
+    bond_color_frame.grid(row=4, column=1, sticky="ew", pady=3)
+    ttk.Entry(bond_color_frame, textvariable=var_bond_color, width=10,
+              style="PCS.TEntry").pack(side="left", fill="x", expand=True)
+    bond_swatch = tk.Button(bond_color_frame, bg=var_bond_color.get(), width=3,
+                            relief="flat", cursor="hand2")
+    def _pick_bond_color():
+        result = colorchooser.askcolor(color=var_bond_color.get(), title="Pick bond colour")
+        if result and result[1]:
+            var_bond_color.set(result[1])
+    bond_swatch.configure(command=_pick_bond_color)
+    bond_swatch.pack(side="left", padx=(4, 0))
+    var_bond_color.trace_add("write", lambda *_: bond_swatch.configure(bg=var_bond_color.get()))
 
     # -----------------------------------------------------------------------
     # Section: Camera presets
     # -----------------------------------------------------------------------
-    sec_cam = _section(outer, "Camera")
+    sec_cam = _section(right_col, "Camera")
     cam_frame = ttk.Frame(sec_cam, style="PCS.TFrame")
     cam_frame.pack(fill="x")
 
-    def _set_camera(preset_key: str) -> None:
+    ttk.Label(cam_frame, text="Preset", style="PCS.TLabel").grid(row=0, column=0, sticky="w")
+    ttk.Combobox(cam_frame, textvariable=var_camera_preset,
+                 values=list(CAMERA_PRESETS), state="readonly", width=10,
+                 style="PCS.TCombobox").grid(row=0, column=1, padx=4)
+    ttk.Label(cam_frame, text="Projection", style="PCS.TLabel").grid(row=1, column=0, sticky="w")
+    ttk.Combobox(cam_frame, textvariable=var_camera_projection,
+                 values=PROJECTION_OPTIONS, state="readonly", width=12,
+                 style="PCS.TCombobox").grid(row=1, column=1, padx=4, pady=3)
+
+    def _set_camera() -> None:
         plotter = state.get("pyvista_field_plotter")
         if plotter is None:
             status_var.set("Open the viewer first.")
             return
         try:
-            plotter.camera_position = CAMERA_PRESETS[preset_key]
+            apply_camera_preset(plotter, var_camera_preset.get(), var_camera_projection.get())
             plotter.render()
             plotter.update()
         except Exception as exc:  # noqa: BLE001
             status_var.set(f"Camera error: {exc}")
 
-    for i, name in enumerate(CAMERA_PRESETS):
-        ttk.Button(cam_frame, text=name, width=7,
-                   command=lambda n=name: _set_camera(n),
-                   style="PCS.TButton").grid(row=0, column=i, padx=3, pady=2)
+    def _save_view() -> None:
+        camera_state = capture_camera_state(state.get("pyvista_field_plotter"))
+        if camera_state is None:
+            status_var.set("Open the viewer first.")
+            return
+        state["pyvista_field_saved_camera"] = camera_state
+        status_var.set("Current camera view saved.")
+
+    def _restore_view() -> None:
+        plotter = state.get("pyvista_field_plotter")
+        saved = state.get("pyvista_field_saved_camera")
+        if plotter is None or saved is None:
+            status_var.set("No saved camera view.")
+            return
+        restore_camera_state(plotter, saved)
+        status_var.set("Saved camera view restored.")
+
+    camera_buttons = ttk.Frame(sec_cam, style="PCS.TFrame")
+    camera_buttons.pack(fill="x", pady=(5, 0))
+    for column in range(3):
+        camera_buttons.columnconfigure(column, weight=1, uniform="camera_button")
+    ttk.Button(camera_buttons, text="Apply", command=_set_camera,
+               style="PCS.TButton").grid(row=0, column=0, sticky="ew", padx=(0, 2))
+    ttk.Button(camera_buttons, text="Save view", command=_save_view,
+               style="PCS.TButton").grid(row=0, column=1, sticky="ew", padx=2)
+    ttk.Button(camera_buttons, text="Restore", command=_restore_view,
+               style="PCS.TButton").grid(row=0, column=2, sticky="ew", padx=(2, 0))
 
     # -----------------------------------------------------------------------
     # Section: PNG export
     # -----------------------------------------------------------------------
-    sec_png = _section(outer, "Export PNG")
+    sec_png = _section(right_col, "Export PNG")
     png_grid = ttk.Frame(sec_png, style="PCS.TFrame")
     png_grid.pack(fill="x")
     _row_entry(png_grid, "DPI",          var_dpi,        0)
@@ -986,6 +1165,15 @@ def open_pyvista_field(state: dict) -> None:
     ttk.Checkbutton(sec_png, text="Transparent background",
                     variable=var_png_transparent,
                     style="PCS.TCheckbutton").pack(anchor="w", pady=(4, 0))
+    export_mode_frame = ttk.Frame(sec_png, style="PCS.TFrame")
+    export_mode_frame.pack(fill="x", pady=(4, 0))
+    ttk.Label(export_mode_frame, text="Export view", style="PCS.TLabel").pack(side="left")
+    ttk.Combobox(export_mode_frame, textvariable=var_export_view,
+                 values=EXPORT_VIEW_OPTIONS, state="readonly", width=10,
+                 style="PCS.TCombobox").pack(side="left", padx=(8, 0))
+    ttk.Label(sec_png,
+              text="Current uses the live viewer resolution.\nPreset uses DPI × width.",
+              style="PCS.TLabel", foreground="#666666").pack(anchor="w", pady=(4, 0))
 
     # -----------------------------------------------------------------------
     # Status bar
@@ -1025,7 +1213,13 @@ def open_pyvista_field(state: dict) -> None:
             show_isosurfaces=bool(var_show_iso.get()),
             show_labels=bool(var_show_labels.get()),
             show_atoms=bool(var_show_atoms.get()),
+            show_hydrogens=bool(var_show_hydrogens.get()),
             show_bonds=bool(var_show_bonds.get()),
+            show_grid=bool(var_show_grid.get()),
+            show_outline=bool(var_show_outline.get()),
+            bond_color=var_bond_color.get(),
+            bond_tolerance=float(var_bond_tolerance.get()),
+            bond_radius=float(var_bond_radius.get()),
             slice_opacity=float(var_slice_opacity.get()),
             background=bg_val,
             ambient_light=float(var_ambient.get()),
@@ -1038,10 +1232,14 @@ def open_pyvista_field(state: dict) -> None:
         try:
             kwargs = _build_scene_kwargs()
             state["pcs_scene_kwargs"] = kwargs
-            if state.get("pyvista_field_plotter") is None:
+            viewer_was_closed = state.get("pyvista_field_plotter") is None
+            if viewer_was_closed:
                 open_pcs_viewer(state, **kwargs)
             else:
                 refresh_pcs_viewer(state, **kwargs)
+            plotter = state.get("pyvista_field_plotter")
+            if plotter is not None and viewer_was_closed:
+                apply_camera_preset(plotter, var_camera_preset.get(), var_camera_projection.get())
             levels_str = ", ".join(r["ppm"].get() for r in level_rows)
             status_var.set(f"Rendered  |  levels: {levels_str} ppm")
         except Exception as exc:  # noqa: BLE001
@@ -1061,10 +1259,19 @@ def open_pyvista_field(state: dict) -> None:
         var_show_iso.set(True)
         var_show_labels.set(False)
         var_show_atoms.set(True)
+        var_show_hydrogens.set(True)
         var_show_bonds.set(True)
+        var_show_grid.set(False)
+        var_show_outline.set(False)
+        var_bond_color.set("#555A60")
+        var_bond_tolerance.set("0.05")
+        var_bond_radius.set("0.08")
         var_slice_opacity.set(0.25)
         var_ambient.set(0.3)
         var_background.set("White")
+        var_camera_preset.set("Iso")
+        var_camera_projection.set("perspective")
+        var_export_view.set("preset")
         var_dpi.set("600")
         var_width_inch.set("6.0")
         var_png_transparent.set(False)
@@ -1084,11 +1291,20 @@ def open_pyvista_field(state: dict) -> None:
         var_show_slices=var_show_slices,
         var_show_iso=var_show_iso,
         var_show_atoms=var_show_atoms,
+        var_show_hydrogens=var_show_hydrogens,
         var_show_bonds=var_show_bonds,
         var_show_labels=var_show_labels,
+        var_show_grid=var_show_grid,
+        var_show_outline=var_show_outline,
+        var_bond_color=var_bond_color,
+        var_bond_tolerance=var_bond_tolerance,
+        var_bond_radius=var_bond_radius,
         var_surface_opacity=var_surface_opacity,
         var_slice_opacity=var_slice_opacity,
         var_ambient=var_ambient,
+        var_camera_preset=var_camera_preset,
+        var_camera_projection=var_camera_projection,
+        var_export_view=var_export_view,
         var_background=var_background,
         var_dpi=var_dpi,
         var_width_inch=var_width_inch,
@@ -1120,6 +1336,7 @@ def open_pyvista_field(state: dict) -> None:
                    dpi=int(var_dpi.get()),
                    width_inch=float(var_width_inch.get()),
                    transparent=bool(var_png_transparent.get()),
+                   export_view=var_export_view.get(),
                    scene_kwargs=_build_scene_kwargs(),
                )).pack(side="right")
 
