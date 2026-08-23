@@ -1,7 +1,7 @@
 # app_version.py
 
 APP_NAME = "PCS Analyzer"
-APP_VERSION = "1.3.3"
+APP_VERSION = "1.3.4"
 
 GITHUB_REPO = "boseokhong/PCS-analyzer"
 GITHUB_RELEASES_URL = "https://github.com/boseokhong/PCS-analyzer/releases"
