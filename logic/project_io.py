@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+import json
 
 try:
     from app_version import APP_NAME, APP_VERSION
@@ -42,6 +43,7 @@ _TABLE_SECTIONS = {
     "delta_obs",
     "delta_dia",
     "viewer.pcs_field.levels",
+    "rotational_groups",  # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE2
 }
 
 
@@ -327,6 +329,32 @@ def parse_level_rows(lines: Iterable[tuple[int, str]]) -> list[dict[str, Any]]:
     return rows
 
 
+def parse_rotational_group_rows(lines: Iterable[tuple[int, str]]) -> list[dict[str, Any]]:
+    # Parse JSON-line rotational group records from [rotational_groups].
+    rows: list[dict[str, Any]] = []
+    for lineno, line in lines:
+        try:
+            obj = json.loads(line)
+        except Exception as exc:
+            raise PCSPError(f"Line {lineno}: invalid rotational group JSON.") from exc
+        if not isinstance(obj, dict):
+            raise PCSPError(f"Line {lineno}: rotational group row must be a JSON object.")
+        try:
+            obj["axis_atoms"] = tuple(int(x) for x in obj.get("axis_atoms", ()))
+            obj["rotating_atoms"] = tuple(int(x) for x in obj.get("rotating_atoms", ()))
+            obj["ring_atoms"] = tuple(int(x) for x in obj.get("ring_atoms", ()))
+            obj["ring_cycles"] = tuple(tuple(int(x) for x in cyc) for cyc in obj.get("ring_cycles", ()))
+            obj["enabled"] = bool(obj.get("enabled", True))
+            obj["n_samples"] = max(1, int(obj.get("n_samples", 24)))
+            obj["range_start_deg"] = float(obj.get("range_start_deg", 0.0))
+            obj["range_end_deg"] = float(obj.get("range_end_deg", 360.0))
+            obj["planarity_rms"] = float(obj.get("planarity_rms", 0.0))
+        except Exception as exc:
+            raise PCSPError(f"Line {lineno}: invalid rotational group values.") from exc
+        rows.append(obj)
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # State extraction helpers
 # ---------------------------------------------------------------------------
@@ -575,12 +603,33 @@ def build_pcsp_text(state: dict, *, source_path: str | None = None) -> str:
     _write_effective_table(lines, effective)
     _write_table_atoms(lines, table_snapshot)
 
-    lines.append("[symmetry_averaging]")
+    lines.append("[symmetry_averaging]")  # PCS_PATCH_AVERAGING_SETTINGS_PHASE1
     _write_kv(lines, "enabled", bool(_get_var_value(state, "symavg_enabled_var", False)))
-    _write_kv(lines, "methyl_enabled", True)
-    _write_kv(lines, "cf3_enabled", True)
+    _write_kv(lines, "methyl_enabled", bool(_get_var_value(state, "symavg_methyl_enabled_var", True)))
+    _write_kv(lines, "cf3_enabled", bool(_get_var_value(state, "symavg_cf3_enabled_var", True)))
     _write_kv(lines, "keep_original", bool(_get_var_value(state, "symavg_keep_original_var", False)))
     _write_kv(lines, "mode", "mask" if bool(_get_var_value(state, "symavg_keep_original_var", False)) else "drop")
+    lines.append("")
+
+    lines.append("[rotational_averaging]")  # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE2
+    _write_kv(lines, "enabled", bool(_get_var_value(state, "torsion_avg_enabled_var", False)))
+    _write_kv(lines, "detection_mode", _get_var_value(state, "torsion_avg_detection_mode_var", "auto"))
+    _write_kv(lines, "keep_reference", bool(_get_var_value(state, "torsion_avg_keep_reference_var", False)))
+    _write_kv(lines, "planarity_threshold", _get_var_value(state, "torsion_avg_planarity_var", 0.10))
+    _write_kv(lines, "phase", state.get("torsion_avg_phase", 2))
+    lines.append("")
+
+    lines.append("[rotational_groups]")
+    lines.append("# One JSON object per configured torsional group")
+    for group in (state.get("torsion_avg_groups", []) or []):
+        try:
+            payload = dict(group)
+            for key in ("axis_atoms", "rotating_atoms", "ring_atoms"):
+                payload[key] = [int(x) for x in payload.get(key, ())]
+            payload["ring_cycles"] = [[int(x) for x in cyc] for cyc in payload.get("ring_cycles", ())]
+            lines.append(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        except Exception:
+            pass
     lines.append("")
 
     selected_elements = []
@@ -745,6 +794,8 @@ def load_project_file(path: str | Path, state: dict) -> None:
 
     structure = parse_key_values(sections.get("structure", []))
     symavg = parse_key_values(sections.get("symmetry_averaging", []))
+    rotavg = parse_key_values(sections.get("rotational_averaging", []))  # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE2
+    rotgroups = parse_rotational_group_rows(sections.get("rotational_groups", []))
     visibility = parse_key_values(sections.get("visibility", []))
     pcs_model = parse_key_values(sections.get("pcs_model", []))
     rotation = parse_key_values(sections.get("rotation", []))
@@ -801,8 +852,17 @@ def load_project_file(path: str | Path, state: dict) -> None:
     _set_entry(state, "angle_y_entry", f"{ay:.1f}")
     _set_entry(state, "angle_z_entry", f"{az:.1f}")
 
-    _set_var(state, "symavg_enabled_var", _parse_bool(symavg.get("enabled", "false")))
+    _set_var(state, "symavg_enabled_var", _parse_bool(symavg.get("enabled", "false")))  # PCS_PATCH_AVERAGING_SETTINGS_PHASE1
+    _set_var(state, "symavg_methyl_enabled_var", _parse_bool(symavg.get("methyl_enabled", "true"), default=True))
+    _set_var(state, "symavg_cf3_enabled_var", _parse_bool(symavg.get("cf3_enabled", "true"), default=True))
     _set_var(state, "symavg_keep_original_var", _parse_bool(symavg.get("keep_original", "false")))
+
+    _set_var(state, "torsion_avg_enabled_var", _parse_bool(rotavg.get("enabled", "false")))  # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE2
+    _set_var(state, "torsion_avg_detection_mode_var", rotavg.get("detection_mode", "auto"))
+    _set_var(state, "torsion_avg_keep_reference_var", _parse_bool(rotavg.get("keep_reference", "false")))
+    _set_var(state, "torsion_avg_planarity_var", _parse_float(rotavg.get("planarity_threshold", "0.10"), default=0.10))
+    state["torsion_avg_groups"] = rotgroups
+    state["torsion_avg_phase"] = _parse_int(rotavg.get("phase", "2"), default=2)
 
     # Data layers
     state["delta_exp_values"] = parse_delta_rows(sections.get("delta_exp", []))
@@ -861,6 +921,10 @@ def load_project_file(path: str | Path, state: dict) -> None:
     apply_symavg = state.get("apply_symavg_to_state")
     if callable(apply_symavg):
         apply_symavg(state)
+
+    refresh_averaging = state.get("refresh_averaging_status")  # PCS_PATCH_AVERAGING_SETTINGS_PHASE1
+    if callable(refresh_averaging):
+        refresh_averaging()
 
     create_checklist = state.get("create_checklist")
     if callable(create_checklist):

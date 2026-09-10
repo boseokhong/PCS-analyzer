@@ -1,4 +1,5 @@
 # logic/fitting.py
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import numpy as np
 from scipy.optimize import least_squares, differential_evolution
@@ -25,6 +26,8 @@ def _effective_obs_factors(state, obs_ids, obs_coords, metal, raw_ids, raw_trans
         metal,
         pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
         raw_coords_by_id=raw_map,
+        torsion_groups=(state.get("torsion_avg_groups", []) or [])
+        if bool(getattr(state.get("torsion_avg_enabled_var"), "get", lambda: False)()) else [],
     )
 
 

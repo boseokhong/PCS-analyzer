@@ -1,4 +1,5 @@
 # logic/table_utils.py
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 '''
 # Susceptibility tensor definitions
 
@@ -762,6 +763,18 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
     # Ref-ID -> display label override (pseudo atoms)
     label_overrides = state.get("ref_label_overrides", {}) or {}
 
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE4
+    # Rotationally averaged atoms keep their original Ref/element identity; only
+    # the Treeview display label gets a compact <avg> suffix.
+    torsion_var = state.get("torsion_avg_enabled_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    torsion_avg_ref_ids = set()
+    if torsion_enabled:
+        for group in (state.get("torsion_avg_groups", []) or []):
+            if bool(group.get("enabled", True)):
+                torsion_avg_ref_ids.update(int(r) for r in group.get("rotating_atoms", ()))
+    pseudo_ref_ids = set(state.get("symavg_pseudo_ref_ids", set()) or set())
+
     # r/theta remain the representative pseudo-coordinate geometry shown in
     # the table.  Gax is replaced by the member-averaged value for pseudo atoms.
     _, _, _, gax_eff, _ = effective_geometry_factors(
@@ -769,7 +782,8 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
         rotated_coords,
         np.zeros(3, dtype=float),
         pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
-        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},
+        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},        torsion_groups=(state.get("torsion_avg_groups", []) or [])
+        if bool(getattr(state.get("torsion_avg_enabled_var"), "get", lambda: False)()) else [],
     )
 
     for i, ((atom, r, theta), (dx, dy, dz)) in enumerate(zip(polar_data, rotated_coords)):
@@ -782,8 +796,11 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
         pcs_by_id[ref_id] = float(delta_pcs)
         geom_by_id[ref_id] = float(geom_param)
 
-        # Display label override only for table Atom column
+        # Display label override only for table Atom column.  A rotational
+        # ensemble average is a representation of the same atom, not a new Ref.
         atom_disp = label_overrides.get(ref_id, atom)
+        if ref_id in torsion_avg_ref_ids and ref_id not in pseudo_ref_ids:
+            atom_disp = f"{atom_disp} ⟨avg⟩"
 
         # Read/Write with Ref ID
         delta_exp = delta_exp_values.get(ref_id, None)

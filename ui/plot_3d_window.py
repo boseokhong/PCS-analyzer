@@ -1,4 +1,5 @@
 # ui/plot_3d_window.py
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import tkinter as tk
 from tkinter import ttk
@@ -6,6 +7,7 @@ from tkinter import ttk
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -202,8 +204,13 @@ def _get_3d_structure(state):
     The 3D Structure viewer should display the real molecular structure.
     Symmetry-averaged pseudo atoms are used only for 2D/table/fitting views.
     """
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
+    torsion_var = state.get("torsion_avg_enabled_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    avg_data = state.get("torsion_avg_display_atom_data") if torsion_enabled else None
     atom_data = (
-        state.get("atom_data_raw")
+        avg_data
+        or state.get("atom_data_raw")
         or state.get("atom_data")
         or []
     )
@@ -328,12 +335,51 @@ def _get_3d_view_data(state):
     out_ref_ids = [r[2] for r in rows]
     out_elements = list(out_labels)
 
-    return {
+    result = {
         "labels": out_labels,
         "coords": out_coords,
         "ref_ids": out_ref_ids,
         "elements": out_elements,
     }
+
+    # Optional reference geometry for enabled torsional fragments.
+    torsion_var = state.get("torsion_avg_enabled_var")
+    keep_var = state.get("torsion_avg_keep_reference_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    keep_reference = bool(keep_var.get()) if keep_var is not None else False
+    if torsion_enabled and keep_reference:
+        raw = state.get("atom_data_raw") or state.get("atom_data") or []
+        raw_ids2 = list(state.get("atom_ids_raw") or range(1, len(raw) + 1))
+        if raw and len(raw_ids2) == len(raw):
+            ref_abs = np.asarray([[x, y, z] for _, x, y, z in raw], dtype=float)
+            ref_labels0 = [a for a, *_ in raw]
+            ref_abs, ref_metal = _apply_fit_override_to_raw_coords(
+                state, ref_abs, raw_ids2, np.array([state["x0"], state["y0"], state["z0"]], dtype=float)
+            )
+            ref0 = ref_abs - ref_metal
+            ref_rot = rotate_coordinates(ref0, ax_deg, ay_deg, az_deg, (0.0, 0.0, 0.0))
+            moving_refs = set()
+            for g in (state.get("torsion_avg_groups", []) or []):
+                if bool(g.get("enabled", True)):
+                    moving_refs.update(int(r) for r in g.get("rotating_atoms", ()))
+            ref_rows = []
+            for lbl, coord, rid in zip(ref_labels0, ref_rot, raw_ids2):
+                if rid not in moving_refs:
+                    continue
+                ss = str(lbl).strip()
+                if len(ss) >= 2 and ss[1].islower():
+                    el = ss[:2]
+                else:
+                    el = ss[:1]
+                if selected_elements is not None and el not in selected_elements:
+                    continue
+                ref_rows.append((lbl, coord, rid))
+            if ref_rows:
+                result["reference_labels"] = [r[0] for r in ref_rows]
+                result["reference_coords"] = np.asarray([r[1] for r in ref_rows], dtype=float)
+                result["reference_ref_ids"] = [r[2] for r in ref_rows]
+
+    return result
 
 
 def _get_color_mode(state):
@@ -472,7 +518,31 @@ def _draw_3d_plot(state):
 
     ax = fig.add_subplot(111, projection="3d")
 
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE4
+    ref_coords_overlay = data.get("reference_coords")
+    ref_labels_overlay = data.get("reference_labels") or []
+    if ref_coords_overlay is not None and len(ref_coords_overlay):
+        for lbl, coord in zip(ref_labels_overlay, ref_coords_overlay):
+            cpk = get_cpk_color(lbl)
+            ax.scatter(
+                coord[0], coord[1], coord[2],
+                s=24,
+                facecolors=cpk,
+                edgecolors=cpk,
+                linewidths=0.6,
+                alpha=0.72,
+                marker="o",
+            )
+
     colors, sizes, norm, cmap = _build_atom_colors_and_sizes(state, labels, ref_ids)
+
+    torsion_var = state.get("torsion_avg_enabled_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    torsion_avg_ref_ids = set()
+    if torsion_enabled:
+        for group in (state.get("torsion_avg_groups", []) or []):
+            if bool(group.get("enabled", True)):
+                torsion_avg_ref_ids.update(int(r) for r in group.get("rotating_atoms", ()))
 
     bond_scale = _get_3d_bond_scale(state)
     bonds = calculate_bonds(coords, elements, bond_scale=bond_scale)
@@ -500,25 +570,47 @@ def _draw_3d_plot(state):
                 selected_ref = None
 
     for label, (x, y, z), rid, color, size in zip(labels, coords, ref_ids, colors, sizes):
-        edgecolor = "white"
-        linewidth = 0.5
+        is_avg = rid in torsion_avg_ref_ids
+        is_selected = selected_ref is not None and rid == selected_ref
 
-        if selected_ref is not None and rid == selected_ref:
-            edgecolor = "Yellow"
-            linewidth = 1.5
-            size = size * 1.25
+        if is_avg:
+            # Ensemble-averaged coordinates are derived representative positions:
+            # hollow marker, element-coloured edge, slightly larger than reference.
+            size_avg = size * (1.18 if not is_selected else 1.35)
+            pt = ax.scatter(
+                x, y, z,
+                s=size_avg,
+                alpha=0.95,
+                facecolors="none",
+                edgecolors=get_cpk_color(label),
+                linewidths=1.25,
+                marker="o",
+                picker=True,
+            )
+            if is_selected:
+                ax.scatter(
+                    x, y, z,
+                    s=size_avg * 1.75,
+                    facecolors="none",
+                    edgecolors="Yellow",
+                    linewidths=1.5,
+                    marker="o",
+                )
+        else:
+            edgecolor = "Yellow" if is_selected else "white"
+            linewidth = 1.5 if is_selected else 0.5
+            if is_selected:
+                size = size * 1.25
+            pt = ax.scatter(
+                x, y, z,
+                color=color,
+                s=size,
+                alpha=0.9,
+                edgecolors=edgecolor,
+                linewidths=linewidth,
+                picker=True,
+            )
 
-        pt = ax.scatter(
-            x,
-            y,
-            z,
-            color=color,
-            s=size,
-            alpha=0.9,
-            edgecolors=edgecolor,
-            linewidths=linewidth,
-            picker=True,
-        )
         pick_pairs.append((pt, rid))
 
         if show_labels:
@@ -528,6 +620,31 @@ def _draw_3d_plot(state):
                 fontsize=plot_label,
                 fontfamily=plot_font_family,
             )
+
+    # Dynamic representation legend.  Do not show a Reference entry unless
+    # the reference overlay is actually enabled and present.
+    avg_visible = any(rid in torsion_avg_ref_ids for rid in ref_ids)
+    ref_visible = ref_coords_overlay is not None and len(ref_coords_overlay) > 0
+    avg_handles = []
+    if ref_visible:
+        avg_handles.append(Line2D([], [], marker="o", linestyle="None",
+                                  markerfacecolor="0.35", markeredgecolor="0.35",
+                                  markersize=5.5, label="Reference"))
+    if avg_visible:
+        avg_handles.append(Line2D([], [], marker="o", linestyle="None",
+                                  markerfacecolor="none", markeredgecolor="0.35",
+                                  markeredgewidth=1.2, markersize=6.0, label="Ensemble avg"))
+    if avg_handles:
+        avg_leg = ax.legend(
+            handles=avg_handles,
+            loc="upper right",
+            frameon=False,
+            fontsize=plot_tick,
+            handletextpad=0.6,
+            labelspacing=0.4,
+            borderpad=0.2,
+        )
+        avg_leg.set_title("Averaging", prop={"size": plot_tick, "weight": "bold"})
 
     axis_len = max(np.ptp(coords[:, 0]), np.ptp(coords[:, 1]), np.ptp(coords[:, 2]), 1.0) * 0.35
     add_arrow3d(ax, 0, 0, 0, axis_len, 0, 0, mutation_scale=18, ec="black", fc="blue")

@@ -1,4 +1,5 @@
 # logic/symmetry_geometry.py
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 """Geometry-factor helpers for symmetry-averaged pseudo atoms.
 
@@ -42,6 +43,7 @@ def effective_geometry_factors(
     *,
     pseudo_members: Mapping[int, Sequence[int]] | None = None,
     raw_coords_by_id: Mapping[int, Sequence[float]] | None = None,
+    torsion_groups: Sequence | None = None,
 ):
     """Return geometry factors for effective atoms.
 
@@ -56,32 +58,38 @@ def effective_geometry_factors(
     coords = np.asarray(effective_coords, dtype=float)
     r, theta, phi, Gax, Grh = geom_factors_ax_rh(coords, metal)
 
-    if not pseudo_members or not raw_coords_by_id:
-        return r, theta, phi, Gax, Grh
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
+    # Build raw-atom G maps once.  When torsional averaging is active, factors
+    # are averaged over sampled conformers in the *current tensor frame*.
+    raw_gax_by_id = {}
+    raw_grh_by_id = {}
+    if raw_coords_by_id:
+        raw_ids = [int(rid) for rid in raw_coords_by_id.keys()]
+        raw_coords = np.asarray([raw_coords_by_id[rid] for rid in raw_coords_by_id.keys()], dtype=float)
+        if torsion_groups:
+            from logic.torsional_ensemble import ensemble_geometry_factors_independent
+            raw_gax, raw_grh = ensemble_geometry_factors_independent(
+                raw_coords, raw_ids, torsion_groups, metal=metal
+            )
+        else:
+            _, _, _, raw_gax, raw_grh = geom_factors_ax_rh(raw_coords, metal)
+        raw_gax_by_id = {rid: float(v) for rid, v in zip(raw_ids, raw_gax)}
+        raw_grh_by_id = {rid: float(v) for rid, v in zip(raw_ids, raw_grh)}
 
     Gax = np.array(Gax, dtype=float, copy=True)
     Grh = np.array(Grh, dtype=float, copy=True)
 
     for i, rid in enumerate(ref_ids):
-        members = pseudo_members.get(rid)
-        if not members:
-            continue
-
-        member_coords = []
-        for member_id in members:
-            coord = raw_coords_by_id.get(member_id)
-            if coord is None:
-                member_coords = []
-                break
-            member_coords.append(coord)
-
-        if not member_coords:
-            continue
-
-        _, _, _, member_gax, member_grh = geom_factors_ax_rh(
-            np.asarray(member_coords, dtype=float), metal
-        )
-        Gax[i] = float(np.mean(member_gax))
-        Grh[i] = float(np.mean(member_grh))
+        members = (pseudo_members or {}).get(rid)
+        if members:
+            vals_ax = [raw_gax_by_id[m] for m in members if m in raw_gax_by_id]
+            vals_rh = [raw_grh_by_id[m] for m in members if m in raw_grh_by_id]
+            if len(vals_ax) == len(members) and vals_ax:
+                Gax[i] = float(np.mean(vals_ax))
+                Grh[i] = float(np.mean(vals_rh))
+        elif rid in raw_gax_by_id and torsion_groups:
+            # Ordinary atom affected by a torsional ensemble.
+            Gax[i] = raw_gax_by_id[rid]
+            Grh[i] = raw_grh_by_id[rid]
 
     return r, theta, phi, Gax, Grh

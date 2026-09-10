@@ -1,10 +1,29 @@
 # logic/plot_pcs.py
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import numpy as np
+from matplotlib.lines import Line2D
 from logic.chem_constants import CPK_COLORS, covalent_radii
 
 
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE4
+SYMAVG_CH3_COLOR = "#D97706"   # warm orange
+SYMAVG_CF3_COLOR = "#008C95"   # teal
+
+def _symavg_kind(label):
+    s = str(label).strip()
+    if s.startswith("MeH@"):
+        return "ch3"
+    if s.startswith("CF3F@"):
+        return "cf3"
+    return None
+
 def get_cpk_color(atom):
+    kind = _symavg_kind(atom)
+    if kind == "ch3":
+        return SYMAVG_CH3_COLOR
+    if kind == "cf3":
+        return SYMAVG_CF3_COLOR
     return CPK_COLORS.get(atom, CPK_COLORS["default"])
 
 
@@ -218,6 +237,27 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
                         zorder=2,
                     )
 
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE4
+    # Optional reference-structure overlay for enabled torsional fragments.
+    # Reference positions are filled element-coloured markers; averaged positions
+    # below are hollow markers of the same element colour.
+    ref_polar = state.get("torsion_reference_polar_data", []) or []
+    if ref_polar:
+        for ref_atom, rr, th in ref_polar:
+            th_plot = np.pi - th if (plot_90 and th > np.pi / 2) else th
+            ax.scatter(
+                [th_plot],
+                [rr],
+                s=16,
+                facecolors=get_cpk_color(ref_atom),
+                edgecolors=get_cpk_color(ref_atom),
+                linewidths=0.6,
+                alpha=0.72,
+                marker="o",
+                zorder=3.5,
+            )
+
     click_pairs = []
 
     tree = state.get("tree")
@@ -238,6 +278,14 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
     else:
         pseudo_ref_ids = set(pseudo_ref_ids)
 
+    torsion_var = state.get("torsion_avg_enabled_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    torsion_avg_ref_ids = set()
+    if torsion_enabled:
+        for group in (state.get("torsion_avg_groups", []) or []):
+            if bool(group.get("enabled", True)):
+                torsion_avg_ref_ids.update(int(r) for r in group.get("rotating_atoms", ()))
+
     # Base scatter sizes
     BASE_SIZE = 15
     BASE_SIZE_PSEUDO = 30
@@ -253,9 +301,10 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
                 theta = np.pi - theta
 
             is_pseudo = ref_id in pseudo_ref_ids
+            is_avg = (ref_id in torsion_avg_ref_ids) and not is_pseudo
 
             marker = "x" if is_pseudo else "o"
-            lw = 1.3 if is_pseudo else 0.8
+            lw = 1.4 if is_pseudo else (1.25 if is_avg else 0.8)
 
             # Atom size: radii-proportional or fixed
             if use_radii_scale and not is_pseudo:
@@ -264,17 +313,40 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
                 size = BASE_SIZE * (rad / ref_rad) ** 2 * atom_scale
             else:
                 size = (BASE_SIZE_PSEUDO if is_pseudo else BASE_SIZE) * atom_scale
+            if is_avg:
+                size *= 1.18
 
             is_selected = (selected_ref is not None and ref_id == selected_ref)
-            scatter_kwargs = dict(
-                color=get_cpk_color(atom),
-                zorder=7 if is_selected else (6 if is_pseudo else 5),
-                s=(size * 2.2) if is_selected else size,
-                marker=marker,
-                linewidths=lw,
-            )
+            point_color = get_cpk_color(atom)
+            if is_pseudo:
+                scatter_kwargs = dict(
+                    color=point_color,
+                    zorder=7 if is_selected else 6,
+                    s=(size * 2.2) if is_selected else size,
+                    marker="x",
+                    linewidths=lw,
+                )
+            elif is_avg:
+                scatter_kwargs = dict(
+                    facecolors="none",
+                    edgecolors=point_color,
+                    zorder=7 if is_selected else 6,
+                    s=(size * 1.35) if is_selected else size,
+                    marker="o",
+                    linewidths=lw,
+                )
+            else:
+                scatter_kwargs = dict(
+                    color=point_color,
+                    zorder=7 if is_selected else 5,
+                    s=(size * 2.2) if is_selected else size,
+                    marker="o",
+                    linewidths=lw,
+                )
+
             pt = ax.scatter(theta, r, **scatter_kwargs)
-            # Add a second highlight ring for selected normal atoms.
+            # Selection remains a separate yellow ring so averaged markers keep
+            # their element-coloured outline.
             if is_selected and marker != "x":
                 ax.scatter(
                     theta,
@@ -311,6 +383,61 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
         handleheight=1.0,
     )
     leg.set_title("PCS legend (ppm)", prop={"size": plot_legend, "weight": "bold"})
+    ax.add_artist(leg)
+
+    # Dynamic averaging legend: show only representations that are actually
+    # present.  Reference appears only when a keep-reference/original option is ON.
+    visible_ids = set(ids[:len(polar_data)]) if polar_data else set()
+    avg_visible = bool(visible_ids & torsion_avg_ref_ids)
+    visible_pseudo_labels = [
+        str(polar_data[i][0])
+        for i in range(min(len(polar_data or []), len(ids)))
+        if ids[i] in pseudo_ref_ids
+    ]
+    ch3_visible = any(_symavg_kind(lbl) == "ch3" for lbl in visible_pseudo_labels)
+    cf3_visible = any(_symavg_kind(lbl) == "cf3" for lbl in visible_pseudo_labels)
+
+    keep_local_var = state.get("symavg_keep_original_var")
+    keep_local = bool(keep_local_var.get()) if keep_local_var is not None else False
+    keep_rot_var = state.get("torsion_avg_keep_reference_var")
+    keep_rot = bool(keep_rot_var.get()) if keep_rot_var is not None else False
+    reference_visible = bool(ref_polar) or (keep_local and (ch3_visible or cf3_visible))
+
+    avg_handles = []
+    if reference_visible:
+        avg_handles.append(Line2D([], [], marker="o", linestyle="None",
+                                  markerfacecolor="0.35", markeredgecolor="0.35",
+                                  markersize=5.5, label="Reference"))
+    if avg_visible:
+        avg_handles.append(Line2D([], [], marker="o", linestyle="None",
+                                  markerfacecolor="none", markeredgecolor="0.35",
+                                  markeredgewidth=1.2, markersize=6.0, label="Ensemble avg"))
+    if ch3_visible:
+        avg_handles.append(Line2D([], [], marker="x", linestyle="None",
+                                  color=SYMAVG_CH3_COLOR, markeredgewidth=1.4,
+                                  markersize=6.0, label="CH₃ avg"))
+    if cf3_visible:
+        avg_handles.append(Line2D([], [], marker="x", linestyle="None",
+                                  color=SYMAVG_CF3_COLOR, markeredgewidth=1.4,
+                                  markersize=6.0, label="CF₃ avg"))
+
+    if avg_handles:
+        avg_leg = ax.legend(
+            handles=avg_handles,
+            fontsize=plot_legend,
+            loc="lower center",
+            bbox_to_anchor=(0.75, -0.1),
+            frameon=True,
+            framealpha=0.85,
+            handletextpad=0.6,
+            labelspacing=0.4,
+            borderpad=0.4,
+            borderaxespad=0.3,
+        )
+        avg_leg.set_title(
+            "Averaging",
+            prop={"size": plot_legend, "weight": "bold"}
+        )
 
     # Disconnect previous click handler for this specific figure
     if store_click_key:

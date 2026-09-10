@@ -18,7 +18,9 @@ Module update: PCS Workbench v0.1.0 updates
 - Added camera controls, view preservation, and improved PNG export.
 
 Symmetry averaging
-- Important: Updated the PCS calculation to use the averaged (G_i) rather than calculating (G_i) from the averaged coordinates.
+- Corrected PCS calculations to use averaged geometrical factors (G_i) rather than G_i evaluated at averaged coordinates.
+- Added rotational ensemble averaging for planar ring systems with automatic detection and configurable sampling.
+- Added visualization of ensemble-averaged coordinates and optional reference-structure overlays.
 
 v.1.3.3 updates
 - *New: Added a main menu bar and settings menu for improved workflow organization.

@@ -1,4 +1,5 @@
 """
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 Diagnostic tools for axial-only PCS approximation
 -------------------------------------------------
 
@@ -235,7 +236,8 @@ def axial_fit_and_residuals(state, proton_ids=None, fit_intercept=True):
         pts_obs,
         metal,
         pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
-        raw_coords_by_id=raw_coords_by_id,
+        raw_coords_by_id=raw_coords_by_id,        torsion_groups=(state.get("torsion_avg_groups", []) or [])
+        if bool(getattr(state.get("torsion_avg_enabled_var"), "get", lambda: False)()) else [],
     )
 
     # axial-only regression: delta = k*Gax (+ b)

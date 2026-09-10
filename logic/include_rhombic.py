@@ -1,4 +1,5 @@
 # logic/include_rhombic.py
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import numpy as np
 from logic.symmetry_geometry import effective_geometry_factors
@@ -47,6 +48,16 @@ def build_rh_table_rows(state, filter_atoms_fn):
     # NEW: pseudo label overrides (Ref-ID -> "MeH@Cxx" etc.)
     label_overrides = state.get("ref_label_overrides", {}) or {}
 
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE4
+    torsion_var = state.get("torsion_avg_enabled_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    torsion_avg_ref_ids = set()
+    if torsion_enabled:
+        for group in (state.get("torsion_avg_groups", []) or []):
+            if bool(group.get("enabled", True)):
+                torsion_avg_ref_ids.update(int(r) for r in group.get("rotating_atoms", ()))
+    pseudo_ref_ids = set(state.get("symavg_pseudo_ref_ids", set()) or set())
+
     # Δχ_ax(tensor) Entry에서
     tensor = 0.0
     try:
@@ -73,7 +84,8 @@ def build_rh_table_rows(state, filter_atoms_fn):
         rotated_coords,
         metal,
         pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
-        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},
+        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},        torsion_groups=(state.get("torsion_avg_groups", []) or [])
+        if bool(getattr(state.get("torsion_avg_enabled_var"), "get", lambda: False)()) else [],
     )
 
     rows = []
@@ -81,6 +93,8 @@ def build_rh_table_rows(state, filter_atoms_fn):
         ref_id = ids[i] if i < len(ids) else (i + 1)
 
         atom_disp = label_overrides.get(ref_id, atom)
+        if ref_id in torsion_avg_ref_ids and ref_id not in pseudo_ref_ids:
+            atom_disp = f"{atom_disp} ⟨avg⟩"
 
         r_val = float(r_arr[i])
         theta_deg = float(theta_arr[i] * 180.0 / np.pi)

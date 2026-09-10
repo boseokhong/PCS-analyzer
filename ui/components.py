@@ -1,4 +1,5 @@
 # ui/components.py
+# PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import subprocess, sys, os
 import tkinter as tk
@@ -14,6 +15,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from logic.command_processor import process_command as _pc
 from logic.xyz_loader import load_structure
 from logic.func_group_collapse import collapse_methyl_groups, collapse_cf3_groups
+from logic.torsional_ensemble import average_coordinates_independent
 
 from logic.plot_pcs import plot_graph
 from logic.plot_cartesian import (
@@ -47,6 +49,7 @@ from ui.plot_3d_pyvista import open_pyvista_field
 
 #settings
 from ui.settings_window import open_settings_window
+from ui.averaging_settings_window import open_averaging_settings_window  # PCS_PATCH_AVERAGING_SETTINGS_PHASE1
 from logic.app_settings import load_app_state, save_app_state, is_reasonable_main_geometry
 from ui.about_window import open_about_window
 from ui.update_window import check_for_updates_ui
@@ -2162,43 +2165,82 @@ def build_app():
     #            command=lambda: load_xyz_file(state)
     #            ).pack(anchor="center", pady=3)
 
-    # ---- Symmetry averaging (Me/CF3) ----
+    # ---- Averaging settings ----  # PCS_PATCH_AVERAGING_SETTINGS_PHASE1
+    # Compact main-panel summary; detailed controls live in Averaging Settings.
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE2
     state.setdefault("symavg_enabled_var", tk.BooleanVar(value=False))
-    def _on_toggle_symavg():
-        # Rebuild effective coordinates if a structure is loaded
+    state.setdefault("symavg_methyl_enabled_var", tk.BooleanVar(value=True))
+    state.setdefault("symavg_cf3_enabled_var", tk.BooleanVar(value=True))
+    state.setdefault("symavg_keep_original_var", tk.BooleanVar(value=False))
+    state.setdefault("torsion_avg_enabled_var", tk.BooleanVar(value=False))
+    state.setdefault("torsion_avg_keep_reference_var", tk.BooleanVar(value=False))
+    state.setdefault("torsion_avg_detection_mode_var", tk.StringVar(value="auto"))
+    state.setdefault("torsion_avg_planarity_var", tk.DoubleVar(value=0.10))
+    state.setdefault("torsion_avg_groups", [])
+    state.setdefault("torsion_avg_phase", 2)
+    state.setdefault("averaging_settings_window", None)
+
+    averaging_status_var = tk.StringVar(value="Off")
+    state["averaging_status_var"] = averaging_status_var
+
+    def _refresh_averaging_status():
+        active = []
+
+        if bool(state["symavg_enabled_var"].get()):
+            if bool(state["symavg_methyl_enabled_var"].get()):
+                active.append("CH₃")
+            if bool(state["symavg_cf3_enabled_var"].get()):
+                active.append("CF₃")
+
+        if bool(state["torsion_avg_enabled_var"].get()):
+            n_rot = sum(
+                bool(g.get("enabled", True))
+                for g in (state.get("torsion_avg_groups", []) or [])
+            )
+            active.append(f"Rot×{n_rot}")
+
+        averaging_status_var.set(" · ".join(active) if active else "Off")
+
+    def _apply_averaging_settings():
+        # Phase 2 keeps the established local-symmetry calculation unchanged.
+        # Rotational groups are configured/detected here and integrated into G
+        # calculations by the following patch phase.
         try:
             apply_symavg_to_state(state)
         except Exception as e:
-            state["messagebox"].showwarning("Symmetry average", f"Failed:\n{e}")
+            state["messagebox"].showwarning("Averaging", f"Failed:\n{e}")
             return
+
         tree = state.get("tree")
         if tree is not None:
             try:
                 tree.selection_remove(tree.selection())
             except Exception:
                 pass
+
+        _refresh_averaging_status()
         update_graph(state)
         try:
             populate_fitting_controls(state)
         except Exception:
             pass
 
-    ttk.Checkbutton(
-        input_frame,
-        text="Coordinate average (eg. CH₃)",
-        variable=state["symavg_enabled_var"],
-        command=_on_toggle_symavg,
-    ).pack(anchor="w", pady=(0, 0))
+    state["refresh_averaging_status"] = _refresh_averaging_status
+    state["apply_averaging_settings"] = _apply_averaging_settings
 
-    state.setdefault("symavg_keep_original_var", tk.BooleanVar(value=False))
-    ttk.Checkbutton(
-        input_frame,
-        text="Keep original atoms",
-        variable=state["symavg_keep_original_var"],
-        command=lambda: (_on_toggle_symavg()),
-    ).pack(anchor="w", pady=(0, 0))
+    avg_row = ttk.Frame(input_frame)
+    avg_row.pack(fill=tk.X, pady=(0, 2))
+    ttk.Label(avg_row, text="Averaging").pack(side="left")
+    ttk.Label(avg_row, textvariable=averaging_status_var).pack(side="left", padx=(10, 6))
+    ttk.Button(
+        avg_row,
+        text="Settings...",
+        command=lambda: open_averaging_settings_window(state),
+    ).pack(side="right")
+    _refresh_averaging_status()
 
     _sep(input_frame)
+
 
     # Angle controls
     ttk.Label(input_frame, text="Rotate around X-axis (°):").pack()
@@ -3305,18 +3347,44 @@ def apply_symavg_to_state(state):
         state["symavg_pseudo_ref_ids"] = set()
         state["symavg_records"] = []
         state["symavg_members_by_pseudo_id"] = {}
+        state["ref_label_overrides"] = {}
+        state["torsion_avg_display_atom_data"] = []
         return
+
+    # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
+    # Build representative ensemble-averaged coordinates for display.  PCS G
+    # factors are NOT evaluated at these mean coordinates; they are averaged
+    # over sampled conformers later in symmetry_geometry.effective_geometry_factors().
+    raw_ids0 = list(state.get("atom_ids_raw") or range(1, len(raw) + 1))
+    display_raw = list(raw)
+    torsion_var = state.get("torsion_avg_enabled_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    torsion_groups = state.get("torsion_avg_groups", []) or []
+    active_torsions = [g for g in torsion_groups if bool(g.get("enabled", True))]
+    if torsion_enabled and active_torsions:
+        try:
+            raw_xyz = np.asarray([[x, y, z] for _, x, y, z in raw], dtype=float)
+            avg_xyz = average_coordinates_independent(raw_xyz, raw_ids0, active_torsions)
+            display_raw = [
+                (atom, float(avg_xyz[i, 0]), float(avg_xyz[i, 1]), float(avg_xyz[i, 2]))
+                for i, (atom, *_xyz) in enumerate(raw)
+            ]
+        except Exception as exc:
+            print(f"[Averaging] rotational display average failed: {exc}")
+            display_raw = list(raw)
+    state["torsion_avg_display_atom_data"] = list(display_raw)
 
     enabled_var = state.get("symavg_enabled_var")
     enabled = bool(enabled_var.get()) if enabled_var is not None else False
 
     # --- symmetry average OFF → raw as it is ---
     if not enabled:
-        state["atom_data_eff"] = list(raw)
-        state["atom_ids_eff"] = list(range(1, len(raw) + 1))
+        state["atom_data_eff"] = list(display_raw)
+        state["atom_ids_eff"] = list(state.get("atom_ids_raw") or range(1, len(raw) + 1))
         state["symavg_pseudo_ref_ids"] = set()
         state["symavg_records"] = []
         state["symavg_members_by_pseudo_id"] = {}
+        state["ref_label_overrides"] = {}
         return
 
     # --- keep original atoms  ---
@@ -3327,8 +3395,8 @@ def apply_symavg_to_state(state):
     mode = "mask" if keep_original else "drop"
 
     # --- 시작 구조 ---
-    atom_data = list(raw)
-    ids = list(range(1, len(raw) + 1))
+    atom_data = list(display_raw)
+    ids = list(raw_ids0)
 
     records_all = []
     symavg_members = {}
@@ -3368,51 +3436,65 @@ def apply_symavg_to_state(state):
 
         return out_atoms, out_ids, records, set(pseudo_ids), member_map
 
-    # 1) Methyl collapse
-    def _do_me(atoms):
-        return collapse_methyl_groups(
-            atoms,
-            mode=mode,
-            pseudo_element="H",
-            require_carbon_substituent_count=1,
+    # 1) Methyl collapse  # PCS_PATCH_AVERAGING_SETTINGS_PHASE1
+    methyl_var = state.get("symavg_methyl_enabled_var")
+    methyl_enabled = bool(methyl_var.get()) if methyl_var is not None else True
+    rec_me = []
+    pseudo_me = set()
+    members_me = {}
+
+    if methyl_enabled:
+        def _do_me(atoms):
+            return collapse_methyl_groups(
+                atoms,
+                mode=mode,
+                pseudo_element="H",
+                require_carbon_substituent_count=1,
+            )
+
+        atom_data, ids, rec_me, pseudo_me, members_me = _apply_collapse_with_ids(
+            atom_data, ids, _do_me
         )
+        records_all.extend(rec_me)
+        symavg_members.update(members_me)
 
-    atom_data, ids, rec_me, pseudo_me, members_me = _apply_collapse_with_ids(
-        atom_data, ids, _do_me
-    )
-    records_all.extend(rec_me)
-    symavg_members.update(members_me)
-
-    # Map pseudo Ref IDs to human-readable labels for table display
-    # NOTE: record.pseudo_index must refer to the index in the returned out_atoms list
-    for rec in rec_me:
-        try:
-            rid = ids[rec.pseudo_index]
-            label_overrides[rid] = rec.label
-        except Exception:
-            pass
+        # Map pseudo Ref IDs to human-readable labels for table display
+        # NOTE: record.pseudo_index must refer to the index in the returned out_atoms list
+        for rec in rec_me:
+            try:
+                rid = ids[rec.pseudo_index]
+                label_overrides[rid] = rec.label
+            except Exception:
+                pass
 
     # 2) CF3 collapse
-    def _do_cf(atoms):
-        return collapse_cf3_groups(
-            atoms,
-            mode=mode,
-            pseudo_element="F",
-            require_carbon_substituent_count=1,
+    cf3_var = state.get("symavg_cf3_enabled_var")
+    cf3_enabled = bool(cf3_var.get()) if cf3_var is not None else True
+    rec_cf = []
+    pseudo_cf = set()
+    members_cf = {}
+
+    if cf3_enabled:
+        def _do_cf(atoms):
+            return collapse_cf3_groups(
+                atoms,
+                mode=mode,
+                pseudo_element="F",
+                require_carbon_substituent_count=1,
+            )
+
+        atom_data, ids, rec_cf, pseudo_cf, members_cf = _apply_collapse_with_ids(
+            atom_data, ids, _do_cf
         )
+        records_all.extend(rec_cf)
+        symavg_members.update(members_cf)
 
-    atom_data, ids, rec_cf, pseudo_cf, members_cf = _apply_collapse_with_ids(
-        atom_data, ids, _do_cf
-    )
-    records_all.extend(rec_cf)
-    symavg_members.update(members_cf)
-
-    for rec in rec_cf:
-        try:
-            rid = ids[rec.pseudo_index]
-            label_overrides[rid] = rec.label
-        except Exception:
-            pass
+        for rec in rec_cf:
+            try:
+                rid = ids[rec.pseudo_index]
+                label_overrides[rid] = rec.label
+            except Exception:
+                pass
 
     # --- pseudo ref ids (plot에서 marker='x' 구분용) ---
     pseudo_ref_ids = set()
@@ -3553,6 +3635,19 @@ def _load_xyz_from_path(state, path: str):
     state["atom_data_raw"] = list(atom_data)
     state["atom_data"] = list(atom_data)
     state["atom_ids_raw"] = list(range(1, len(atom_data) + 1))
+
+    # Rotational groups are structure-specific; a newly loaded raw structure
+    # starts with a fresh detection set. Project loading restores saved groups.
+    state["torsion_avg_groups"] = []  # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE2
+    torsion_var = state.get("torsion_avg_enabled_var")
+    if torsion_var is not None:
+        try:
+            torsion_var.set(False)
+        except Exception:
+            pass
+    refresh_avg = state.get("refresh_averaging_status")
+    if callable(refresh_avg):
+        refresh_avg()
 
     # Build effective (2D/table) data based on checkbox
     apply_symavg_to_state(state)
@@ -3758,6 +3853,33 @@ def filter_atoms(state):
         }
     else:
         state["last_rotated_raw_by_id"] = {}
+
+    # Reference coordinates for optional torsional overlay in structural plots.
+    state["torsion_reference_polar_data"] = []
+    state["torsion_reference_rotated_coords"] = []
+    state["torsion_reference_ref_ids"] = []
+    keep_ref_var = state.get("torsion_avg_keep_reference_var")
+    keep_reference = bool(keep_ref_var.get()) if keep_ref_var is not None else False
+    torsion_var = state.get("torsion_avg_enabled_var")
+    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
+    if torsion_enabled and keep_reference and len(raw_abs_coords):
+        moving_refs = set()
+        for g in (state.get("torsion_avg_groups", []) or []):
+            if bool(g.get("enabled", True)):
+                moving_refs.update(int(r) for r in g.get("rotating_atoms", ()))
+        ref_polar, ref_xyz, ref_ids_out = [], [], []
+        raw_labels = [a for a, *_ in raw_data]
+        for rid, atom, coord in zip(raw_ids, raw_labels, raw_rotated):
+            if rid not in moving_refs or atom not in sel:
+                continue
+            rr = float(np.linalg.norm(coord))
+            th = float(np.arccos(np.clip(coord[2] / rr, -1.0, 1.0))) if rr else 0.0
+            ref_polar.append((atom, rr, th))
+            ref_xyz.append(tuple(float(x) for x in coord))
+            ref_ids_out.append(int(rid))
+        state["torsion_reference_polar_data"] = ref_polar
+        state["torsion_reference_rotated_coords"] = ref_xyz
+        state["torsion_reference_ref_ids"] = ref_ids_out
 
     polar = []
     rotated_sel = []
