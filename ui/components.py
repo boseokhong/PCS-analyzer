@@ -2180,7 +2180,7 @@ def build_app():
     state.setdefault("torsion_avg_phase", 2)
     state.setdefault("averaging_settings_window", None)
 
-    averaging_status_var = tk.StringVar(value="Off")
+    averaging_status_var = tk.StringVar(value="No averaging applied")
     state["averaging_status_var"] = averaging_status_var
 
     def _refresh_averaging_status():
@@ -2199,7 +2199,18 @@ def build_app():
             )
             active.append(f"Rot×{n_rot}")
 
-        averaging_status_var.set(" · ".join(active) if active else "Off")
+        if active:
+            averaging_status_var.set(" · ".join(active))
+            status_label.configure(
+                foreground="",
+                font=("TkDefaultFont", 9, "normal"),
+            )
+        else:
+            averaging_status_var.set("No averaging applied")
+            status_label.configure(
+                foreground="#888888",
+                font=("TkDefaultFont", 9, "italic"),
+            )
 
     def _apply_averaging_settings():
         # Phase 2 keeps the established local-symmetry calculation unchanged.
@@ -2228,15 +2239,42 @@ def build_app():
     state["refresh_averaging_status"] = _refresh_averaging_status
     state["apply_averaging_settings"] = _apply_averaging_settings
 
+    avg_header = ttk.Frame(input_frame)
+    avg_header.pack(fill=tk.X, pady=(2, 1))
+
+    ttk.Label(
+        avg_header,
+        text="Symmetry averaging",
+        font=("TkDefaultFont", 9, "bold"),
+    ).pack(side="left")
+
+    ttk.Label(
+        avg_header,
+        text=" (CH₃, CF₃, phenyl, ...)",
+    ).pack(side="left")
+
     avg_row = ttk.Frame(input_frame)
-    avg_row.pack(fill=tk.X, pady=(0, 2))
-    ttk.Label(avg_row, text="Averaging").pack(side="left")
-    ttk.Label(avg_row, textvariable=averaging_status_var).pack(side="left", padx=(10, 6))
+    avg_row.pack(fill=tk.X, pady=(0, 4))
+
+    # Slight indentation under the section title
+    status_frame = ttk.Frame(avg_row)
+    status_frame.pack(side="left", padx=(8, 0))
+
+    status_label = ttk.Label(
+        status_frame,
+        textvariable=averaging_status_var,
+        anchor="w",
+        font=("TkDefaultFont", 9, "italic"),
+    )
+    status_label.pack(side="left")
+
     ttk.Button(
         avg_row,
-        text="Settings...",
+        text="Options...",
+        width=8,
         command=lambda: open_averaging_settings_window(state),
     ).pack(side="right")
+
     _refresh_averaging_status()
 
     _sep(input_frame)
