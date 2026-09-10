@@ -340,6 +340,10 @@ PCS Analyzer supports export of:
   - Reorganized the control panel into a two-column layout.
   - Added bond appearance and hydrogen-visibility controls.
   - Added camera controls, view preservation, and improved PNG export.
+- Symmetry averaging
+  - Corrected PCS calculations to use averaged geometrical factors (G_i) rather than G_i evaluated at averaged coordinates.
+  - Added rotational ensemble averaging for planar ring systems with automatic detection and configurable sampling.
+  - Added visualization of ensemble-averaged coordinates and optional reference-structure overlays.
 
 </details>
 
