@@ -32,6 +32,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from logic.fitting import geom_factors_ax_rh
+from logic.symmetry_geometry import effective_geometry_factors
 from logic.rotate_align import rotate_euler
 
 
@@ -118,6 +119,10 @@ def _rotated_coords_for_obs(state, obs_pairs):
     metal = np.array([state["x0"], state["y0"], state["z0"]], float)
     abs_coords = np.array([[x, y, z] for (_, x, y, z) in atom_data], float)
 
+    raw_data = state.get("atom_data_raw") or state.get("atom_data") or []
+    raw_ids = state.get("atom_ids_raw") or list(range(1, len(raw_data) + 1))
+    raw_abs_coords = np.array([[x, y, z] for (_, x, y, z) in raw_data], float) if raw_data else np.empty((0, 3), float)
+
     # -------------------------------------------------
     # (A) apply fit_override FIRST (exactly like filter_atoms)
     # -------------------------------------------------
@@ -139,6 +144,15 @@ def _rotated_coords_for_obs(state, obs_pairs):
                         alpha_deg=float(fo.get("alpha", 0.0)),
                         axis_mode=fo.get("axis_mode", "bisector"),
                     )
+                    if len(raw_abs_coords):
+                        raw_abs_coords = _angles_to_rotation_multi(
+                            points=raw_abs_coords,
+                            metal=metal,
+                            donor_points=donor_pts,
+                            theta_deg=float(fo.get("theta", 0.0)),
+                            alpha_deg=float(fo.get("alpha", 0.0)),
+                            axis_mode=fo.get("axis_mode", "bisector"),
+                        )
 
         elif mode == "euler_global":
             ax0 = float(fo.get("ax", 0.0))
@@ -148,6 +162,9 @@ def _rotated_coords_for_obs(state, obs_pairs):
             coords0 = abs_coords - metal
             rot0 = rotate_euler(coords0, ax0, ay0, az0)
             abs_coords = rot0 + metal
+            if len(raw_abs_coords):
+                raw0 = raw_abs_coords - metal
+                raw_abs_coords = rotate_euler(raw0, ax0, ay0, az0) + metal
 
     # -------------------------------------------------
     # (B) apply UI sliders SECOND (x,y,z)
@@ -159,6 +176,11 @@ def _rotated_coords_for_obs(state, obs_pairs):
     coords0 = abs_coords - metal
     rot0 = rotate_euler(coords0, ax, ay, az)
     rot_all = rot0 + metal
+    if len(raw_abs_coords):
+        raw0 = raw_abs_coords - metal
+        raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
+    else:
+        raw_rot_all = raw_abs_coords
 
     valid_obs_pairs = [(rid, val) for rid, val in obs_pairs if rid in id2idx]
     missing_ids = [rid for rid, _ in obs_pairs if rid not in id2idx]
@@ -179,7 +201,11 @@ def _rotated_coords_for_obs(state, obs_pairs):
     obs_ids = [rid for rid, _ in valid_obs_pairs]
     pts_obs = np.array([rot_all[id2idx[rid]] for rid in obs_ids], float)
 
-    return pts_obs, metal, obs_ids, valid_obs_pairs
+    raw_coords_by_id = {
+        rid: np.asarray(coord, dtype=float)
+        for rid, coord in zip(raw_ids, raw_rot_all)
+    }
+    return pts_obs, metal, obs_ids, valid_obs_pairs, raw_coords_by_id
 
 # -----------------------
 # diagnostic computations
@@ -198,11 +224,19 @@ def axial_fit_and_residuals(state, proton_ids=None, fit_intercept=True):
     if len(obs_pairs) < 3:
         raise RuntimeError("Need ≥3 assigned δ_Exp points for diagnostics (select protons and set δ_Exp).")
 
-    pts_obs, metal, obs_ids, valid_obs_pairs = _rotated_coords_for_obs(state, obs_pairs)
+    pts_obs, metal, obs_ids, valid_obs_pairs, raw_coords_by_id = _rotated_coords_for_obs(state, obs_pairs)
     delta_exp = np.array([v for (_, v) in valid_obs_pairs], float)
 
-    # geometry factors in current frame
-    r, theta, phi, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
+    # Geometry factors in the current frame.  Pseudo atoms retain their
+    # centroid r/theta/phi for display, while Gax/Grh are averaged over the
+    # original symmetry-equivalent member positions.
+    r, theta, phi, Gax, Grh = effective_geometry_factors(
+        obs_ids,
+        pts_obs,
+        metal,
+        pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
+        raw_coords_by_id=raw_coords_by_id,
+    )
 
     # axial-only regression: delta = k*Gax (+ b)
     x = np.asarray(Gax, float)

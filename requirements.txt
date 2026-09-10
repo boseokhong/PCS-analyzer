@@ -1,0 +1,16 @@
+numpy
+scipy
+matplotlib
+pandas
+openpyxl
+ttkbootstrap
+pyvista
+pyvistaqt
+vtk
+qtpy
+PySide6
+tkinterdnd2
+imageio
+
+# Optional performance enhancement
+pyfftw

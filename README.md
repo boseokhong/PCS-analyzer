@@ -41,6 +41,8 @@ Release **v1.3.4**
   - Reorganized the control panel into a two-column layout.
   - Added bond appearance and hydrogen-visibility controls.
   - Added camera controls, view preservation, and improved PNG export.
+- Symmetry averaging
+  - Important: Updated the PCS calculation to use the averaged (G_i) rather than calculating (G_i) from the averaged coordinates.
 
 Release **v1.3.3**
 - Interface and workflow

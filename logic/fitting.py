@@ -3,6 +3,33 @@
 import numpy as np
 from scipy.optimize import least_squares, differential_evolution
 from logic.rotate_align import rotate_euler
+from logic.symmetry_geometry import effective_geometry_factors
+
+def _raw_structure_arrays(state):
+    """Return raw Ref IDs and absolute raw coordinates."""
+    raw = state.get("atom_data_raw") or state.get("atom_data") or []
+    raw_ids = state.get("atom_ids_raw") or list(range(1, len(raw) + 1))
+    raw_coords = np.array([a[1:4] for a in raw], dtype=float) if raw else np.empty((0, 3), dtype=float)
+    return list(raw_ids), raw_coords
+
+
+def _effective_obs_factors(state, obs_ids, obs_coords, metal, raw_ids, raw_transformed):
+    """Geometry factors for observations, with member averaging for pseudo atoms."""
+    raw_map = {
+        rid: np.asarray(coord, dtype=float)
+        for rid, coord in zip(raw_ids, raw_transformed)
+    } if raw_transformed is not None else {}
+    return effective_geometry_factors(
+        obs_ids,
+        obs_coords,
+        metal,
+        pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
+        raw_coords_by_id=raw_map,
+    )
+
+
+def _pcs_from_effective_factors(Gax, Grh, dchi_ax, dchi_rh=0.0):
+    return ((float(dchi_ax) * np.asarray(Gax) + float(dchi_rh) * np.asarray(Grh)) * 1e4) / (12.0 * np.pi)
 
 def compute_quality_metrics(per_point):
     """
@@ -298,6 +325,7 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
     id2idx = {rid: i for i, rid in enumerate(ids)}
     metal = np.array([state['x0'], state['y0'], state['z0']])
     abs_coords = np.array([a[1:4] for a in atom_data])
+    raw_ids, raw_abs_coords = _raw_structure_arrays(state)
     donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
     if not donor_pts:
         raise RuntimeError("No valid donor ids for current atom set.")
@@ -382,6 +410,13 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
             theta_deg=theta, alpha_deg=alpha,
             axis_mode=axis_mode
         )
+        raw_rot_all = _angles_to_rotation_multi(
+            points=raw_abs_coords,
+            metal=metal,
+            donor_points=donor_pts,
+            theta_deg=theta, alpha_deg=alpha,
+            axis_mode=axis_mode
+        ) if len(raw_abs_coords) else raw_abs_coords
 
         # --------------------------------------------
         # 3) φ(azimuth) 기준 고정: z축 주위 회전(az) 추가 적용
@@ -417,29 +452,24 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
 
             # 다시 metal 기준 절대좌표로 복귀
             rot_all = rot0 + metal
+            if len(raw_rot_all):
+                raw0 = raw_rot_all - metal
+                raw_rot_all = rotate_euler(raw0, 0.0, 0.0, az) + metal
 
         valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
         if not valid_obs_pairs:
             raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
 
-        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
+        obs_ids = [rid for rid, _ in valid_obs_pairs]
+        pts_obs = coords_for_ids(rot_all, obs_ids)
         delta_exp = np.array([v for _, v in valid_obs_pairs], float)
 
-        # --------------------------------------------
-        # 4) PCS 모델 선택
-        #    - Δχ_rh를 fit하거나(체크박스 ON),
-        #    - 혹은 고정 Δχ_rh가 0이 아닌 경우엔(ax+rh 모델 활성),
-        #      반드시 φ가 들어가는 Grh를 계산해야 한다.
-        # --------------------------------------------
-        if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
-            # r,theta,phi 및 Gax/Grh 계산 (Grh에 cos(2φ) 포함)
-            _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
-
-            # δ_pred = (Δχ_ax*Gax + Δχ_rh*Grh) * 1e4 / (12π)
-            dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
-        else:
-            # axial-only: φ가 필요 없으므로 기존 함수 사용
-            _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+        _, _, _, Gax, Grh = _effective_obs_factors(
+            state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+        )
+        dpcs = _pcs_from_effective_factors(
+            Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
+        )
 
         # --------------------------------------------
         # 6) residual = (예측 PCS) - (실험 δ_Exp)
@@ -486,6 +516,9 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
 
     # 결과 요약
     rot_all = _angles_to_rotation_multi(abs_coords, metal, donor_pts, theta, alpha, axis_mode)
+    raw_rot_all = _angles_to_rotation_multi(
+        raw_abs_coords, metal, donor_pts, theta, alpha, axis_mode
+    ) if len(raw_abs_coords) else raw_abs_coords
 
     # φ 기준 고정: UI의 z-rotation(angle_z_var)을 동일 적용
     try:
@@ -497,19 +530,22 @@ def fit_theta_alpha_multi(state, donor_ids, proton_ids,
         coords0 = rot_all - metal
         rot0 = rotate_euler(coords0, 0.0, 0.0, az)
         rot_all = rot0 + metal
+        if len(raw_rot_all):
+            raw0 = raw_rot_all - metal
+            raw_rot_all = rotate_euler(raw0, 0.0, 0.0, az) + metal
 
     valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
     if not valid_obs_pairs:
         raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
 
-    pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
-
-    # axial-only vs ax+rh 모델을 residuals()와 동일 조건으로 선택
-    if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
-        _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
-        dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
-    else:
-        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+    obs_ids = [rid for rid, _ in valid_obs_pairs]
+    pts_obs = coords_for_ids(rot_all, obs_ids)
+    _, _, _, Gax, Grh = _effective_obs_factors(
+        state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    )
+    dpcs = _pcs_from_effective_factors(
+        Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
+    )
 
     delta_exp = np.array([v for _, v in valid_obs_pairs], float)
     resid = dpcs - delta_exp
@@ -550,6 +586,7 @@ def fit_euler_global(state, proton_ids,
     id2idx = {rid: i for i, rid in enumerate(ids)}
     metal = np.array([state['x0'], state['y0'], state['z0']])
     abs_coords = np.array([a[1:4] for a in atom_data])
+    raw_ids, raw_abs_coords = _raw_structure_arrays(state)
 
     if fit_visible_as_group:
         state['filter_atoms'](state)
@@ -605,20 +642,25 @@ def fit_euler_global(state, proton_ids,
         coords0 = abs_coords - metal
         rot0 = rotate_euler(coords0, ax, ay, az)
         rot_all = rot0 + metal
+        if len(raw_abs_coords):
+            raw0 = raw_abs_coords - metal
+            raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
+        else:
+            raw_rot_all = raw_abs_coords
 
         valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
         if not valid_obs_pairs:
             raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
 
-        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
+        obs_ids = [rid for rid, _ in valid_obs_pairs]
+        pts_obs = coords_for_ids(rot_all, obs_ids)
         delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-
-        # axial-only vs ax+rh
-        if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
-            _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
-            dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
-        else:
-            _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+        _, _, _, Gax, Grh = _effective_obs_factors(
+            state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+        )
+        dpcs = _pcs_from_effective_factors(
+            Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
+        )
 
         return dpcs - delta_exp
 
@@ -659,18 +701,24 @@ def fit_euler_global(state, proton_ids,
     coords0 = abs_coords - metal
     rot0 = rotate_euler(coords0, ax, ay, az)
     rot_all = rot0 + metal
+    if len(raw_abs_coords):
+        raw0 = raw_abs_coords - metal
+        raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
+    else:
+        raw_rot_all = raw_abs_coords
 
     valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
     if not valid_obs_pairs:
         raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
 
-    pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
-
-    if fit_delta_chi_rh or (abs(dchi_rh) > 0.0):
-        _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
-        dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
-    else:
-        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+    obs_ids = [rid for rid, _ in valid_obs_pairs]
+    pts_obs = coords_for_ids(rot_all, obs_ids)
+    _, _, _, Gax, Grh = _effective_obs_factors(
+        state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    )
+    dpcs = _pcs_from_effective_factors(
+        Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
+    )
 
     delta_exp = np.array([v for _, v in valid_obs_pairs], float)
     resid = dpcs - delta_exp
@@ -709,6 +757,7 @@ def fit_full_tensor(state, proton_ids,
 
     id2idx = {rid: i for i, rid in enumerate(ids)}
     abs_coords = np.array([a[1:4] for a in atom_data], float)
+    raw_ids, raw_abs_coords = _raw_structure_arrays(state)
 
     metal0 = np.array([state['x0'], state['y0'], state['z0']], float)
 
@@ -773,15 +822,21 @@ def fit_full_tensor(state, proton_ids,
         coords0 = abs_coords - metal
         rot0 = rotate_euler(coords0, ax, ay, az)
         rot_all = rot0 + metal
-
-        pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
-        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-
-        if fit_delta_chi_rh or abs(dchi_rh) > 0.0:
-            _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
-            dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+        if len(raw_abs_coords):
+            raw0 = raw_abs_coords - metal
+            raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
         else:
-            _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+            raw_rot_all = raw_abs_coords
+
+        obs_ids = [rid for rid, _ in valid_obs_pairs]
+        pts_obs = coords_for_ids(rot_all, obs_ids)
+        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
+        _, _, _, Gax, Grh = _effective_obs_factors(
+            state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+        )
+        dpcs = _pcs_from_effective_factors(
+            Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
+        )
 
         return dpcs - delta_exp
 
@@ -796,15 +851,21 @@ def fit_full_tensor(state, proton_ids,
     coords0 = abs_coords - metal
     rot0 = rotate_euler(coords0, ax, ay, az)
     rot_all = rot0 + metal
-
-    pts_obs = coords_for_ids(rot_all, [rid for rid, _ in valid_obs_pairs])
-    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-
-    if fit_delta_chi_rh or abs(dchi_rh) > 0.0:
-        _, _, _, Gax, Grh = geom_factors_ax_rh(pts_obs, metal)
-        dpcs = pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh)
+    if len(raw_abs_coords):
+        raw0 = raw_abs_coords - metal
+        raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
     else:
-        _, _, _, dpcs = geom_factor_and_pcs(pts_obs, metal, dchi_ax)
+        raw_rot_all = raw_abs_coords
+
+    obs_ids = [rid for rid, _ in valid_obs_pairs]
+    pts_obs = coords_for_ids(rot_all, obs_ids)
+    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
+    _, _, _, Gax, Grh = _effective_obs_factors(
+        state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    )
+    dpcs = _pcs_from_effective_factors(
+        Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
+    )
 
     resid = dpcs - delta_exp
     per_point = [

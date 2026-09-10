@@ -17,6 +17,9 @@ Module update: PCS Workbench v0.1.0 updates
 - Added bond appearance and hydrogen-visibility controls.
 - Added camera controls, view preservation, and improved PNG export.
 
+Symmetry averaging
+- Important: Updated the PCS calculation to use the averaged (G_i) rather than calculating (G_i) from the averaged coordinates.
+
 v.1.3.3 updates
 - *New: Added a main menu bar and settings menu for improved workflow organization.
 - *New: Added a Modules/Plugins menu with a dedicated Module Manager window.

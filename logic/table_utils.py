@@ -104,6 +104,7 @@ from tkinter import ttk, Toplevel
 
 from logic.chem_constants import AVOGADRO_CONSTANT
 from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
+from logic.symmetry_geometry import effective_geometry_factors
 
 def _delta_kind_config(kind: str):
     kind = (kind or "").lower().strip()
@@ -755,17 +756,31 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
     atom_by_id = state.setdefault('atom_by_id', {})
     atom_by_id.clear()
 
+    geom_by_id = state.setdefault('geom_by_id', {})
+    geom_by_id.clear()
+
     # Ref-ID -> display label override (pseudo atoms)
     label_overrides = state.get("ref_label_overrides", {}) or {}
 
+    # r/theta remain the representative pseudo-coordinate geometry shown in
+    # the table.  Gax is replaced by the member-averaged value for pseudo atoms.
+    _, _, _, gax_eff, _ = effective_geometry_factors(
+        ids,
+        rotated_coords,
+        np.zeros(3, dtype=float),
+        pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
+        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},
+    )
+
     for i, ((atom, r, theta), (dx, dy, dz)) in enumerate(zip(polar_data, rotated_coords)):
         ref_id = ids[i] if i < len(ids) else (i + 1)  # for safety
-        geom_param = (3 * (np.cos(theta))**2 - 1) / (r**3) if r != 0 else 0.0
+        geom_param = float(gax_eff[i]) if i < len(gax_eff) else ((3 * (np.cos(theta))**2 - 1) / (r**3) if r != 0 else 0.0)
         geom_value = geom_param
         delta_pcs = (tensor * (geom_value * 1e4)) / (12 * np.pi)
 
         atom_by_id[ref_id] = str(atom)
         pcs_by_id[ref_id] = float(delta_pcs)
+        geom_by_id[ref_id] = float(geom_param)
 
         # Display label override only for table Atom column
         atom_disp = label_overrides.get(ref_id, atom)

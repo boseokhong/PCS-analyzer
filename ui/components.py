@@ -2828,6 +2828,12 @@ def export_fit_plot(state):
     fig.savefig(path, dpi=dpi, bbox_inches="tight")
     state['messagebox'].showinfo("Export", f"Saved fit plot ({dpi} dpi):\n{path}")
 
+def _current_export_geom_values(state):
+    """Return displayed G values in current effective-atom order."""
+    ids = state.get("current_selected_ids", []) or []
+    geom_by_id = state.get("geom_by_id", {}) or {}
+    return [geom_by_id.get(rid, np.nan) for rid in ids]
+
 def on_save_plot_any(state):
     fd = state['filedialog'].asksaveasfilename(
         title="Save plot data",
@@ -2848,7 +2854,7 @@ def on_save_plot_any(state):
         pcs_values, theta_values, tensor, polar_data, _ = recompute_plot_inputs(state)
         try:
             from logic.export_utils import save_to_excel
-            save_to_excel(pcs_values, theta_values, tensor, fd, polar_data)
+            save_to_excel(pcs_values, theta_values, tensor, fd, polar_data, geom_values=_current_export_geom_values(state))
         except ModuleNotFoundError as e:
             if "openpyxl" in str(e):
                 state['messagebox'].showerror(
@@ -2863,7 +2869,7 @@ def on_save_plot_any(state):
     elif ext == ".csv":
         pcs_values, theta_values, tensor, polar_data, _ = recompute_plot_inputs(state)
         from logic.export_utils import save_to_csv
-        pcs_path, atoms_path = save_to_csv(pcs_values, theta_values, tensor, fd, polar_data)
+        pcs_path, atoms_path = save_to_csv(pcs_values, theta_values, tensor, fd, polar_data, geom_values=_current_export_geom_values(state))
         state['messagebox'].showinfo("Export", f"Saved CSV:\n{pcs_path}\n{atoms_path}")
 
         # # Origin
@@ -2915,7 +2921,7 @@ def on_save_plot_any(state):
         pcs_values, theta_values, tensor, polar_data, _ = recompute_plot_inputs(state)
         try:
             from logic.export_utils import save_to_excel
-            save_to_excel(pcs_values, theta_values, tensor, fd_x, polar_data)
+            save_to_excel(pcs_values, theta_values, tensor, fd_x, polar_data, geom_values=_current_export_geom_values(state))
         except ModuleNotFoundError as e:
             if "openpyxl" in str(e):
                 state['messagebox'].showerror(
@@ -3298,6 +3304,7 @@ def apply_symavg_to_state(state):
         state["atom_ids_eff"] = []
         state["symavg_pseudo_ref_ids"] = set()
         state["symavg_records"] = []
+        state["symavg_members_by_pseudo_id"] = {}
         return
 
     enabled_var = state.get("symavg_enabled_var")
@@ -3309,6 +3316,7 @@ def apply_symavg_to_state(state):
         state["atom_ids_eff"] = list(range(1, len(raw) + 1))
         state["symavg_pseudo_ref_ids"] = set()
         state["symavg_records"] = []
+        state["symavg_members_by_pseudo_id"] = {}
         return
 
     # --- keep original atoms  ---
@@ -3323,37 +3331,42 @@ def apply_symavg_to_state(state):
     ids = list(range(1, len(raw) + 1))
 
     records_all = []
+    symavg_members = {}
     # Ref-ID -> display label override for table (pseudo atoms)
     # Example: { 153: "MeH@C12", 154: "CF3F@C7" }
     label_overrides = {}
 
 
     def _apply_collapse_with_ids(atom_data_in, ids_in, collapse_fn):
-        """
-        collapse_* 함수 적용 + ref id 동기화
-        mask mode:
-            original ids 유지 + pseudo ids append
-        drop mode:
-            masked indices 제거 후 pseudo ids append
-        """
+        """Apply collapse while preserving Ref-ID/member relationships.
 
+        The returned member map links each pseudo Ref-ID to the Ref-IDs of the
+        original symmetry-equivalent atoms.  This is later used to average
+        G_ax/G_rh rather than evaluating G at the Cartesian centroid.
+        """
         out_atoms, records, masked = collapse_fn(atom_data_in)
-
-        # --- mask mode ---
-        if mode == "mask":
-            next_id = (max(ids_in) if ids_in else 0) + 1
-            pseudo_ids = list(range(next_id, next_id + len(records)))
-            out_ids = list(ids_in) + pseudo_ids
-            return out_atoms, out_ids, records, set(pseudo_ids)
-
-        # --- drop mode ---
-        kept_ids = [rid for i, rid in enumerate(ids_in) if i not in masked]
 
         next_id = (max(ids_in) if ids_in else 0) + 1
         pseudo_ids = list(range(next_id, next_id + len(records)))
-        out_ids = kept_ids + pseudo_ids
 
-        return out_atoms, out_ids, records, set(pseudo_ids)
+        if mode == "mask":
+            out_ids = list(ids_in) + pseudo_ids
+        else:
+            kept_ids = [rid for i, rid in enumerate(ids_in) if i not in masked]
+            out_ids = kept_ids + pseudo_ids
+
+        member_map = {}
+        for pseudo_id, rec in zip(pseudo_ids, records):
+            try:
+                member_map[pseudo_id] = tuple(
+                    ids_in[i] for i in rec.member_indices_original
+                )
+            except Exception:
+                # Keep the pseudo atom usable for visualisation even if legacy
+                # collapse metadata is incomplete.
+                pass
+
+        return out_atoms, out_ids, records, set(pseudo_ids), member_map
 
     # 1) Methyl collapse
     def _do_me(atoms):
@@ -3364,10 +3377,11 @@ def apply_symavg_to_state(state):
             require_carbon_substituent_count=1,
         )
 
-    atom_data, ids, rec_me, pseudo_me = _apply_collapse_with_ids(
+    atom_data, ids, rec_me, pseudo_me, members_me = _apply_collapse_with_ids(
         atom_data, ids, _do_me
     )
     records_all.extend(rec_me)
+    symavg_members.update(members_me)
 
     # Map pseudo Ref IDs to human-readable labels for table display
     # NOTE: record.pseudo_index must refer to the index in the returned out_atoms list
@@ -3387,10 +3401,11 @@ def apply_symavg_to_state(state):
             require_carbon_substituent_count=1,
         )
 
-    atom_data, ids, rec_cf, pseudo_cf = _apply_collapse_with_ids(
+    atom_data, ids, rec_cf, pseudo_cf, members_cf = _apply_collapse_with_ids(
         atom_data, ids, _do_cf
     )
     records_all.extend(rec_cf)
+    symavg_members.update(members_cf)
 
     for rec in rec_cf:
         try:
@@ -3409,6 +3424,7 @@ def apply_symavg_to_state(state):
     state["atom_ids_eff"] = ids
     state["symavg_pseudo_ref_ids"] = pseudo_ref_ids
     state["symavg_records"] = records_all
+    state["symavg_members_by_pseudo_id"] = symavg_members
     state["ref_label_overrides"] = label_overrides
 
 # recent files helper
@@ -3656,6 +3672,13 @@ def filter_atoms(state):
     abs_coords = np.array([[x, y, z] for a, x, y, z in atom_data])
     metal = np.array([state['x0'], state['y0'], state['z0']])
 
+    # Raw coordinates are transformed in parallel.  They are not displayed in
+    # the 2D/table effective structure, but are required for physically correct
+    # G-factor averaging of CH3/CF3 pseudo atoms.
+    raw_data = state.get("atom_data_raw") or state.get("atom_data") or []
+    raw_ids = state.get("atom_ids_raw") or list(range(1, len(raw_data) + 1))
+    raw_abs_coords = np.array([[x, y, z] for _, x, y, z in raw_data], dtype=float)
+
     fo = state.get('fit_override')
     if fo:
         mode = (fo.get('mode') or '').lower()
@@ -3674,6 +3697,15 @@ def filter_atoms(state):
                     alpha_deg=fo.get('alpha', 0.0),
                     axis_mode=fo.get('axis_mode', 'bisector')
                 )
+                if len(raw_abs_coords):
+                    raw_abs_coords = _angles_to_rotation_multi(
+                        points=raw_abs_coords,
+                        metal=metal,
+                        donor_points=donor_pts,
+                        theta_deg=fo.get('theta', 0.0),
+                        alpha_deg=fo.get('alpha', 0.0),
+                        axis_mode=fo.get('axis_mode', 'bisector')
+                    )
 
         # --- Mode B: global Euler (ax/ay/az) ---
         elif mode == 'euler_global':
@@ -3683,6 +3715,9 @@ def filter_atoms(state):
             coords0 = abs_coords - metal
             rot0 = rotate_euler(coords0, ax, ay, az)
             abs_coords = rot0 + metal
+            if len(raw_abs_coords):
+                raw0 = raw_abs_coords - metal
+                raw_abs_coords = rotate_euler(raw0, ax, ay, az) + metal
 
         # --- Mode C: full tensor ---
         elif mode == 'full_tensor':
@@ -3696,6 +3731,9 @@ def filter_atoms(state):
             coords0 = abs_coords - metal
             rot0 = rotate_euler(coords0, ax_e, ay_e, az_e)
             abs_coords = rot0 + metal
+            if len(raw_abs_coords):
+                raw0 = raw_abs_coords - metal
+                raw_abs_coords = rotate_euler(raw0, ax_e, ay_e, az_e) + metal
 
             if 'dchi_ax' in fo:
                 try:
@@ -3710,6 +3748,16 @@ def filter_atoms(state):
     ay = float(state['angle_y_var'].get())
     az = float(state['angle_z_var'].get())
     rotated = rotate_coordinates(coords0, ax, ay, az, (0, 0, 0))
+
+    if len(raw_abs_coords):
+        raw0 = raw_abs_coords - metal
+        raw_rotated = rotate_coordinates(raw0, ax, ay, az, (0, 0, 0))
+        state["last_rotated_raw_by_id"] = {
+            rid: np.asarray(coord, dtype=float)
+            for rid, coord in zip(raw_ids, raw_rotated)
+        }
+    else:
+        state["last_rotated_raw_by_id"] = {}
 
     polar = []
     rotated_sel = []

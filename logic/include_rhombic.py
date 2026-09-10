@@ -1,6 +1,7 @@
 # logic/include_rhombic.py
 
 import numpy as np
+from logic.symmetry_geometry import effective_geometry_factors
 
 def geom_factors_ax_rh(coords, metal):
     """
@@ -67,7 +68,13 @@ def build_rh_table_rows(state, filter_atoms_fn):
 
     metal = np.zeros(3, dtype=float)
 
-    r_arr, theta_arr, phi_arr, Gax_arr, Grh_arr = geom_factors_ax_rh(rotated_coords, metal)
+    r_arr, theta_arr, phi_arr, Gax_arr, Grh_arr = effective_geometry_factors(
+        ids,
+        rotated_coords,
+        metal,
+        pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
+        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},
+    )
 
     rows = []
     for i, (atom, _, _) in enumerate(polar_data):

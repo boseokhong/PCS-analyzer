@@ -12,7 +12,7 @@ def _safe_r(pcs_value, theta, tensor):
     r[~np.isfinite(r)] = np.nan
     return r
 
-def build_pcs_frames(pcs_values, theta_values, tensor, polar_data):
+def build_pcs_frames(pcs_values, theta_values, tensor, polar_data, geom_values=None):
     """공통 계산 → (pcs_df, polar_df) 반환. 엑셀/CSV가 이걸 재사용."""
     theta_values = np.asarray(theta_values, float)
 
@@ -34,8 +34,11 @@ def build_pcs_frames(pcs_values, theta_values, tensor, polar_data):
     else:
         atoms, r_arr, th_arr = [], np.array([], float), np.array([], float)
 
-    with np.errstate(divide='ignore', invalid='ignore'):
-        Gi = (3 * np.cos(th_arr)**2 - 1) / np.where(r_arr == 0, np.nan, r_arr**3)
+    if geom_values is not None and len(geom_values) == len(r_arr):
+        Gi = np.asarray(geom_values, dtype=float)
+    else:
+        with np.errstate(divide='ignore', invalid='ignore'):
+            Gi = (3 * np.cos(th_arr)**2 - 1) / np.where(r_arr == 0, np.nan, r_arr**3)
 
     polar_df = pd.DataFrame({
         'Atom': atoms,
@@ -45,20 +48,20 @@ def build_pcs_frames(pcs_values, theta_values, tensor, polar_data):
     })
     return pcs_df, polar_df
 
-def save_to_excel(pcs_values, theta_values, tensor, file_name, polar_data):
-    pcs_df, polar_df = build_pcs_frames(pcs_values, theta_values, tensor, polar_data)
+def save_to_excel(pcs_values, theta_values, tensor, file_name, polar_data, geom_values=None):
+    pcs_df, polar_df = build_pcs_frames(pcs_values, theta_values, tensor, polar_data, geom_values=geom_values)
     with pd.ExcelWriter(file_name) as writer:
         pcs_df.to_excel(writer, sheet_name='PCS Data', index=False)
         polar_df.to_excel(writer, sheet_name='Atom Coordinates', index=False)
 
-def save_to_csv(pcs_values, theta_values, tensor, base_path, polar_data):
+def save_to_csv(pcs_values, theta_values, tensor, base_path, polar_data, geom_values=None):
     """
     base_path: 사용자가 고른 csv 경로(예: C:/out.csv).
     실제 저장은 out_pcs.csv, out_atoms.csv 두 파일로 만듭니다.
     반환: (pcs_path, atoms_path)
     """
     import os
-    pcs_df, polar_df = build_pcs_frames(pcs_values, theta_values, tensor, polar_data)
+    pcs_df, polar_df = build_pcs_frames(pcs_values, theta_values, tensor, polar_data, geom_values=geom_values)
     base, _ = os.path.splitext(base_path)
     pcs_path = base + "_pcs.csv"
     atoms_path = base + "_atoms.csv"
