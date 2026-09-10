@@ -23,22 +23,22 @@
 
 <p align="center">
   <img
-    height="225"
+    height="200"
     alt="2D polar plot"
     src="https://github.com/user-attachments/assets/1d373b19-968a-47b7-86a7-e68e309c659b"
   />
   <img
-    height="225"
+    height="200"
     alt="3D viewer"
     src="https://github.com/user-attachments/assets/bc3b2a79-b044-42ba-99d4-3786451e3556"
   />
   <img
-    height="225"
+    height="200"
     alt="PCS Workbench PCS isosurface"
     src="https://github.com/user-attachments/assets/efbab2c4-1675-4868-abe9-a988b2793e1c"
   />
   <img
-    height="225"
+    height="200"
     alt="PCS Workbench PDE PD"
     src="https://github.com/user-attachments/assets/8ad0d9dd-0f85-49db-8713-afc4a523b7e8"
   />
