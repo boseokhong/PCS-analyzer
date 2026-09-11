@@ -1,5 +1,10 @@
 # PCS Analyzer
 
+# PCS Analyzer Documentation
+
+!!! warning "Work in progress"
+    This documentation is under active development as of **10 September 2026**. Content may be incomplete or revised as documentation work continues.
+
 **PCS Analyzer** is a Python-based application for the analysis, fitting, and visualization of **pseudocontact shifts (PCS)** in paramagnetic molecular systems.
 
 It provides an integrated workflow that connects molecular structure, magnetic susceptibility anisotropy, and experimental NMR shift data.
