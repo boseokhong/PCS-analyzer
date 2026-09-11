@@ -1,0 +1,124 @@
+site_name: PCS Analyzer Documentation
+site_description: Analysis and visualization of pseudocontact shifts in paramagnetic molecular systems
+site_author: Boseok Hong
+
+theme:
+  name: material
+  language: en
+
+  features:
+    # Navigation
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+
+    # Table of contents
+    - toc.follow
+
+    # Code
+    - content.code.copy
+
+    # Search
+    - search.suggest
+    - search.highlight
+
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      
+nav:
+  - Home: index.md
+
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: quick-start.md
+      - Interface Overview: interface.md
+
+  - Structures:
+      - Loading Structures: structures/loading.md
+      - Coordinate System: structures/coordinate-system.md
+      - Symmetry and Torsional Ensemble Averaging: structures/symmetry-averaging.md
+
+  - PCS Analysis:
+      - PCS Theory: pcs/theory.md
+      - Tensor Conventions: pcs/tensor-conventions.md
+      - Axial and Rhombic PCS: pcs/axial-rhombic.md
+      - PCS Contour Plots: pcs/contour-plots.md
+
+  - Experimental Data [WIP]:
+      - Experimental PCS Data: experimental-data/delta-exp.md
+      - Observed and Diamagnetic Shifts: experimental-data/delta-obs-dia.md
+      - Import and Export: experimental-data/import-export.md
+
+  - Fitting [WIP]:
+      - Overview: fitting/overview.md
+      - Orientation Fitting: fitting/orientation-fitting.md
+      - Full Tensor Fitting: fitting/full-tensor-fitting.md
+      - Quality Metrics: fitting/quality-metrics.md
+
+  - Diagnostics [WIP]:
+      - Residual Analysis: diagnostics/residual-analysis.md
+      - Rhombicity Diagnostics: diagnostics/rhombicity.md
+
+  - Visualization [WIP]:
+      - 2D Polar PCS Plot: visualization/polar-plot.md
+      - Projection Viewer: visualization/projection-viewer.md
+      - 3D Viewer: visualization/3d-viewer.md
+      - 3D PCS Plot: visualization/3d-pcs-isosurface.md
+
+  - PCS Workbench [WIP]:
+      - Overview: pcs-workbench/overview.md
+
+  - NMR Tools [WIP]:
+      - Spectrum Viewer: nmr/spectrum-viewer.md
+      - non-PCS Analysis: nmr/non-pcs-analysis.md
+
+  - Conformer Search [WIP]:
+      - Overview: conformer-search/overview.md
+      - Constraints: conformer-search/constraints.md
+      - Optimization: conformer-search/optimization.md
+
+  - Plugins:
+      - Overview: plugins-docs/overview.md
+      - Creating Plugins: plugins-docs/creating-plugins.md
+      - Manifest Reference: plugins-docs/manifest.md
+      - Plugin API: plugins-docs/plugin-api.md
+      - Distribution: plugins-docs/distribution.md
+      - Troubleshooting: plugins-docs/troubleshooting.md
+
+  - Reference [WIP]:
+      - Mathematical Conventions: reference/mathematical-conventions.md
+      - Units: reference/units.md
+      - File Formats: reference/file-formats.md
+      - Changelog: reference/changelog.md
+
+plugins:
+  - search
+  - glightbox
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - admonition
+
+  - pymdownx.details
+  - pymdownx.superfences
+
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  
+extra_css:
+  - stylesheets/extra.css
