@@ -1,4 +1,12 @@
-# Pseudocontact Chemical Shift (PCS) Analyzer
+<p align="Left">
+  <img
+    width="300"
+    alt="PCS Analyzer banner"
+    src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf"
+  />
+</p>
+
+## Pseudocontact Chemical Shift (PCS) Analyzer
 [![Latest Release](https://img.shields.io/github/v/release/boseokhong/PCS-analyzer?label=latest%20release&color=C44536)](https://github.com/boseokhong/PCS-analyzer/releases/latest)
 ![python](https://img.shields.io/badge/Python-3.12-D97706?logo=python&logoColor=white)
 ![Tested Platforms](https://img.shields.io/badge/tested-Windows%2010%2F11%20%7C%20macOS-5F6B73)
@@ -8,15 +16,7 @@
 
 <p align="center">
   <img
-    width="400"
-    alt="PCS Analyzer banner"
-    src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf"
-  />
-</p>
-
-<p align="center">
-  <img
-    width="100%"
+    width="90%"
     alt="PCS Analyzer main interface"
     src="https://github.com/user-attachments/assets/a8e061cf-ff79-472d-a641-15d46da357df"
   />
