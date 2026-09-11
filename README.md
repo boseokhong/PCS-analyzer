@@ -5,10 +5,44 @@
 ![license](https://img.shields.io/badge/license-BSD%203--Clause-668B6A)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
-<img width="400" height="230" alt="pcs_banner" src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf" />
+<p align="center">
+  <img
+    width="400"
+    alt="PCS Analyzer banner"
+    src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf"
+  />
+</p>
 
-<img width="1409" height="919" alt="PCS Analyzer main interface" src="https://github.com/user-attachments/assets/e4a0b469-4a98-4552-803d-6cb8a3fbfdab" />
-<img width="2420" height="882" alt="PCS Analyzer additional views" src="https://github.com/user-attachments/assets/7981899a-5cc4-46a6-9462-152e7a0f38bb" />
+<p align="center">
+  <img
+    width="100%"
+    alt="PCS Analyzer main interface"
+    src="https://github.com/user-attachments/assets/a8e061cf-ff79-472d-a641-15d46da357df"
+  />
+</p>
+
+<p align="center">
+  <img
+    height="200"
+    alt="2D polar plot"
+    src="https://github.com/user-attachments/assets/1d373b19-968a-47b7-86a7-e68e309c659b"
+  />
+  <img
+    height="200"
+    alt="3D viewer"
+    src="https://github.com/user-attachments/assets/bc3b2a79-b044-42ba-99d4-3786451e3556"
+  />
+  <img
+    height="200"
+    alt="PCS Workbench PCS isosurface"
+    src="https://github.com/user-attachments/assets/efbab2c4-1675-4868-abe9-a988b2793e1c"
+  />
+  <img
+    height="200"
+    alt="PCS Workbench PDE PD"
+    src="https://github.com/user-attachments/assets/8ad0d9dd-0f85-49db-8713-afc4a523b7e8"
+  />
+</p>
 
 **PCS Analyzer** is a Python-based desktop application for the analysis, visualization, and fitting of pseudocontact chemical shifts (PCS) in paramagnetic molecular systems. The program is designed for interactive structure-based PCS interpretation and is particularly suited to small and medium-sized coordination complexes for which tensor-frame analysis, geometrical inspection, and rapid model comparison are essential.
 
