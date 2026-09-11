@@ -1,7 +1,5 @@
 # PCS Analyzer
 
-# PCS Analyzer Documentation
-
 !!! warning "Work in progress"
     This documentation is under active development as of **10 September 2026**. Content may be incomplete or revised as documentation work continues.
 
