@@ -1,0 +1,204 @@
+/* =========================
+   PCS Analyzer Theme
+   ========================= */
+
+:root {
+  /* Core palette */
+  --pcs-navy: #243746;
+  --pcs-navy-dark: #1c2b36;
+
+  --pcs-blue: #52778f;
+
+  --pcs-teal: #1597a5;
+  --pcs-teal-dark: #117b86;
+
+  --pcs-charcoal: #30383f;
+
+  --pcs-sidebar-bg: #f3f7f9;
+  --pcs-page-bg: #fafcfd;
+
+  --pcs-border: #dbe4e9;
+  --pcs-card-bg: #ffffff;
+
+  /* MkDocs Material overrides */
+  --md-primary-fg-color: var(--pcs-navy);
+  --md-primary-fg-color--light: #355163;
+  --md-primary-fg-color--dark: var(--pcs-navy-dark);
+
+  --md-accent-fg-color: var(--pcs-teal);
+
+  --md-default-bg-color: var(--pcs-page-bg);
+  --md-default-fg-color: var(--pcs-charcoal);
+}
+
+
+/* =========================
+   Header
+   ========================= */
+
+.md-header {
+  background: linear-gradient(
+    90deg,
+    var(--pcs-navy-dark),
+    var(--pcs-navy)
+  );
+
+  box-shadow: 0 2px 8px rgba(20, 40, 50, 0.16);
+}
+
+
+/* =========================
+   Sidebar
+   ========================= */
+
+.md-sidebar {
+  background: var(--pcs-sidebar-bg);
+}
+
+
+/* Major navigation sections */
+.md-nav--primary > .md-nav__list > .md-nav__item > .md-nav__link {
+  color: var(--pcs-navy);
+  font-weight: 700;
+}
+
+
+/* Nested navigation */
+.md-nav--primary .md-nav .md-nav__link {
+  color: #657682;
+  font-weight: 400;
+}
+
+
+/* Active page */
+.md-nav__link--active {
+  color: var(--pcs-teal) !important;
+  font-weight: 600;
+}
+
+
+/* =========================
+   Typography
+   ========================= */
+
+.md-typeset {
+  color: var(--pcs-charcoal);
+}
+
+
+/* Page title */
+.md-typeset h1 {
+  color: var(--pcs-navy-dark);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+
+/* Major section */
+.md-typeset h2 {
+  color: var(--pcs-navy);
+
+  border-bottom: 1px solid var(--pcs-border);
+  padding-bottom: 0.3rem;
+
+  font-weight: 650;
+}
+
+
+/* Subsection */
+.md-typeset h3 {
+  color: var(--pcs-blue);
+  font-weight: 600;
+}
+
+
+/* Smaller headings */
+.md-typeset h4 {
+  color: #647985;
+}
+
+
+/* =========================
+   Links
+   ========================= */
+
+.md-typeset a {
+  color: var(--pcs-teal-dark);
+}
+
+.md-typeset a:hover {
+  color: var(--pcs-teal);
+}
+
+
+/* =========================
+   Code
+   ========================= */
+
+.md-typeset code {
+  background: #eef3f5;
+  border-radius: 4px;
+}
+
+.md-typeset pre {
+  background: var(--pcs-card-bg);
+
+  border: 1px solid var(--pcs-border);
+  border-radius: 8px;
+
+  box-shadow: 0 2px 8px rgba(30, 50, 60, 0.05);
+}
+
+
+/* =========================
+   Tables
+   ========================= */
+
+.md-typeset table:not([class]) {
+  background: var(--pcs-card-bg);
+
+  border: 1px solid var(--pcs-border);
+  border-radius: 8px;
+
+  overflow: hidden;
+
+  box-shadow: 0 2px 8px rgba(30, 50, 60, 0.05);
+}
+
+
+/* =========================
+   Admonitions
+   ========================= */
+
+.md-typeset .admonition,
+.md-typeset details {
+  background: var(--pcs-card-bg);
+
+  border-radius: 8px;
+
+  box-shadow: 0 2px 10px rgba(30, 50, 60, 0.06);
+}
+
+/* Home-visualization쪽 workbench 이미지 갤러리 */
+.workbench-main {
+    width: 100%;
+    display: block;
+}
+
+.workbench-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 12px;
+}
+
+.workbench-row a {
+    display: block;
+}
+
+.workbench-row img {
+    width: 100%;
+    height: auto;
+    display: block;
+}

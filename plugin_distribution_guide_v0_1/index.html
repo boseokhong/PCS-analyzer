@@ -1,0 +1,3804 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Analysis and visualization of pseudocontact shifts in paramagnetic molecular systems">
+      
+      
+        <meta name="author" content="Boseok Hong">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>PCS Analyzer Plugin Distribution Guide v0.1 - PCS Analyzer Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pcs-analyzer-plugin-distribution-guide-v01" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="PCS Analyzer Documentation" class="md-header__button md-logo" aria-label="PCS Analyzer Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PCS Analyzer Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              PCS Analyzer Plugin Distribution Guide v0.1
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom" aria-hidden="true" type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required="">
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix="">
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="PCS Analyzer Documentation" class="md-nav__button md-logo" aria-label="PCS Analyzer Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    PCS Analyzer Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix="">
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2">
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interface Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3">
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Structures
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Structures
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../structures/loading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Loading Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../structures/coordinate-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coordinate System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../structures/symmetry-averaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symmetry and Torsional Ensemble Averaging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4">
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    PCS Analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pcs/theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pcs/tensor-conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tensor Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pcs/axial-rhombic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Axial and Rhombic PCS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pcs/contour-plots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Contour Plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5">
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Data [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Experimental Data [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experimental-data/delta-exp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental PCS Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experimental-data/delta-obs-dia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed and Diamagnetic Shifts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experimental-data/import-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import and Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6">
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Fitting [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fitting/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fitting/orientation-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orientation Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fitting/full-tensor-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Full Tensor Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fitting/quality-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7">
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostics [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagnostics [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagnostics/residual-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Residual Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagnostics/rhombicity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rhombicity Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8">
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Visualization [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/polar-plot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2D Polar PCS Plot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/projection-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projection Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/3d-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/3d-pcs-isosurface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D PCS Plot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9">
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Workbench [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    PCS Workbench [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pcs-workbench/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10">
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NMR Tools [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    NMR Tools [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nmr/spectrum-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spectrum Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nmr/non-pcs-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    non-PCS Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11">
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformer Search [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Conformer Search [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformer-search/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformer-search/constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformer-search/optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12">
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plugins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugins-docs/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugins-docs/creating-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugins-docs/manifest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Manifest Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugins-docs/plugin-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugins-docs/distribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugins-docs/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_13">
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference [WIP]
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference [WIP]
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/mathematical-conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/file-formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Formats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#1-core-design-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Core Design Principle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Terminology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-standard-installed-plugin-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Standard Installed Plugin Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-single-file-plugin-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Single-File Plugin Distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-folder-based-plugin-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Folder-Based Plugin Distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-zip-plugin-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. ZIP Plugin Distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-manifestjson-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. manifest.json Format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. manifest.json Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-optional-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended optional fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecated-aliases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecated aliases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reserved-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reserved fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-plugin-id-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Plugin ID Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-entry-file-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Entry File Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-import-time-safety-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Import-Time Safety Rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Import-Time Safety Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incorrect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incorrect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#correct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Correct
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-menu-callback-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Menu Callback Rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Menu Callback Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#correct_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Correct
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incorrect_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incorrect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-folder-plugin-import-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Folder Plugin Import Rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. Folder Plugin Import Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#alternative-local-import-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative local import style
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-standalone-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Standalone Compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-pluginapp-api-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. PluginApp API Usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-state-access-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. State Access Levels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-dependency-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Dependency Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#17-gui-integration-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        17. GUI Integration Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18-security-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        18. Security Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19-update-and-reinstallation-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        19. Update and Reinstallation Policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#20-module-manager-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        20. Module Manager Behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#21-registry-format-pluginspluginsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        21. Registry Format: plugins/plugins.json
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#22-loader-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        22. Loader Requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#23-recommended-plugin-folder-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        23. Recommended Plugin Folder Naming
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#24-resource-and-data-file-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        24. Resource and Data File Access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#25-versioning-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        25. Versioning Policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#26-compatibility-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        26. Compatibility Policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#27-logging-and-error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        27. Logging and Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#28-distribution-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        28. Distribution Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#29-minimal-single-file-plugin-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        29. Minimal Single-File Plugin Template
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#30-minimal-folder-based-plugin-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        30. Minimal Folder-Based Plugin Template
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="30. Minimal Folder-Based Plugin Template">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manifestjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        manifest.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pluginpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plugin.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#31-common-failure-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        31. Common Failure Modes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="31. Common Failure Modes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plugin-appears-in-module-manager-but-not-in-the-main-menu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin appears in Module Manager but not in the main menu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plugin-opens-automatically-on-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin opens automatically on startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relative-import-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relative import fails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#windows-refuses-to-updatedelete-plugin-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Windows refuses to update/delete plugin folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#32-recommended-development-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        32. Recommended Development Workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#33-summary-of-mandatory-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        33. Summary of Mandatory Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="pcs-analyzer-plugin-distribution-guide-v01">PCS Analyzer Plugin Distribution Guide v0.1</h1>
+<p><strong>Recommended scope:</strong> External plugin authors, internal module developers, and future maintainers</p>
+<p>This document defines the recommended packaging, installation, loading, and distribution rules for PCS Analyzer plugins.</p>
+<p>PCS Analyzer supports two user-facing plugin distribution styles:</p>
+<ol>
+<li><strong>Single-file Python plugins</strong> (<code>.py</code>)</li>
+<li><strong>Folder-based plugins</strong>, optionally distributed as <code>.zip</code> packages</li>
+</ol>
+<p>Internally, all plugins are installed as folder-based packages under:</p>
+<div class="highlight"><pre><span></span><code>plugins/installed/&lt;plugin_id&gt;/
+</code></pre></div>
+<p>Even when a user installs a single <code>.py</code> plugin, PCS Analyzer converts it into the standard installed folder layout during installation.</p>
+<hr>
+<h2 id="1-core-design-principle">1. Core Design Principle</h2>
+<p>PCS Analyzer plugins should be as independent as possible.</p>
+<p>The main application provides only:</p>
+<ul>
+<li>the <code>Modules</code> menu</li>
+<li>the plugin loading system</li>
+<li>the Module Manager</li>
+<li>a minimal <code>PluginApp</code> API</li>
+<li>optional read-only access to selected PCS Analyzer state</li>
+</ul>
+<p>A plugin should not require modification of:</p>
+<div class="highlight"><pre><span></span><code>ui/components.py
+logic/
+ui/
+main.py
+</code></pre></div>
+<p>or any other core PCS Analyzer source file.</p>
+<p>A plugin registers itself through:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="o">...</span>
+</code></pre></div>
+<p>The main application loads the plugin and calls:</p>
+<div class="highlight"><pre><span></span><code><span class="n">plugin_module</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">plugin_app</span><span class="p">)</span>
+</code></pre></div>
+<p>The plugin is responsible for adding its own menu entry through the provided <code>PluginApp</code> object.</p>
+<hr>
+<h2 id="2-terminology">2. Terminology</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Plugin</strong></td>
+<td>An external module installed under <code>plugins/installed/&lt;plugin_id&gt;/</code>.</td>
+</tr>
+<tr>
+<td><strong>Built-in module</strong></td>
+<td>A tool shipped as part of the PCS Analyzer core distribution, such as PCS Workbench.</td>
+</tr>
+<tr>
+<td><strong>Module Manager</strong></td>
+<td>GUI used to install, enable, disable, and remove external plugins.</td>
+</tr>
+<tr>
+<td><strong>PluginApp</strong></td>
+<td>Minimal API wrapper passed to plugins by PCS Analyzer.</td>
+</tr>
+<tr>
+<td><strong>Registry</strong></td>
+<td>The <code>plugins/plugins.json</code> file that stores installed plugin metadata and enabled state.</td>
+</tr>
+<tr>
+<td><strong>Entry file</strong></td>
+<td>The Python file loaded by the plugin loader, usually <code>plugin.py</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Both built-in modules and external plugins may be listed under the <code>Modules</code> menu. The Module Manager controls only external plugins.</p>
+<hr>
+<h2 id="3-standard-installed-plugin-layout">3. Standard Installed Plugin Layout</h2>
+<p>Every installed plugin must have the following internal structure:</p>
+<div class="highlight"><pre><span></span><code>plugins/installed/&lt;plugin_id&gt;/
+├─ manifest.json
+└─ plugin.py
+</code></pre></div>
+<p>For complex plugins, additional folders may be included:</p>
+<div class="highlight"><pre><span></span><code>plugins/installed/&lt;plugin_id&gt;/
+├─ manifest.json
+├─ plugin.py
+├─ plugin_ui/
+│  ├─ __init__.py
+│  └─ main_window.py
+├─ plugin_logic/
+│  ├─ __init__.py
+│  ├─ models.py
+│  └─ fitting.py
+├─ resources/
+│  └─ icon.png
+└─ examples/
+   └─ sample_data.csv
+</code></pre></div>
+<p>The plugin loader reads <code>manifest.json</code>, finds the entry file, imports it, and calls <code>register(app)</code>.</p>
+<hr>
+<h2 id="4-single-file-plugin-distribution">4. Single-File Plugin Distribution</h2>
+<p>Single-file plugins are recommended for small utilities, for example:</p>
+<ul>
+<li>simple calculators</li>
+<li>data converters</li>
+<li>quick plotting tools</li>
+<li>small export helpers</li>
+<li>prototype analysis tools</li>
+</ul>
+<p>A single-file plugin may be distributed as:</p>
+<div class="highlight"><pre><span></span><code>evans_calculator.py
+</code></pre></div>
+<p>It must contain at least:</p>
+<div class="highlight"><pre><span></span><code><span class="n">PLUGIN_INFO</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"evans_calculator"</span><span class="p">,</span>
+    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Evans Method Calculator"</span><span class="p">,</span>
+    <span class="s2">"version"</span><span class="p">:</span> <span class="s2">"0.1.0"</span><span class="p">,</span>
+    <span class="s2">"author"</span><span class="p">:</span> <span class="s2">"Author Name"</span><span class="p">,</span>
+    <span class="s2">"description"</span><span class="p">:</span> <span class="s2">"Calculate magnetic susceptibility from Evans method data."</span><span class="p">,</span>
+    <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"window"</span><span class="p">,</span>
+    <span class="s2">"standalone"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">"dependencies"</span><span class="p">:</span> <span class="p">[],</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="s2">"Evans Method Calculator..."</span><span class="p">,</span>
+        <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="c1"># Open a Toplevel window, launch a standalone tool, or call plugin UI code.</span>
+    <span class="o">...</span>
+</code></pre></div>
+<p>When installed through the Module Manager, PCS Analyzer converts it to:</p>
+<div class="highlight"><pre><span></span><code>plugins/installed/evans_calculator/
+├─ manifest.json
+└─ plugin.py
+</code></pre></div>
+<p>The generated <code>manifest.json</code> is derived from <code>PLUGIN_INFO</code>.</p>
+<p>Users should not need to manually create <code>manifest.json</code> for single-file plugins.</p>
+<hr>
+<h2 id="5-folder-based-plugin-distribution">5. Folder-Based Plugin Distribution</h2>
+<p>Folder-based plugins are recommended for larger analysis modules, for example:</p>
+<ul>
+<li>Bleaney / VT shift fitting</li>
+<li>VT-NMR line-shape analysis</li>
+<li>CShM / coordination geometry analysis</li>
+<li>CONDON input/output helper</li>
+<li>crystal-field fitting utilities</li>
+<li>advanced paramagnetic NMR model fitting</li>
+<li>PCS ensemble or motion analysis tools</li>
+</ul>
+<p>A folder-based plugin should be distributed as:</p>
+<div class="highlight"><pre><span></span><code>bleaney_vt/
+├─ manifest.json
+├─ plugin.py
+├─ plugin_ui/
+├─ plugin_logic/
+├─ resources/
+└─ examples/
+</code></pre></div>
+<p>The folder must contain:</p>
+<ol>
+<li>a valid <code>manifest.json</code></li>
+<li>the entry file specified by <code>manifest.json</code>, usually <code>plugin.py</code></li>
+<li>a <code>register(app)</code> function in the entry file</li>
+</ol>
+<hr>
+<h2 id="6-zip-plugin-distribution">6. ZIP Plugin Distribution</h2>
+<p>For public distribution, complex plugins may be packaged as <code>.zip</code> files.</p>
+<p>Recommended structure:</p>
+<div class="highlight"><pre><span></span><code>bleaney_vt.zip
+└─ bleaney_vt/
+   ├─ manifest.json
+   ├─ plugin.py
+   ├─ plugin_ui/
+   ├─ plugin_logic/
+   ├─ resources/
+   └─ examples/
+</code></pre></div>
+<p>During installation, PCS Analyzer should:</p>
+<ol>
+<li>extract the zip to a temporary folder</li>
+<li>locate <code>manifest.json</code></li>
+<li>validate the plugin ID and entry file</li>
+<li>copy the plugin folder to <code>plugins/installed/&lt;plugin_id&gt;/</code></li>
+<li>register the plugin in <code>plugins/plugins.json</code></li>
+<li>refresh the <code>Modules</code> menu if supported</li>
+</ol>
+<hr>
+<h2 id="7-manifestjson-format">7. <code>manifest.json</code> Format</h2>
+<p>Every installed folder-based plugin must contain a <code>manifest.json</code>.</p>
+<p>Minimum example:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"test_plugin"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Test Plugin"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.1.0"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Author Name"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Simple plugin loading test."</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"entry"</span><span class="p">:</span><span class="w"> </span><span class="s2">"plugin.py"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"window"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"standalone"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Recommended full example:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bleaney_vt"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bleaney / VT Shift Fitting"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.1.0"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Author Name"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Temperature-dependent paramagnetic shift fitting module."</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"entry"</span><span class="p">:</span><span class="w"> </span><span class="s2">"plugin.py"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"window"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"standalone"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"min_app_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.4.0"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">"numpy"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"scipy"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"pandas"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"matplotlib"</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"optional_dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">"pyvista"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"pyvistaqt"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"imageio"</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"state_access"</span><span class="p">:</span><span class="w"> </span><span class="s2">"read_only"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"category"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Paramagnetic NMR"</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="required-fields">Required fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>Stable and unique plugin identifier. Use lowercase letters, numbers, and underscores.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>Display name shown in the Module Manager.</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>Plugin version.</td>
+</tr>
+<tr>
+<td><code>entry</code></td>
+<td>Entry Python file, usually <code>plugin.py</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="recommended-optional-fields">Recommended optional fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>author</code></td>
+<td>Plugin author.</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>Short plugin description.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>Plugin type, for example <code>window</code>, <code>analysis</code>, <code>viewer</code>, <code>export</code>, or <code>tool</code>.</td>
+</tr>
+<tr>
+<td><code>standalone</code></td>
+<td>Whether the plugin can run independently.</td>
+</tr>
+<tr>
+<td><code>min_app_version</code></td>
+<td>Minimum PCS Analyzer version required.</td>
+</tr>
+<tr>
+<td><code>dependencies</code></td>
+<td>Required Python packages.</td>
+</tr>
+<tr>
+<td><code>optional_dependencies</code></td>
+<td>Optional Python packages used for enhanced functionality.</td>
+</tr>
+<tr>
+<td><code>state_access</code></td>
+<td>Intended state access level: <code>none</code>, <code>read_only</code>, or <code>read_write</code>.</td>
+</tr>
+<tr>
+<td><code>category</code></td>
+<td>Display or grouping category.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="deprecated-aliases">Deprecated aliases</h3>
+<p>New plugins should use:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="nt">"optional_dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+</code></pre></div>
+<p>The following older aliases may be accepted by the installer for compatibility, but should not be used in new plugins:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">"requires"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="nt">"optional_requires"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+</code></pre></div>
+<h3 id="reserved-fields">Reserved fields</h3>
+<p>The following field is reserved for possible future loader support:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">"entry_function"</span><span class="p">:</span><span class="w"> </span><span class="s2">"open_plugin"</span>
+</code></pre></div>
+<p>Current PCS Analyzer plugin loading is based on <code>register(app)</code>. Therefore, plugins must not rely on <code>entry_function</code> unless the loader is explicitly updated to support it.</p>
+<hr>
+<h2 id="8-plugin-id-rules">8. Plugin ID Rules</h2>
+<p>The plugin ID must be stable and unique.</p>
+<p>Recommended format:</p>
+<div class="highlight"><pre><span></span><code>lowercase_words_with_underscores
+</code></pre></div>
+<p>Good examples:</p>
+<div class="highlight"><pre><span></span><code>bleaney_vt
+evans_calculator
+condon_helper
+vt_lineshape
+coordination_geometry_analyzer
+pcs_motion_explorer
+</code></pre></div>
+<p>Avoid:</p>
+<div class="highlight"><pre><span></span><code>Bleaney Module
+my plugin!!!
+test
+plugin1
+</code></pre></div>
+<p>The plugin ID is used for:</p>
+<ul>
+<li>installation folder name</li>
+<li>registry key</li>
+<li>import namespace</li>
+<li>enable/disable state</li>
+<li>removal</li>
+<li>update/reinstall matching</li>
+</ul>
+<p>Changing the plugin ID should be treated as creating a new plugin.</p>
+<hr>
+<h2 id="9-entry-file-rules">9. Entry File Rules</h2>
+<p>The entry file is usually:</p>
+<div class="highlight"><pre><span></span><code>plugin.py
+</code></pre></div>
+<p>It must define:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="o">...</span>
+</code></pre></div>
+<p>Recommended structure:</p>
+<div class="highlight"><pre><span></span><code><span class="n">PLUGIN_INFO</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"bleaney_vt"</span><span class="p">,</span>
+    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Bleaney / VT Shift Fitting"</span><span class="p">,</span>
+    <span class="s2">"version"</span><span class="p">:</span> <span class="s2">"0.1.0"</span><span class="p">,</span>
+    <span class="s2">"author"</span><span class="p">:</span> <span class="s2">"Author Name"</span><span class="p">,</span>
+    <span class="s2">"description"</span><span class="p">:</span> <span class="s2">"Temperature-dependent paramagnetic shift fitting module."</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="s2">"Bleaney / VT Shift Fitting..."</span><span class="p">,</span>
+        <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.plugin_ui.main_window</span><span class="w"> </span><span class="kn">import</span> <span class="n">BleaneyWindow</span>
+    <span class="k">return</span> <span class="n">BleaneyWindow</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">app</span><span class="o">=</span><span class="n">app</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_standalone</span><span class="p">():</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tk</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.plugin_ui.main_window</span><span class="w"> </span><span class="kn">import</span> <span class="n">BleaneyWindow</span>
+
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Tk</span><span class="p">()</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"Bleaney / VT Shift Fitting"</span><span class="p">)</span>
+    <span class="n">BleaneyWindow</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">app</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">mainloop</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">run_standalone</span><span class="p">()</span>
+</code></pre></div>
+<p>For a single-file plugin, the relative imports above should be replaced by local functions or absolute imports appropriate for the file.</p>
+<hr>
+<h2 id="10-import-time-safety-rules">10. Import-Time Safety Rules</h2>
+<p>This is one of the most important rules.</p>
+<p>A plugin must not perform any of the following at import time:</p>
+<ul>
+<li>open a GUI window</li>
+<li>call <code>main()</code></li>
+<li>call <code>mainloop()</code></li>
+<li>start calculations</li>
+<li>launch subprocesses</li>
+<li>load large files unnecessarily</li>
+<li>modify PCS Analyzer state</li>
+<li>show message boxes unless dependency validation explicitly requires it</li>
+</ul>
+<p>Only definitions, constants, lightweight imports, and small helper functions should run at import time.</p>
+<h3 id="incorrect">Incorrect</h3>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">my_tool.standalone</span><span class="w"> </span><span class="kn">import</span> <span class="n">main</span>
+<span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+<p>This launches the plugin immediately when the plugin loader imports the file.</p>
+<h3 id="correct">Correct</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">my_tool.standalone</span><span class="w"> </span><span class="kn">import</span> <span class="n">main</span>
+    <span class="k">return</span> <span class="n">main</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="s2">"My Tool..."</span><span class="p">,</span>
+        <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>Execution must happen only after the user clicks the menu item.</p>
+<hr>
+<h2 id="11-menu-callback-rules">11. Menu Callback Rules</h2>
+<p>Plugin menu callbacks must be deferred.</p>
+<h3 id="correct_1">Correct</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="s2">"My Plugin..."</span><span class="p">,</span>
+        <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div>
+<h3 id="incorrect_1">Incorrect</h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="s2">"My Plugin..."</span><span class="p">,</span>
+        <span class="n">command</span><span class="o">=</span><span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>The incorrect form calls <code>open_plugin(app)</code> immediately during registration. This can cause the plugin window to open during PCS Analyzer startup.</p>
+<hr>
+<h2 id="12-folder-plugin-import-rules">12. Folder Plugin Import Rules</h2>
+<p>Folder-based plugins should be treated as package-like modules.</p>
+<p>Recommended folder plugin imports:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">.plugin_ui.main_window</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyWindow</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.plugin_logic.fitting</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_fit</span>
+</code></pre></div>
+<p>This requires the PCS Analyzer plugin loader to load the entry module with package-style import support, for example:</p>
+<div class="highlight"><pre><span></span><code><span class="n">spec</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">spec_from_file_location</span><span class="p">(</span>
+    <span class="n">module_name</span><span class="p">,</span>
+    <span class="n">entry_path</span><span class="p">,</span>
+    <span class="n">submodule_search_locations</span><span class="o">=</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">plugin_dir</span><span class="p">)],</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The loader should also register the module in <code>sys.modules</code> before executing it:</p>
+<div class="highlight"><pre><span></span><code><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">module</span>
+<span class="n">spec</span><span class="o">.</span><span class="n">loader</span><span class="o">.</span><span class="n">exec_module</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+</code></pre></div>
+<p>This is required for:</p>
+<ul>
+<li>relative imports such as <code>from .ui_dialog import MyDialog</code></li>
+<li><code>@dataclass</code></li>
+<li>introspection-heavy decorators</li>
+<li>callbacks that refer to the plugin module after import</li>
+</ul>
+<h3 id="alternative-local-import-style">Alternative local import style</h3>
+<p>If package-style loading is not available, plugin authors may use direct local imports:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ui_dialog</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyDialog</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">plugin_logic.fitting</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_fit</span>
+</code></pre></div>
+<p>However, this is less robust and may conflict with other plugins. Package-style relative imports are preferred for folder plugins.</p>
+<hr>
+<h2 id="13-standalone-compatibility">13. Standalone Compatibility</h2>
+<p>A plugin may also run as a standalone tool.</p>
+<p>The standalone entry point must be protected by:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">run_standalone</span><span class="p">()</span>
+</code></pre></div>
+<p>Never call standalone code directly at import time.</p>
+<p>Recommended pattern:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">run_standalone</span><span class="p">():</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tk</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Tk</span><span class="p">()</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"My Plugin"</span><span class="p">)</span>
+    <span class="n">MyWindow</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">mainloop</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">run_standalone</span><span class="p">()</span>
+</code></pre></div>
+<hr>
+<h2 id="14-pluginapp-api-usage">14. <code>PluginApp</code> API Usage</h2>
+<p>Plugins should interact with PCS Analyzer through the <code>PluginApp</code> wrapper whenever possible.</p>
+<p>Common API methods may include:</p>
+<div class="highlight"><pre><span></span><code><span class="n">app</span><span class="o">.</span><span class="n">root</span>
+<span class="n">app</span><span class="o">.</span><span class="n">state</span>
+<span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">add_separator</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">get_current_structure</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">get_raw_structure</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">get_delta_exp_values</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">get_pcs_values_by_id</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">get_metal_position</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">refresh_views</span><span class="p">()</span>
+</code></pre></div>
+<p>Recommended use:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">structure</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">get_current_structure</span><span class="p">()</span>
+    <span class="n">delta_exp</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">get_delta_exp_values</span><span class="p">()</span>
+    <span class="o">...</span>
+</code></pre></div>
+<p>Direct modification of <code>app.state</code> should be avoided unless the plugin is explicitly designed as an integrated plugin.</p>
+<hr>
+<h2 id="15-state-access-levels">15. State Access Levels</h2>
+<p>A plugin should declare its intended state access level in <code>manifest.json</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">"state_access"</span><span class="p">:</span><span class="w"> </span><span class="s2">"read_only"</span>
+</code></pre></div>
+<p>Recommended values:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code></td>
+<td>Plugin does not use PCS Analyzer state.</td>
+</tr>
+<tr>
+<td><code>read_only</code></td>
+<td>Plugin reads structures, shifts, PCS values, or settings.</td>
+</tr>
+<tr>
+<td><code>read_write</code></td>
+<td>Plugin may modify PCS Analyzer state. Use only for tightly integrated plugins.</td>
+</tr>
+</tbody>
+</table>
+<p>Most plugins should use <code>none</code> or <code>read_only</code>.</p>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"viewer"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"state_access"</span><span class="p">:</span><span class="w"> </span><span class="s2">"read_only"</span>
+<span class="p">}</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"integrated"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"state_access"</span><span class="p">:</span><span class="w"> </span><span class="s2">"read_write"</span>
+<span class="p">}</span>
+</code></pre></div>
+<hr>
+<h2 id="16-dependency-handling">16. Dependency Handling</h2>
+<p>Plugins should list required dependencies in <code>manifest.json</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"numpy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"scipy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"matplotlib"</span><span class="p">]</span>
+</code></pre></div>
+<p>Optional dependencies should be listed separately:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">"optional_dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"pyvista"</span><span class="p">,</span><span class="w"> </span><span class="s2">"pyvistaqt"</span><span class="p">,</span><span class="w"> </span><span class="s2">"imageio"</span><span class="p">]</span>
+</code></pre></div>
+<p>A plugin should handle missing optional dependencies gracefully.</p>
+<p>Recommended runtime pattern:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_check_required_dependencies</span><span class="p">(</span><span class="n">show_gui</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">missing</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="n">missing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"numpy"</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">scipy</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="n">missing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"scipy"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">"Missing required packages:</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">show_gui</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="kn">import</span> <span class="n">messagebox</span>
+            <span class="n">messagebox</span><span class="o">.</span><span class="n">showerror</span><span class="p">(</span><span class="s2">"Plugin dependency error"</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+<p>Dependency checks should not launch the main plugin GUI at import time.</p>
+<hr>
+<h2 id="17-gui-integration-rules">17. GUI Integration Rules</h2>
+<p>For GUI plugins:</p>
+<ul>
+<li>Use <code>tk.Toplevel(app.root)</code> for child windows when possible.</li>
+<li>Do not call <code>tk.Tk()</code> when running inside PCS Analyzer.</li>
+<li>Do not call <code>mainloop()</code> when running inside PCS Analyzer.</li>
+<li><code>tk.Tk()</code> and <code>mainloop()</code> are allowed only in standalone mode.</li>
+</ul>
+<p>Recommended pattern:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">win</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Toplevel</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>
+    <span class="n">win</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"My Plugin"</span><span class="p">)</span>
+    <span class="o">...</span>
+    <span class="k">return</span> <span class="n">win</span>
+</code></pre></div>
+<p>Standalone pattern:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">run_standalone</span><span class="p">():</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Tk</span><span class="p">()</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"My Plugin"</span><span class="p">)</span>
+    <span class="n">MyWindow</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">mainloop</span><span class="p">()</span>
+</code></pre></div>
+<hr>
+<h2 id="18-security-rules">18. Security Rules</h2>
+<p>Python plugins can execute arbitrary code on the user's computer.</p>
+<p>The Module Manager should display a warning similar to:</p>
+<div class="highlight"><pre><span></span><code>Only install modules from trusted sources.
+Python plugins can execute code on your computer.
+</code></pre></div>
+<p>The installer should require confirmation before installing a plugin.</p>
+<p>Plugin authors should avoid:</p>
+<ul>
+<li>unexpected network access</li>
+<li>modifying user files without confirmation</li>
+<li>hidden subprocess execution</li>
+<li>modifying PCS Analyzer core files</li>
+<li>storing credentials or private data</li>
+<li>silently changing application settings</li>
+</ul>
+<hr>
+<h2 id="19-update-and-reinstallation-policy">19. Update and Reinstallation Policy</h2>
+<p>Updating a plugin may require restarting PCS Analyzer.</p>
+<p>On Windows, an already imported plugin may prevent its folder from being deleted or replaced. The installer should avoid directly deleting active plugin folders when possible.</p>
+<p>Recommended update strategy:</p>
+<ol>
+<li>Rename the existing installed folder to a backup folder.</li>
+<li>Copy the new plugin folder into <code>plugins/installed/&lt;plugin_id&gt;/</code>.</li>
+<li>Update <code>plugins/plugins.json</code>.</li>
+<li>Refresh the <code>Modules</code> menu.</li>
+<li>Attempt to delete the backup folder.</li>
+<li>If deletion fails, leave a <code>.delete_on_restart</code> marker and instruct the user to restart PCS Analyzer.</li>
+</ol>
+<p>Example backup folder:</p>
+<div class="highlight"><pre><span></span><code>plugins/installed/bleaney_vt.__old__20260516_153000/
+</code></pre></div>
+<p>If a plugin has already been imported, a clean restart is recommended after updating.</p>
+<hr>
+<h2 id="20-module-manager-behavior">20. Module Manager Behavior</h2>
+<p>The Module Manager should support:</p>
+<ul>
+<li>listing installed plugins</li>
+<li>enabling plugins</li>
+<li>disabling plugins</li>
+<li>removing plugins</li>
+<li>installing <code>.py</code> plugins</li>
+<li>installing folder-based plugins</li>
+<li>installing <code>.zip</code> plugins</li>
+<li>refreshing the main <code>Modules</code> menu</li>
+</ul>
+<p>The Module Manager reads from:</p>
+<div class="highlight"><pre><span></span><code>plugins/plugins.json
+</code></pre></div>
+<p>The main <code>Modules</code> menu is updated only when the plugin loader successfully imports the plugin and calls <code>register(app)</code>.</p>
+<p>Therefore:</p>
+<div class="highlight"><pre><span></span><code>Visible in Module Manager ≠ successfully loaded into the main menu
+</code></pre></div>
+<p>If a plugin appears in Module Manager but not in the main menu, likely causes include:</p>
+<ul>
+<li><code>enabled</code> is false</li>
+<li><code>manifest.json</code> is missing or invalid</li>
+<li>entry file is missing</li>
+<li><code>register(app)</code> is missing</li>
+<li>the plugin raises an exception during import</li>
+<li>the plugin raises an exception during <code>register(app)</code></li>
+<li>the plugin uses unsupported relative imports</li>
+<li>required dependencies are missing</li>
+</ul>
+<p>The loader should report failed plugin loads to the console or a diagnostics view.</p>
+<hr>
+<h2 id="21-registry-format-pluginspluginsjson">21. Registry Format: <code>plugins/plugins.json</code></h2>
+<p>The registry stores installed plugin records.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"vt_nmr_analysis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vt_nmr_analysis"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"VT-NMR Analysis"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"3.2.0"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vt_nmr_analysis"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"xyz_compare_viewer"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"xyz_compare_viewer"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"XYZ Compare Viewer"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.1.0"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"xyz_compare_viewer"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The registry should be treated as application-managed data. Plugin authors should not ask users to edit it manually except for debugging.</p>
+<hr>
+<h2 id="22-loader-requirements">22. Loader Requirements</h2>
+<p>A robust PCS Analyzer plugin loader should:</p>
+<ol>
+<li>read <code>plugins/plugins.json</code></li>
+<li>skip disabled plugins</li>
+<li>resolve <code>plugins/installed/&lt;plugin_id&gt;/</code></li>
+<li>read <code>manifest.json</code></li>
+<li>validate <code>entry</code></li>
+<li>add the plugin folder to <code>sys.path</code> if needed</li>
+<li>import the entry file using package-style loading</li>
+<li>register the module in <code>sys.modules</code> before execution</li>
+<li>verify that <code>register(app)</code> exists</li>
+<li>call <code>register(app)</code></li>
+<li>store loading results and errors</li>
+<li>avoid crashing the whole application when one plugin fails</li>
+</ol>
+<p>Recommended import pattern:</p>
+<div class="highlight"><pre><span></span><code><span class="n">module_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pcs_plugin_</span><span class="si">{</span><span class="n">plugin_id</span><span class="si">}</span><span class="s2">"</span>
+
+<span class="n">spec</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">spec_from_file_location</span><span class="p">(</span>
+    <span class="n">module_name</span><span class="p">,</span>
+    <span class="n">entry_path</span><span class="p">,</span>
+    <span class="n">submodule_search_locations</span><span class="o">=</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">plugin_dir</span><span class="p">)],</span>
+<span class="p">)</span>
+<span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">module_from_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">loader</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Could not create plugin loader."</span><span class="p">)</span>
+
+<span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">module</span>
+<span class="n">spec</span><span class="o">.</span><span class="n">loader</span><span class="o">.</span><span class="n">exec_module</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"register"</span><span class="p">):</span>
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"register(app) function is missing."</span><span class="p">)</span>
+
+<span class="n">module</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+</code></pre></div>
+<p>The loader should not call plugin functions other than <code>register(app)</code> during startup.</p>
+<hr>
+<h2 id="23-recommended-plugin-folder-naming">23. Recommended Plugin Folder Naming</h2>
+<p>Use plugin-local folder names to avoid conflicts with PCS Analyzer core modules.</p>
+<p>Recommended:</p>
+<div class="highlight"><pre><span></span><code>plugin_ui/
+plugin_logic/
+resources/
+examples/
+</code></pre></div>
+<p>Avoid using generic names that may conflict with the host application or other plugins:</p>
+<div class="highlight"><pre><span></span><code>ui/
+logic/
+core/
+utils/
+</code></pre></div>
+<p>If a plugin is loaded as a proper package using relative imports, this risk is reduced. However, plugin-local names are still clearer.</p>
+<hr>
+<h2 id="24-resource-and-data-file-access">24. Resource and Data File Access</h2>
+<p>Plugins should resolve their own resource paths relative to the plugin file.</p>
+<p>Recommended:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="n">PLUGIN_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span>
+<span class="n">RESOURCE_DIR</span> <span class="o">=</span> <span class="n">PLUGIN_DIR</span> <span class="o">/</span> <span class="s2">"resources"</span>
+<span class="n">EXAMPLE_DIR</span> <span class="o">=</span> <span class="n">PLUGIN_DIR</span> <span class="o">/</span> <span class="s2">"examples"</span>
+</code></pre></div>
+<p>Avoid relying on the current working directory.</p>
+<p>Incorrect:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">open</span><span class="p">(</span><span class="s2">"resources/icon.png"</span><span class="p">)</span>
+</code></pre></div>
+<p>Correct:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">open</span><span class="p">(</span><span class="n">RESOURCE_DIR</span> <span class="o">/</span> <span class="s2">"icon.png"</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">)</span>
+</code></pre></div>
+<hr>
+<h2 id="25-versioning-policy">25. Versioning Policy</h2>
+<p>Plugin versions should follow semantic versioning where possible:</p>
+<div class="highlight"><pre><span></span><code>MAJOR.MINOR.PATCH
+</code></pre></div>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code>0.1.0
+1.0.0
+1.2.3
+</code></pre></div>
+<p>Recommended interpretation:</p>
+<table>
+<thead>
+<tr>
+<th>Version part</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MAJOR</td>
+<td>Breaking changes.</td>
+</tr>
+<tr>
+<td>MINOR</td>
+<td>New features without breaking compatibility.</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td>Bug fixes.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="26-compatibility-policy">26. Compatibility Policy</h2>
+<p>Plugins may declare the minimum required PCS Analyzer version:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">"min_app_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.4.0"</span>
+</code></pre></div>
+<p>Future plugin managers may refuse to load plugins requiring a newer PCS Analyzer version.</p>
+<p>Plugins should avoid relying on undocumented internal state keys unless declared as <code>state_access: "read_write"</code> or marked as an internal/integrated plugin.</p>
+<hr>
+<h2 id="27-logging-and-error-handling">27. Logging and Error Handling</h2>
+<p>Plugins should catch user-facing errors and report them clearly.</p>
+<p>Recommended:</p>
+<div class="highlight"><pre><span></span><code><span class="k">try</span><span class="p">:</span>
+    <span class="n">run_analysis</span><span class="p">()</span>
+<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="kn">import</span> <span class="n">messagebox</span>
+    <span class="n">messagebox</span><span class="o">.</span><span class="n">showerror</span><span class="p">(</span><span class="s2">"My Plugin"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"Analysis failed:</span><span class="se">\n\n</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+<p>Plugin loaders should catch import and registration errors and continue loading other plugins.</p>
+<hr>
+<h2 id="28-distribution-checklist">28. Distribution Checklist</h2>
+<p>Before distributing a plugin, verify:</p>
+<div class="highlight"><pre><span></span><code>[ ] The plugin has a stable lowercase plugin ID.
+[ ] The plugin defines PLUGIN_INFO or manifest.json.
+[ ] Folder-based plugins include manifest.json.
+[ ] The manifest has id, name, version, and entry.
+[ ] The entry file defines register(app).
+[ ] The plugin does not open windows at import time.
+[ ] The plugin does not call main() at import time.
+[ ] The plugin does not call mainloop() inside PCS Analyzer.
+[ ] Menu callbacks use command=lambda: open_plugin(app).
+[ ] Required dependencies are listed.
+[ ] Missing optional dependencies are handled gracefully.
+[ ] Resource paths are resolved relative to the plugin folder.
+[ ] The plugin does not modify PCS Analyzer core source files.
+[ ] The plugin can be removed without breaking the core application.
+[ ] The plugin was tested after installation through Module Manager.
+[ ] The plugin was tested after disabling and re-enabling.
+[ ] The plugin was tested after reinstalling/updating.
+</code></pre></div>
+<hr>
+<h2 id="29-minimal-single-file-plugin-template">29. Minimal Single-File Plugin Template</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tk</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="kn">import</span> <span class="n">ttk</span>
+
+
+<span class="n">PLUGIN_INFO</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"minimal_plugin"</span><span class="p">,</span>
+    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Minimal Plugin"</span><span class="p">,</span>
+    <span class="s2">"version"</span><span class="p">:</span> <span class="s2">"0.1.0"</span><span class="p">,</span>
+    <span class="s2">"author"</span><span class="p">:</span> <span class="s2">"Author Name"</span><span class="p">,</span>
+    <span class="s2">"description"</span><span class="p">:</span> <span class="s2">"A minimal PCS Analyzer plugin."</span><span class="p">,</span>
+    <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"window"</span><span class="p">,</span>
+    <span class="s2">"standalone"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">"dependencies"</span><span class="p">:</span> <span class="p">[],</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">win</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Toplevel</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>
+    <span class="n">win</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"Minimal Plugin"</span><span class="p">)</span>
+    <span class="n">win</span><span class="o">.</span><span class="n">geometry</span><span class="p">(</span><span class="s2">"360x160"</span><span class="p">)</span>
+
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">win</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+    <span class="n">frame</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="s2">"both"</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span>
+        <span class="n">frame</span><span class="p">,</span>
+        <span class="n">text</span><span class="o">=</span><span class="s2">"Minimal plugin loaded successfully."</span><span class="p">,</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">anchor</span><span class="o">=</span><span class="s2">"w"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">win</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="s2">"Minimal Plugin..."</span><span class="p">,</span>
+        <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_standalone</span><span class="p">():</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Tk</span><span class="p">()</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"Minimal Plugin"</span><span class="p">)</span>
+
+    <span class="k">class</span><span class="w"> </span><span class="nc">DummyApp</span><span class="p">:</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">root</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">open_plugin</span><span class="p">(</span><span class="n">DummyApp</span><span class="p">())</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">mainloop</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">run_standalone</span><span class="p">()</span>
+</code></pre></div>
+<hr>
+<h2 id="30-minimal-folder-based-plugin-template">30. Minimal Folder-Based Plugin Template</h2>
+<div class="highlight"><pre><span></span><code>my_analysis_plugin/
+├─ manifest.json
+├─ plugin.py
+├─ plugin_ui/
+│  ├─ __init__.py
+│  └─ main_window.py
+└─ plugin_logic/
+   ├─ __init__.py
+   └─ analysis.py
+</code></pre></div>
+<h3 id="manifestjson"><code>manifest.json</code></h3>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my_analysis_plugin"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"My Analysis Plugin"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.1.0"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Author Name"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Example folder-based analysis plugin."</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"entry"</span><span class="p">:</span><span class="w"> </span><span class="s2">"plugin.py"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"analysis"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"standalone"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"numpy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"matplotlib"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"state_access"</span><span class="p">:</span><span class="w"> </span><span class="s2">"read_only"</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="pluginpy"><code>plugin.py</code></h3>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+
+<span class="n">PLUGIN_INFO</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"my_analysis_plugin"</span><span class="p">,</span>
+    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"My Analysis Plugin"</span><span class="p">,</span>
+    <span class="s2">"version"</span><span class="p">:</span> <span class="s2">"0.1.0"</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.plugin_ui.main_window</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyAnalysisWindow</span>
+    <span class="k">return</span> <span class="n">MyAnalysisWindow</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">app</span><span class="o">=</span><span class="n">app</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">add_menu_item</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="s2">"My Analysis Plugin..."</span><span class="p">,</span>
+        <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_standalone</span><span class="p">():</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tk</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.plugin_ui.main_window</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyAnalysisWindow</span>
+
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Tk</span><span class="p">()</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"My Analysis Plugin"</span><span class="p">)</span>
+    <span class="n">MyAnalysisWindow</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">root</span><span class="p">,</span> <span class="n">app</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">mainloop</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">run_standalone</span><span class="p">()</span>
+</code></pre></div>
+<hr>
+<h2 id="31-common-failure-modes">31. Common Failure Modes</h2>
+<h3 id="plugin-appears-in-module-manager-but-not-in-the-main-menu">Plugin appears in Module Manager but not in the main menu</h3>
+<p>Likely causes:</p>
+<div class="highlight"><pre><span></span><code>- enabled is false
+- register(app) is missing
+- import failed
+- dependency missing
+- relative import failed
+- plugin opened itself and crashed during import
+</code></pre></div>
+<p>Check <code>state["plugin_load_results"]</code> or console diagnostics.</p>
+<h3 id="plugin-opens-automatically-on-startup">Plugin opens automatically on startup</h3>
+<p>Likely causes:</p>
+<div class="highlight"><pre><span></span><code><span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+<p>was called at import time, or the menu callback was written as:</p>
+<div class="highlight"><pre><span></span><code><span class="n">command</span><span class="o">=</span><span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+</code></pre></div>
+<p>instead of:</p>
+<div class="highlight"><pre><span></span><code><span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">open_plugin</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="relative-import-fails">Relative import fails</h3>
+<p>Error:</p>
+<div class="highlight"><pre><span></span><code>ImportError: attempted relative import with no known parent package
+</code></pre></div>
+<p>Fix:</p>
+<ul>
+<li>update the loader to use <code>submodule_search_locations=[str(plugin_dir)]</code>, or</li>
+<li>avoid relative imports and use local absolute imports.</li>
+</ul>
+<p>Package-style relative imports are preferred.</p>
+<h3 id="windows-refuses-to-updatedelete-plugin-folder">Windows refuses to update/delete plugin folder</h3>
+<p>Error:</p>
+<div class="highlight"><pre><span></span><code>PermissionError: [WinError 5] Access is denied
+</code></pre></div>
+<p>Likely causes:</p>
+<ul>
+<li>plugin is currently imported</li>
+<li>plugin window is open</li>
+<li>Python process holds file handles</li>
+<li>IDE, antivirus, or OS indexing temporarily locks files</li>
+</ul>
+<p>Recommended action:</p>
+<div class="highlight"><pre><span></span><code>Close plugin windows, restart PCS Analyzer, and try again.
+</code></pre></div>
+<p>The installer should use backup-folder replacement instead of direct deletion.</p>
+<hr>
+<h2 id="32-recommended-development-workflow">32. Recommended Development Workflow</h2>
+<p>For new plugins:</p>
+<ol>
+<li>Develop as standalone tool first.</li>
+<li>Add <code>PLUGIN_INFO</code>.</li>
+<li>Add <code>open_plugin(app)</code>.</li>
+<li>Add <code>register(app)</code>.</li>
+<li>Ensure no code runs at import time.</li>
+<li>Install through Module Manager.</li>
+<li>Test loading from the <code>Modules</code> menu.</li>
+<li>Test disable/enable.</li>
+<li>Test reinstall/update.</li>
+<li>Package as <code>.py</code>, folder, or <code>.zip</code>.</li>
+</ol>
+<hr>
+<h2 id="33-summary-of-mandatory-rules">33. Summary of Mandatory Rules</h2>
+<p>A valid PCS Analyzer plugin must obey the following rules:</p>
+<div class="highlight"><pre><span></span><code>1. It must have a stable plugin ID.
+2. It must define register(app).
+3. It must not execute the tool at import time.
+4. It must use deferred menu callbacks, usually command=lambda: open_plugin(app).
+5. It must not modify PCS Analyzer core files.
+6. It must declare dependencies when distributed publicly.
+7. It must handle missing optional dependencies gracefully.
+8. It must keep standalone execution behind if __name__ == "__main__".
+</code></pre></div>
+<p>These rules are intended to keep PCS Analyzer modular, stable, and safe as the plugin ecosystem grows.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden="">
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "toc.follow", "content.code.copy", "search.suggest", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>
