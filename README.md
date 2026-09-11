@@ -200,22 +200,27 @@ The PDE implementation follows the distributed PCS / Kuprov-equation framework (
 ---
 ## Installation
 
-Clone the repository and install the required dependencies:
-
+Clone the repository:
 ```bash
 git clone https://github.com/boseokhong/PCS-analyzer.git
 cd PCS-analyzer
-pip install numpy scipy matplotlib pandas openpyxl
 ```
 
-Install the additional packages for enhanced GUI styling, 3D visualization, FFT acceleration, drag-and-drop support, and GIF export:
+Install all required dependencies using `requirements.txt`:
+```bash
+pip install -r requirements.txt
+```
 
+Alternatively, the core dependencies can be installed manually:
+```bash
+pip install numpy scipy matplotlib pandas openpyxl
+```
+Install the additional packages for enhanced GUI styling, 3D visualization, FFT acceleration, drag-and-drop support, and GIF export:
 ```bash
 pip install ttkbootstrap pyvista pyvistaqt vtk qtpy PySide6 pyfftw tkinterdnd2 imageio
 ```
 
 Run the program with:
-
 ```bash
 python main.py
 ```
