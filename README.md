@@ -4,6 +4,7 @@
 ![platform](https://img.shields.io/badge/platform-Windows-5F6B73?logo=windows&logoColor=white)
 ![license](https://img.shields.io/badge/license-BSD%203--Clause-668B6A)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-C65D00)](https://boseokhong.github.io/PCS-analyzer/)
 
 <p align="center">
   <img
@@ -55,6 +56,16 @@ The software integrates molecular structure import, 2D and 3D PCS visualization,
 > - `pyvistaqt`, `qtpy`, and `PySide6` are required for the interactive Qt-based 3D structure viewer.
 > - `pyfftw` is optional. The code falls back to `numpy.fft` if it is not installed.
 > - `imageio` is required for GIF export [PyVista's `Plotter.open_gif()`].
+---
+
+## Documentation
+
+The documentation is available online:
+
+[PCS Analyzer Documentation](https://boseokhong.github.io/PCS-analyzer/)
+
+> **Work in progress.** The documentation is under active development as of **10 September 2026** and is being updated continuously.
+
 ---
 ## Overview
 
