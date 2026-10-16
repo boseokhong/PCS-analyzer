@@ -7,6 +7,17 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from logic.chem_constants import CPK_COLORS
+from logic.pcs_forward_api import PCSAtom, PCSPredictionRequest, PCSTensor
+from logic.pcs_forward_model import PCSForwardEngine
+from logic.pcs_prediction_model import (
+    get_prediction_model,
+    prediction_uses_rhombic_term,
+)
+from ui.document_integrations import active_document_title
+
+
+_PCS_PROJECTION_ENGINE = PCSForwardEngine()
+_PCS_PROJECTION_CHUNK_SIZE = 8192
 
 
 def open_projection_window(state):
@@ -27,7 +38,7 @@ def open_projection_window(state):
             pass
 
     win = tk.Toplevel(root)
-    win.title("Projection Viewer")
+    win.title(active_document_title(state, "Projection"))
     win.geometry("980x600")
 
     outer = ttk.Frame(win)
@@ -127,7 +138,7 @@ def open_projection_window(state):
 
 def _get_projection_tensor(state):
     """
-    Return axial and rhombic tensor values in units of 1e-32 m^3.
+    Return active-model axial and effective rhombic values in 1e-32 m^3.
     """
     try:
         dchi_ax = float(state["tensor_entry"].get() or 1.0)
@@ -139,6 +150,11 @@ def _get_projection_tensor(state):
     except Exception:
         dchi_rh = 0.0
 
+    if not prediction_uses_rhombic_term(
+        get_prediction_model(state),
+        rhombic_enabled=bool(state.get("rh_calc_enabled", False)),
+    ):
+        dchi_rh = 0.0
     return dchi_ax, dchi_rh
 
 
@@ -175,9 +191,49 @@ def _get_projection_coords(state):
 
 def _pcs_from_grid(gax, grh, dchi_ax, dchi_rh):
     """
-    Compute PCS values on a projection grid.
+    Compute PCS values on a projection grid through the canonical engine.
+
+    The projection owns its established spherical grid geometry; the engine
+    owns tensor enable semantics, units, and PCS numerical evaluation.
     """
-    return (dchi_ax * gax + dchi_rh * grh) * 1e4 / (12.0 * np.pi)
+    gax_values, grh_values = np.broadcast_arrays(
+        np.asarray(gax, dtype=float),
+        np.asarray(grh, dtype=float),
+    )
+    shape = gax_values.shape
+    flat_gax = gax_values.reshape(-1)
+    flat_grh = grh_values.reshape(-1)
+    tensor = PCSTensor(
+        dchi_ax=float(dchi_ax),
+        dchi_rh=float(dchi_rh),
+        rhombic_enabled=True,
+    )
+    values = np.empty(len(flat_gax), dtype=float)
+
+    for start in range(0, len(flat_gax), _PCS_PROJECTION_CHUNK_SIZE):
+        stop = min(start + _PCS_PROJECTION_CHUNK_SIZE, len(flat_gax))
+        atoms = tuple(
+            PCSAtom(ref_id=index - start, position=(0.0, 0.0, 0.0))
+            for index in range(start, stop)
+        )
+        request = PCSPredictionRequest(
+            tensor=tensor,
+            atoms=atoms,
+            request_id="projection-grid",
+        )
+        prediction = _PCS_PROJECTION_ENGINE.predict_with_effective_geometry(
+            request,
+            {
+                index - start: (float(flat_gax[index]), float(flat_grh[index]))
+                for index in range(start, stop)
+            },
+        )
+        values[start:stop] = [
+            item.pcs_ppm for item in prediction.atom_predictions
+        ]
+
+    values = values.reshape(shape)
+    return float(values) if values.ndim == 0 else values
 
 
 def _get_atom_color(label):
@@ -220,12 +276,33 @@ def _draw_projection_plot(state):
         return
 
     fig.clear()
+    win = state.get("projection_popup")
+    try:
+        if win is not None and win.winfo_exists():
+            win.title(active_document_title(state, "Projection"))
+    except Exception:
+        pass
     fonts = state.get("projection_fonts", {}) or state.get("fonts", {}) or {}
     plot_title = fonts.get("plot_title", 10)
     plot_label = fonts.get("plot_label", 9)
     plot_tick = fonts.get("plot_tick", 8)
     plot_legend = fonts.get("plot_legend", 8)
     click_pairs = []
+
+    if not state.get("atom_data"):
+        ax = fig.add_subplot(111)
+        ax.text(
+            0.5,
+            0.5,
+            "No structure loaded.",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+        )
+        ax.set_axis_off()
+        state["projection_click_cid"] = None
+        canvas.draw_idle()
+        return
 
     mode_var = state.get("projection_mode_var")
     r_var = state.get("projection_r_var")

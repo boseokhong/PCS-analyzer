@@ -1,0 +1,13 @@
+assignment,shift_ppm,experiment,role,nucleus,temperature_k,quantity,included
+H1,13.093358460319976,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H2,-9.530769839076479,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H3,-10.50252219297613,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H4,9.181482594338146,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H5,0.7311525022867165,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H6,19.80242873337393,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H7,8.716342437208793,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H8,-0.7137949510936057,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H9,1.1429269566322278,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H10,6.92674212955836,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H11,9.396307817049209,paramagnetic,paramagnetic,1H,300,observed_shift,true
+H12,5.479839190968816,paramagnetic,paramagnetic,1H,300,observed_shift,true

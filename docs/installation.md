@@ -1,166 +1,87 @@
 # Installation
 
-PCS Analyzer can be used either as a **portable Windows application** or directly from the Python source code.
-
-As of **v1.3.4**, the prebuilt portable distribution is provided for Windows only. Support for macOS and Linux may be added in future releases if needed.
-
----
+PCS Analyzer is distributed as a **portable Windows application** and can also be run from the Python source code. The prebuilt release is Windows-only; source operation on other platforms depends on the local Python, Tk, Qt, and VTK environment and is not verified by the portable-release workflow.
 
 ## Windows portable version
 
-The portable distribution does not require a separate Python installation.
+The portable distribution includes its Python runtime and does not require a separate Python installation.
 
-1. Download the latest Windows release of PCS Analyzer.
-2. Extract the downloaded archive to a folder of your choice.
-3. Run the PCS Analyzer executable.
-4. Keep the distributed files and folders together unless otherwise specified.
+1. Download the latest Windows release from the [PCS Analyzer releases page](https://github.com/boseokhong/PCS-analyzer/releases).
+2. Extract the complete archive to a writable folder.
+3. Run the PCS Analyzer executable from the extracted folder.
+4. Keep the distributed executable, `lib`, and other bundled folders together.
 
-The latest releases are available from the [PCS Analyzer GitHub repository](https://github.com/boseokhong/PCS-analyzer/releases).
-
----
+Do not run the executable from inside the compressed archive.
 
 ## Running from source
 
-PCS Analyzer can also be run directly from the Python source code, for example on systems where a prebuilt portable distribution is not available.
-
-### Requirements
-
-PCS Analyzer is written in Python and requires several scientific and graphical Python packages.
-
-For **PCS Analyzer v1.3.4**:
-
-!!! note "Python package requirements"
-
-    **Required packages:** `numpy`, `scipy`, `matplotlib`, `pandas`, `openpyxl`
-
-    **Optional / additional packages:** `ttkbootstrap`, `pyvista`, `pyvistaqt`, `vtk`, `qtpy`, `PySide6`, `pyfftw`, `tkinterdnd2`, `imageio`
-
-    - `pyvista` is used for 3D PCS-field and molecular visualization.
-    - `ttkbootstrap` provides enhanced GUI styling.
-    - `pyvistaqt`, `qtpy`, and `PySide6` are required for the interactive Qt-based 3D structure viewer.
-    - `pyfftw` is optional. If it is not installed, PCS Analyzer falls back to `numpy.fft`.
-    - `tkinterdnd2` provides drag-and-drop support.
-    - `imageio` is required for GIF export using PyVista's `Plotter.open_gif()`.
-
-It is recommended to install the dependencies in a dedicated Python environment.
-
-### Clone the repository
+Python with Tkinter is required.
 
 ```bash
 git clone https://github.com/boseokhong/PCS-analyzer.git
 cd PCS-analyzer
-```
-
-Alternatively, download the source code archive from GitHub and extract it locally.
-
-### Install dependencies
-
-If a requirements file is provided with the release:
-
-```bash
 python -m pip install -r requirements.txt
-```
-
-### Start PCS Analyzer
-
-From the project directory:
-
-```bash
 python main.py
 ```
 
-The main PCS Analyzer interface should then open.
+The dependency roles are:
 
----
+| Role | Packages | Requirement level |
+|---|---|---|
+| Core calculations and interface | `numpy`, `scipy`, `matplotlib`, `pandas`, and Python Tkinter | Required for the main application and scientific workflows. |
+| Excel import/export | `openpyxl` | Required for `.xlsx` input and output; CSV workflows do not use it. |
+| NMR vendor data and automatic phasing | `nmrglue` | Required for Bruker and Varian/Agilent data import, Bruker digital-filter correction, and NMR Workbench Auto Phase. |
+| NMR baseline correction | `pybaselines` | Required for NMR Workbench Whittaker baseline methods, including AsLS and arPLS (Auto Baseline). |
+| PyVista visualization | `pyvista`, `vtk` | Required by the PyVista-based 3D PCS and Workbench viewers. |
+| Qt-backed structure viewer | `pyvistaqt`, `qtpy`, `PySide6` | Required when opening the interactive PyVista Qt structure viewer. |
+| Chemical Map layout and cleanup | `rdkit` | Optional at runtime. Enables CoordGen and RDKit 2D layouts and chemical structure cleanup; Graph 2D remains available without it. |
+| Drag and drop | `tkinterdnd2` | Enables drag-and-drop; the application falls back to ordinary Tk when it is unavailable. |
+| GIF output | `imageio` | Used by PyVista GIF export. |
+| Alternate theme engine | `ttkbootstrap` | Present in the full dependency set, but the current default UI uses standard ttk styling. |
+| FFT acceleration | `pyfftw` | Optional at runtime. PCS Workbench falls back to `numpy.fft` when it is unavailable. |
+| Module version and compatibility checks | `packaging` | Required for application/plugin version comparison and compatibility checks in the Module Manager. |
+
+`requirements.txt` also installs the optional packages `pyfftw` and `rdkit`. Their runtime requirements and fallback behavior are listed above.
 
 ## Structure-file support
 
-PCS Analyzer can directly load molecular structures from:
+The main structure loader accepts:
 
-| Format | Description |
+| Format | Behavior |
 |---|---|
-| `.xyz` | Standard or headerless XYZ coordinate files |
-| `.out` | ORCA output files |
-| `.log` | ORCA output/log files |
+| `.xyz` | Reads standard XYZ, headerless coordinate lists, and several common indexed/atomic-number variants. |
+| `.out` | Reads the last Cartesian coordinate block from an ORCA output file. |
+| `.log` | Uses the same ORCA coordinate-block parser as `.out`. |
 
-For ORCA output files, PCS Analyzer uses the **last Cartesian coordinate block** found in the file.
-
-Coordinates given by ORCA in Bohr are automatically converted to Ångström.
-
----
+ORCA coordinates in Bohr are converted to Ångström. See [Loading Structures](structures/loading.md) for the accepted layouts and parsing details.
 
 ## Updating PCS Analyzer
 
-For the portable Windows distribution, it is recommended to extract each new PCS Analyzer release into a **separate folder** rather than overwriting the existing installation.
+### Portable Windows release
 
-Before removing the previous version, back up any user-specific configuration and plugin data that should be retained.
-
-### Recommended files to preserve
-
-PCS Analyzer stores application settings in:
+Extract a new release into a separate folder instead of overwriting the current installation. Before removing the old folder, preserve:
 
 ```text
 lib/app_settings.json
-```
-
-To preserve your current application configuration, copy this file from the previous installation to the corresponding location in the new release.
-
-It is also recommended to back up the entire:
-
-```text
 plugins/
 ```
 
-folder.
+Copy those items into the corresponding locations in the new release, start it, and verify settings and plugins before deleting the previous folder.
 
-This preserves installed external plugins together with their registry information and enabled/disabled state.
+!!! info "Update checking is not automatic installation"
 
-Existing settings and plugin data are expected to remain compatible between releases unless otherwise noted. If a release introduces incompatible changes, the corresponding release notes will provide the necessary migration or reset instructions.
+    **Help → Check for Updates...** compares the installed version with the latest GitHub release and can open the release page. PCS Analyzer does not download, replace, or restart the application automatically.
 
-!!! caution "Keep the previous installation temporarily"
+### Source checkout
 
-    Do not delete the previous PCS Analyzer folder immediately.
-
-    Start the new release first, verify that the application settings and plugins have been restored correctly, and only then remove the older installation if desired.
-
-A typical portable update workflow is therefore:
-
-```text
-Download new release
-        ↓
-Extract to a new folder
-        ↓
-Copy lib/app_settings.json
-        ↓
-Copy the plugins/ folder
-        ↓
-Start PCS Analyzer
-        ↓
-Verify settings and plugins
-        ↓
-Remove old version if desired
-```
-
-!!! info "Automatic updates"
-
-    Automatic updates from within PCS Analyzer are planned for a future release.
-	
-For source installations, update the local repository using Git:
-
-```bash
-git pull
-```
-
-Dependency changes between versions may require updating the Python environment:
+Update the checkout using the Git workflow appropriate for that local repository, then refresh its environment if the requirements changed:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
----
-
 ## Next step
 
-Once PCS Analyzer is installed and running, continue with the [Quick Start](quick-start.md) guide.
+Once PCS Analyzer is running, continue with [Quick Start](quick-start.md).
 
 [Quick Start](quick-start.md){ .md-button .md-button--primary }

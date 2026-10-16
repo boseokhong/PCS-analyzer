@@ -2,9 +2,42 @@
 # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import numpy as np
+from typing import Mapping
 from scipy.optimize import least_squares, differential_evolution
+from logic.pcs_forward_api import AngleUnit, EulerConvention
+from logic.pcs_fitting_adapter import (
+    predict_pcs_from_factors,
+    predict_structured_pcs_from_factors,
+)
+from logic.pcs_orientation import matrix_to_euler, orientation_matrix
+from logic.pcs_fit_result_schema import annotate_standard_fit_result
+from logic.pcs_fit_fingerprint import (
+    fingerprint_fit_input_snapshot,
+    fit_input_reconstruction_config,
+)
+from logic.pcs_fit_snapshot import (
+    FitGeometrySnapshot,
+    FitObservation,
+    FitOptimizerSnapshot,
+    FitTensorSnapshot,
+    StandardFitInputSnapshot,
+    snapshot_torsion_group,
+)
+from logic.pcs_tensor_state import ApplicationPCSTensor, PCS_TENSOR_STATE_KEY
+from logic.pcs_fit_weighting import FitWeightingMode, parse_fit_weighting_mode
+from logic.pcs_structured_observations import (
+    OBSERVATIONS_KEY,
+    canonical_provenance_json,
+    finite_pcs,
+    structure_target_from_payload,
+)
 from logic.rotate_align import rotate_euler
 from logic.symmetry_geometry import effective_geometry_factors
+from logic.visibility import visible_ref_id_set
+
+
+_UNSET = object()
+
 
 def _raw_structure_arrays(state):
     """Return raw Ref IDs and absolute raw coordinates."""
@@ -14,7 +47,9 @@ def _raw_structure_arrays(state):
     return list(raw_ids), raw_coords
 
 
-def _effective_obs_factors(state, obs_ids, obs_coords, metal, raw_ids, raw_transformed):
+def _effective_obs_factors(
+    geometry, obs_ids, obs_coords, metal, raw_ids, raw_transformed
+):
     """Geometry factors for observations, with member averaging for pseudo atoms."""
     raw_map = {
         rid: np.asarray(coord, dtype=float)
@@ -24,15 +59,82 @@ def _effective_obs_factors(state, obs_ids, obs_coords, metal, raw_ids, raw_trans
         obs_ids,
         obs_coords,
         metal,
-        pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
+        pseudo_members=geometry.pseudo_member_mapping(),
         raw_coords_by_id=raw_map,
-        torsion_groups=(state.get("torsion_avg_groups", []) or [])
-        if bool(getattr(state.get("torsion_avg_enabled_var"), "get", lambda: False)()) else [],
+        torsion_groups=geometry.active_torsion_mappings(),
     )
 
 
 def _pcs_from_effective_factors(Gax, Grh, dchi_ax, dchi_rh=0.0):
-    return ((float(dchi_ax) * np.asarray(Gax) + float(dchi_rh) * np.asarray(Grh)) * 1e4) / (12.0 * np.pi)
+    return predict_pcs_from_factors(Gax, Grh, dchi_ax, dchi_rh)
+
+
+def _legacy_fit_tensor_guesses(state):
+    """Return the established fitting guesses without consulting canonical state."""
+    tensor_entry = state.get('tensor_entry')
+    dchi_ax = float(
+        (tensor_entry.get() if tensor_entry else None)
+        or state.get('tensor', 1.0)
+        or 1.0
+    )
+    dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
+    return dchi_ax, dchi_rh
+
+
+def standard_fit_initial_values(
+    state,
+    *,
+    mode,
+    use_current_tensor=False,
+    legacy_values=None,
+    canonical_tensor=_UNSET,
+):
+    """Return ``(xyz_degrees, dchi_ax, dchi_rh)`` for a standard fit.
+
+    With the opt-in disabled this exactly preserves the established zero-angle
+    and legacy tensor guesses. The opt-in is intentionally supported only by
+    the matrix-parameterized Euler and Full tensor fit modes. Canonical Euler
+    coordinates are never copied: their physical rotation matrix is
+    deterministically decomposed into the fitter's active extrinsic XYZ
+    convention.
+
+    Mode B retains its established rhombic guess. Mode C uses the canonical
+    rhombic value only when rhombicity is enabled; otherwise it also retains
+    the legacy/default guess. This helper reads but never replaces or updates
+    canonical tensor state.
+    """
+    if legacy_values is None:
+        legacy_ax, legacy_rh = _legacy_fit_tensor_guesses(state)
+    else:
+        legacy_ax, legacy_rh = (float(value) for value in legacy_values)
+    legacy = ((0.0, 0.0, 0.0), legacy_ax, legacy_rh)
+    if not use_current_tensor:
+        return legacy
+    if mode not in ('euler_global', 'full_tensor'):
+        return legacy
+
+    canonical = (
+        state.get(PCS_TENSOR_STATE_KEY)
+        if canonical_tensor is _UNSET
+        else canonical_tensor
+    )
+    if not isinstance(canonical, ApplicationPCSTensor):
+        raise RuntimeError("Canonical PCS tensor state is not available.")
+
+    matrix = orientation_matrix(
+        canonical.euler_angles,
+        canonical.frame_convention,
+        canonical.angle_unit,
+    )
+    xyz_degrees = matrix_to_euler(
+        matrix,
+        EulerConvention.EXTRINSIC_XYZ,
+        AngleUnit.DEGREE,
+    )
+    dchi_rh = legacy_rh
+    if mode == 'full_tensor' and canonical.rhombic_enabled:
+        dchi_rh = canonical.delta_chi_rh
+    return xyz_degrees, canonical.delta_chi_ax, dchi_rh
 
 def compute_quality_metrics(per_point):
     """
@@ -209,8 +311,7 @@ def geom_factor_and_pcs(coords, metal, delta_chi_ax):
     theta = np.arccos(cos_th)
 
     Gi = (3*np.cos(theta)**2 - 1) / np.where(r==0, np.inf, r**3)
-    K = 1e4 * float(delta_chi_ax) / (12*np.pi)
-    dpcs = K * Gi
+    dpcs = predict_pcs_from_factors(Gi, np.zeros_like(Gi), delta_chi_ax)
     return r, theta, Gi, dpcs
 
 # ---------- PCS calc (ax + rh) ----------
@@ -236,13 +337,17 @@ def geom_factors_ax_rh(coords, metal):
 
 def pcs_ax_rh_from_G(Gax, Grh, dchi_ax, dchi_rh):
     """axial + rhombic PCS (ppm)"""
-    return ((float(dchi_ax) * Gax + float(dchi_rh) * Grh) * 1e4) / (12.0 * np.pi)
+    return predict_pcs_from_factors(Gax, Grh, dchi_ax, dchi_rh)
 
 # ---------- Differential evolution (DE function helper) ----------
 def _make_de_bounds_finite(lb, ub, x0=None, default_span=50.0):
     """
     Convert possibly infinite bounds into finite bounds for differential_evolution.
     least_squares can handle inf bounds, but DE cannot.
+
+    A dimension unbounded on both sides uses ``x0 +/- default_span``. Thus an
+    opt-in current-tensor guess moves the center of that temporary DE interval
+    without changing its width or this fallback rule.
     """
     if x0 is None:
         x0 = [0.0] * len(lb)
@@ -269,14 +374,22 @@ def _make_de_bounds_finite(lb, ub, x0=None, default_span=50.0):
 
 def _run_two_stage_fit(residual_func, x0, lb, ub,
                        use_global_search=False,
-                       progress_cb=None):
+                       progress_cb=None,
+                       effective_de_bounds=None,
+                       de_seed=42,
+                       de_polish=False):
     """
     Optional global search (DE) followed by local least-squares refinement.
     DE requires finite bounds, so infinite bounds are converted temporarily.
     """
     if use_global_search:
-        lb_de, ub_de = _make_de_bounds_finite(lb, ub, x0=x0, default_span=50.0)
-        bounds_de = list(zip(lb_de, ub_de))
+        if effective_de_bounds is None:
+            lb_de, ub_de = _make_de_bounds_finite(
+                lb, ub, x0=x0, default_span=50.0
+            )
+            bounds_de = list(zip(lb_de, ub_de))
+        else:
+            bounds_de = [tuple(bound) for bound in effective_de_bounds]
 
         if progress_cb:
             progress_cb("Running global search (DE)...")
@@ -288,8 +401,8 @@ def _run_two_stage_fit(residual_func, x0, lb, ub,
         de_res = differential_evolution(
             objective,
             bounds=bounds_de,
-            polish=False,
-            seed=42,
+            polish=de_polish,
+            seed=de_seed,
         )
         x_start = np.array(de_res.x, float)
     else:
@@ -305,343 +418,611 @@ def _run_two_stage_fit(residual_func, x0, lb, ub,
 
     return res
 
+
+def _read_state_value(value, default):
+    if value is None:
+        return default
+    try:
+        value = value.get()
+    except AttributeError:
+        pass
+    return default if value is None else value
+
+
+def _fit_observations(
+    state, *, proton_ids, observation_ids, available_ref_ids, visible_ref_ids=None
+):
+    """Normalize structured or legacy inputs into one observable-level model."""
+    records = state.get(OBSERVATIONS_KEY, ()) or ()
+    if records:
+        if not isinstance(records, (list, tuple)):
+            raise ValueError("structured PCS observations must be a sequence")
+        by_id = {}
+        for index, record in enumerate(records):
+            if not isinstance(record, Mapping):
+                raise ValueError(f"structured PCS observation {index} is malformed")
+            observable_id = str(record.get("id", "")).strip()
+            if not observable_id:
+                raise ValueError(f"structured PCS observation {index} has no stable id")
+            if observable_id in by_id:
+                raise ValueError(f"duplicate structured PCS observation id {observable_id!r}")
+            by_id[observable_id] = record
+        if observation_ids is None:
+            selected = list(by_id.items())
+        else:
+            selected = []
+            seen_selected = set()
+            for value in observation_ids:
+                key = str(value)
+                if key in seen_selected:
+                    raise ValueError(f"duplicate selected PCS observation id {key!r}")
+                if key not in by_id:
+                    raise ValueError(f"structured PCS observation {key!r} is unavailable")
+                selected.append((key, by_id[key]))
+                seen_selected.add(key)
+        observations = []
+        available = set(available_ref_ids)
+        visible = None if visible_ref_ids is None else set(visible_ref_ids)
+        explicit_selection = observation_ids is not None
+        for observable_id, record in selected:
+            pcs = finite_pcs(record.get("pcs_ppm"))
+            assignment = str(record.get("assignment", "") or "")
+            uncertainty = record.get("uncertainty_ppm")
+            target = structure_target_from_payload(
+                record.get("target"),
+                assignment=assignment,
+                target_id=observable_id,
+                experimental_pcs_ppm=pcs,
+                uncertainty_ppm=None if uncertainty is None else float(uncertainty),
+            )
+            missing = sorted(set(target.member_ref_ids) - available)
+            if missing:
+                raise ValueError(
+                    f"structured PCS observation {observable_id!r} is missing structure Ref "
+                    + ", ".join(map(str, missing))
+                )
+            if visible is not None and not set(target.member_ref_ids).issubset(visible):
+                if explicit_selection:
+                    raise ValueError(
+                        f"structured PCS observation {observable_id!r} is hidden by the current visibility filter"
+                    )
+                continue
+            primary = record.get("target", {}).get("primary_ref_id")
+            if primary is None:
+                primary_ref = target.member_ref_ids[0]
+            else:
+                try:
+                    primary_ref = int(primary)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"structured PCS observation {observable_id!r} has an invalid primary Ref"
+                    ) from exc
+                if primary_ref not in target.member_ref_ids:
+                    raise ValueError(
+                        f"structured PCS observation {observable_id!r} primary Ref is not a target member"
+                    )
+            observations.append(FitObservation(
+                ref_id=primary_ref,
+                pcs=pcs,
+                observable_id=observable_id,
+                assignment=assignment,
+                target=target,
+                source="structured_v1",
+                source_dataset_ids=tuple(record.get("source_dataset_ids", ()) or ()),
+                source_observable_ids=tuple(record.get("source_observable_ids", ()) or ()),
+                provenance_json=canonical_provenance_json(record.get("provenance", {})),
+                uncertainty_ppm=target.uncertainty_ppm,
+            ))
+        if not observations:
+            raise RuntimeError("No structured PCS observations selected for fitting.")
+        return tuple(observations)
+
+    delta_exp_values = state.get("delta_exp_values", {}) or {}
+    visible = None if visible_ref_ids is None else set(int(value) for value in visible_ref_ids)
+    observations = tuple(
+        FitObservation(int(ref_id), float(delta_exp_values[ref_id]))
+        for ref_id in proton_ids
+        if ref_id in delta_exp_values
+        and int(ref_id) in available_ref_ids
+        and (visible is None or int(ref_id) in visible)
+    )
+    if not observations:
+        raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
+    return observations
+
+
+def _predict_snapshot_observations(
+    snapshot, effective_rotated, raw_rotated, metal, dchi_ax, dchi_rh
+):
+    """Predict one value per snapshot observation at current fit geometry."""
+    effective_map = {
+        ref_id: np.asarray(coord, dtype=float)
+        for ref_id, coord in zip(snapshot.geometry.effective_ref_ids, effective_rotated)
+    }
+    raw_map = {
+        ref_id: np.asarray(coord, dtype=float)
+        for ref_id, coord in zip(snapshot.geometry.raw_ref_ids, raw_rotated)
+    }
+    member_ids = tuple(dict.fromkeys(
+        ref_id
+        for observation in snapshot.observations
+        for ref_id in observation.target.member_ref_ids
+    ))
+    positions = []
+    for ref_id in member_ids:
+        coordinate = effective_map.get(ref_id)
+        if coordinate is None:
+            coordinate = raw_map.get(ref_id)
+        if coordinate is None:
+            raise ValueError(f"fit target is missing structure Ref {ref_id}")
+        positions.append(coordinate)
+    _, _, _, g_ax, g_rh = _effective_obs_factors(
+        snapshot.geometry,
+        member_ids,
+        np.asarray(positions, dtype=float),
+        np.asarray(metal, dtype=float),
+        snapshot.geometry.raw_ref_ids,
+        raw_rotated,
+    )
+    return predict_structured_pcs_from_factors(
+        member_ids,
+        g_ax,
+        g_rh,
+        dchi_ax,
+        dchi_rh,
+        tuple(observation.target for observation in snapshot.observations),
+    )
+
+
+def _fit_result_rows(snapshot, predicted):
+    observed = np.asarray([item.pcs for item in snapshot.observations], dtype=float)
+    residual = np.asarray(predicted, dtype=float) - observed
+    per_point = [
+        (item.ref_id, float(exp), float(pred), float(resid))
+        for item, exp, pred, resid in zip(snapshot.observations, observed, predicted, residual)
+    ]
+    per_observable = []
+    for item, exp, pred, resid in zip(snapshot.observations, observed, predicted, residual):
+        target = item.target
+        per_observable.append({
+            "observable_id": item.observable_id,
+            "assignment": item.assignment,
+            "primary_ref_id": item.ref_id,
+            "source": item.source,
+            "source_dataset_ids": list(item.source_dataset_ids),
+            "source_observable_ids": list(item.source_observable_ids),
+            "target_id": target.target_id,
+            "scope": target.metadata.get("scope"),
+            "site_member_ref_ids": [list(group) for group in target.site_member_ref_ids],
+            "site_ids": list(target.metadata.get("site_ids", ())),
+            "averaging_hint": target.metadata.get("averaging_hint"),
+            "matching_status": target.metadata.get("matching_status"),
+            "observed": float(exp),
+            "predicted": float(pred),
+            "residual": float(resid),
+            "uncertainty_ppm": item.uncertainty_ppm,
+            "weighted_residual": (
+                float(resid) / float(item.uncertainty_ppm)
+                if snapshot.weighting_mode
+                == FitWeightingMode.EXPERIMENTAL_UNCERTAINTY.value
+                else None
+            ),
+        })
+    return observed, residual, per_point, per_observable
+
+
+def _optimizer_residuals(snapshot, raw_residual):
+    raw = np.asarray(raw_residual, dtype=float)
+    if snapshot.weighting_mode == FitWeightingMode.UNWEIGHTED.value:
+        return raw
+    sigma = np.asarray(
+        [item.uncertainty_ppm for item in snapshot.observations], dtype=float
+    )
+    return raw / sigma
+
+
+def _weighted_quality_metrics(snapshot, raw_residual):
+    if snapshot.weighting_mode == FitWeightingMode.UNWEIGHTED.value:
+        return {}
+    weighted = _optimizer_residuals(snapshot, raw_residual)
+    chi_square = float(np.sum(weighted ** 2))
+    return {
+        "chi_square": chi_square,
+        "chi_square_per_datum": float(chi_square / len(weighted)),
+    }
+
+
+def build_standard_fit_input_snapshot(
+    state,
+    *,
+    mode,
+    proton_ids=(),
+    observation_ids=None,
+    donor_ids=(),
+    axis_mode=None,
+    fit_delta_chi=False,
+    fit_delta_chi_rh=False,
+    use_global_search=False,
+    use_current_tensor=False,
+    weighting_mode=FitWeightingMode.UNWEIGHTED.value,
+):
+    """Freeze every scientific input consumed by one standard fit run."""
+    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
+    ids = (
+        state.get("atom_ids_eff")
+        or state.get("atom_ids")
+        or state.get("atom_ids_raw")
+        or []
+    )
+    if not atom_data or not ids:
+        raise RuntimeError("No atom data")
+    effective_ids = tuple(int(ref_id) for ref_id in ids)
+    effective_coordinates = tuple(
+        (float(atom[1]), float(atom[2]), float(atom[3]))
+        for atom in atom_data
+    )
+    id2coord = dict(zip(effective_ids, effective_coordinates))
+
+    raw_ids_list, raw_coordinates_array = _raw_structure_arrays(state)
+    raw_ids = tuple(int(ref_id) for ref_id in raw_ids_list)
+    raw_coordinates = tuple(
+        tuple(float(value) for value in row)
+        for row in raw_coordinates_array
+    )
+    effective_visible_ids = visible_ref_id_set(
+        state, atom_data=atom_data, ref_ids=ids
+    )
+    raw_atom_data = state.get("atom_data_raw") or state.get("atom_data") or []
+    raw_visible_ids = visible_ref_id_set(
+        state, atom_data=raw_atom_data, ref_ids=raw_ids_list
+    )
+    fit_visible_ids = set(effective_visible_ids) | set(raw_visible_ids)
+    observations = _fit_observations(
+        state,
+        proton_ids=proton_ids,
+        observation_ids=observation_ids,
+        available_ref_ids=set(effective_ids) | set(raw_ids),
+        visible_ref_ids=fit_visible_ids,
+    )
+    normalized_weighting = parse_fit_weighting_mode(weighting_mode)
+    if normalized_weighting is FitWeightingMode.EXPERIMENTAL_UNCERTAINTY:
+        invalid = [
+            item.observable_id
+            for item in observations
+            if item.uncertainty_ppm is None
+            or not np.isfinite(item.uncertainty_ppm)
+            or item.uncertainty_ppm <= 0.0
+        ]
+        if invalid:
+            preview = ", ".join(invalid[:5])
+            suffix = "" if len(invalid) <= 5 else f" (+{len(invalid) - 5} more)"
+            raise ValueError(
+                "Experimental-uncertainty weighting requires finite positive "
+                f"uncertainty_ppm for every observation; invalid {len(invalid)}: "
+                f"{preview}{suffix}"
+            )
+    if mode == "full_tensor" and len(observations) < 3:
+        raise RuntimeError("Need at least 3 PCS observations.")
+    metal = (
+        float(state["x0"]),
+        float(state["y0"]),
+        float(state["z0"]),
+    )
+    pseudo_members = tuple(
+        sorted(
+            (
+                int(ref_id),
+                tuple(int(member) for member in members),
+            )
+            for ref_id, members in (
+                state.get("symavg_members_by_pseudo_id", {}) or {}
+            ).items()
+        )
+    )
+    torsion_enabled = bool(
+        _read_state_value(state.get("torsion_avg_enabled_var"), False)
+    )
+    torsion_groups = tuple(
+        snapshot_torsion_group(group)
+        for group in (state.get("torsion_avg_groups", []) or [])
+    )
+    geometry = FitGeometrySnapshot(
+        effective_ref_ids=effective_ids,
+        effective_coordinates=effective_coordinates,
+        raw_ref_ids=raw_ids,
+        raw_coordinates=raw_coordinates,
+        metal_position=metal,
+        pseudo_members=pseudo_members,
+        torsion_enabled=torsion_enabled,
+        torsion_groups=torsion_groups,
+    )
+
+    legacy_ax, legacy_rh = _legacy_fit_tensor_guesses(state)
+    canonical_tensor = state.get(PCS_TENSOR_STATE_KEY)
+    donor_ids_tuple = tuple(int(ref_id) for ref_id in donor_ids)
+    donor_coordinates = tuple(
+        id2coord[ref_id] for ref_id in donor_ids_tuple if ref_id in id2coord
+    )
+    if mode == "theta_alpha_multi":
+        if not donor_coordinates:
+            raise RuntimeError("No valid donor ids for current atom set.")
+        xyz0 = (0.0, 0.0, 0.0)
+        dchi_ax0, dchi_rh0 = legacy_ax, legacy_rh
+        angle_z = float(_read_state_value(state.get("angle_z_var"), 0.0))
+    elif mode in {"euler_global", "full_tensor"}:
+        xyz0, dchi_ax0, dchi_rh0 = standard_fit_initial_values(
+            state,
+            mode=mode,
+            use_current_tensor=use_current_tensor,
+            legacy_values=(legacy_ax, legacy_rh),
+            canonical_tensor=canonical_tensor,
+        )
+        angle_z = 0.0
+    else:
+        raise ValueError(f"Unknown fitting mode: {mode}")
+
+    ax0, ay0, az0 = (float(value) for value in xyz0)
+    if mode == "theta_alpha_multi":
+        base_x0 = [0.0, 0.0]
+        base_lb = [-180.0, -180.0]
+        base_ub = [180.0, 180.0]
+        free_parameters = ["theta", "alpha"]
+    elif mode == "euler_global":
+        base_x0 = [ax0, ay0, az0]
+        base_lb = [-180.0, -180.0, -180.0]
+        base_ub = [180.0, 180.0, 180.0]
+        free_parameters = ["ax", "ay", "az"]
+    else:
+        mx0, my0, mz0 = metal
+        pos_window = 1.0
+        base_x0 = [ax0, ay0, az0, mx0, my0, mz0]
+        base_lb = [
+            -180.0, -180.0, -180.0,
+            mx0 - pos_window, my0 - pos_window, mz0 - pos_window,
+        ]
+        base_ub = [
+            180.0, 180.0, 180.0,
+            mx0 + pos_window, my0 + pos_window, mz0 + pos_window,
+        ]
+        free_parameters = [
+            "ax", "ay", "az", "metal_x", "metal_y", "metal_z",
+        ]
+
+    if fit_delta_chi:
+        base_x0.append(float(dchi_ax0))
+        base_lb.append(-np.inf)
+        base_ub.append(np.inf)
+        free_parameters.append("delta_chi_ax")
+    if fit_delta_chi_rh:
+        base_x0.append(float(dchi_rh0))
+        base_lb.append(-np.inf)
+        base_ub.append(np.inf)
+        free_parameters.append("delta_chi_rh")
+
+    de_bounds = None
+    if use_global_search:
+        de_lb, de_ub = _make_de_bounds_finite(
+            base_lb, base_ub, x0=base_x0, default_span=50.0
+        )
+        de_bounds = tuple(zip(de_lb, de_ub))
+    optimizer = FitOptimizerSnapshot(
+        identity=(
+            "differential_evolution_then_least_squares"
+            if use_global_search else "least_squares"
+        ),
+        use_global_search=bool(use_global_search),
+        local_optimizer="least_squares",
+        de_seed=42 if use_global_search else None,
+        de_polish=False if use_global_search else None,
+        de_default_span=50.0 if use_global_search else None,
+        effective_de_bounds=de_bounds,
+    )
+    return StandardFitInputSnapshot(
+        mode=mode,
+        observations=observations,
+        geometry=geometry,
+        donor_ids=donor_ids_tuple,
+        donor_coordinates=donor_coordinates,
+        axis_mode=str(axis_mode or "bisector") if mode == "theta_alpha_multi" else None,
+        mode_a_angle_z=angle_z,
+        use_current_tensor=bool(use_current_tensor),
+        tensor=FitTensorSnapshot(
+            fit_delta_chi_ax=bool(fit_delta_chi),
+            fit_delta_chi_rh=bool(fit_delta_chi_rh),
+            fixed_delta_chi_ax=float(legacy_ax),
+            fixed_delta_chi_rh=float(legacy_rh),
+        ),
+        free_parameters=tuple(free_parameters),
+        x0=tuple(float(value) for value in base_x0),
+        lower_bounds=tuple(float(value) for value in base_lb),
+        upper_bounds=tuple(float(value) for value in base_ub),
+        optimizer=optimizer,
+        weighting_mode=normalized_weighting.value,
+    )
+
 # ---------- Mode A: θ, α (multi-donor) ----------
-def fit_theta_alpha_multi(state, donor_ids, proton_ids,
+def fit_theta_alpha_multi(state, donor_ids, proton_ids=(),
                           axis_mode='bisector',
                           fit_visible_as_group=True,
                           fit_delta_chi=False,
                           fit_delta_chi_rh=False,
                           use_global_search=False,
-                          progress_cb=None):
+                          progress_cb=None,
+                          observation_ids=None,
+                          weighting_mode=FitWeightingMode.UNWEIGHTED.value):
     """
     donor_ids: Ref ID 리스트(1..N)
     proton_ids: δ_Exp가 들어있는 Ref ID 목록 (보통 H들)
     axis_mode: 'first' | 'bisector' | 'average' | 'centroid' | 'normal' | 'pca'
     """
-    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
-    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
-    if not atom_data or not ids:
-        raise RuntimeError("No atom data")
     if progress_cb:
         progress_cb("Preparing donor-axis fit...")
+    snapshot = build_standard_fit_input_snapshot(
+        state,
+        mode="theta_alpha_multi",
+        proton_ids=proton_ids,
+        observation_ids=observation_ids,
+        donor_ids=donor_ids,
+        axis_mode=axis_mode,
+        fit_delta_chi=fit_delta_chi,
+        fit_delta_chi_rh=fit_delta_chi_rh,
+        use_global_search=use_global_search,
+        weighting_mode=weighting_mode,
+    )
+    if fit_visible_as_group and callable(state.get("filter_atoms")):
+        state["filter_atoms"](state)
+    ids = snapshot.geometry.effective_ref_ids
+    metal = np.asarray(snapshot.geometry.metal_position, dtype=float)
+    abs_coords = snapshot.geometry.effective_array()
+    raw_ids = snapshot.geometry.raw_ref_ids
+    raw_abs_coords = snapshot.geometry.raw_array()
+    donor_pts = np.asarray(snapshot.donor_coordinates, dtype=float)
+    x0 = snapshot.x0_array()
+    lb = snapshot.lower_bounds
+    ub = snapshot.upper_bounds
 
-    id2idx = {rid: i for i, rid in enumerate(ids)}
-    metal = np.array([state['x0'], state['y0'], state['z0']])
-    abs_coords = np.array([a[1:4] for a in atom_data])
-    raw_ids, raw_abs_coords = _raw_structure_arrays(state)
-    donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
-    if not donor_pts:
-        raise RuntimeError("No valid donor ids for current atom set.")
-
-    # rigid group
-    if fit_visible_as_group:
-        state['filter_atoms'](state)
-        sel_ids = state.get('current_selected_ids', []) or ids
-        group_indices = [id2idx[rid] for rid in sel_ids if rid in id2idx]
-    else:
-        group_indices = list(range(len(atom_data)))
-    # 현재는 group_indices를 직접 쓰지는 않지만, 원하면 points=abs_coords[group_indices]로 바꿔 확장 가능
-    # group_indices is prepared for future rigid-group extensions,
-    # but the current implementation still fits against all selected observation points.
-
-    delta_exp_values = state.get('delta_exp_values', {})
-    obs_pairs = [(rid, delta_exp_values[rid]) for rid in proton_ids if rid in delta_exp_values]
-    if len(obs_pairs) < 3 and not fit_delta_chi:
-        pass  # 경고 없이 진행
-
-    theta0, alpha0 = 0.0, 0.0
-    tensor_entry = state.get('tensor_entry')
-    dchi_ax0 = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-    dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-
-    if fit_delta_chi and fit_delta_chi_rh:
-        x0 = np.array([theta0, alpha0, dchi_ax0, dchi_rh0])
-    elif fit_delta_chi:
-        x0 = np.array([theta0, alpha0, dchi_ax0])
-    elif fit_delta_chi_rh:
-        x0 = np.array([theta0, alpha0, dchi_rh0])  # Δχ_ax는 고정, Δχ_rh만 fit
-    else:
-        x0 = np.array([theta0, alpha0])
-
-    def coords_for_ids(points, ids_subset):
-        idxs = [id2idx[rid] for rid in ids_subset if rid in id2idx]
-        return np.array([points[i] for i in idxs])
-
-    def residuals(x):
-        # --------------------------------------------
-        # 0) UI/상태에서 "고정값"으로 쓸 Δχ 파라미터를 먼저 읽어둔다
-        #    - fit 옵션에 따라 일부는 x에서 오고, 일부는 UI entry/state에서 고정값으로 온다.
-        # --------------------------------------------
-        tensor_entry = state.get('tensor_entry')
-        dchi_ax_fixed = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-        dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)  # Δχ_rh 기본값(고정용, Rh tab 입력)
-
-        # --------------------------------------------
-        # 1) least_squares가 최적화하는 파라미터 벡터 x 해석
-        #    - 체크박스 조합에 따라 x의 길이가 달라진다.
-        #    - (theta, alpha)는 항상 fit 대상
-        #    - dchi_ax / dchi_rh는 체크된 것만 fit, 나머지는 고정값 사용
-        # --------------------------------------------
-        if fit_delta_chi and fit_delta_chi_rh:
-            # 둘 다 fit: x = [theta, alpha, dchi_ax, dchi_rh]
+    def unpack_params(x):
+        dchi_ax = snapshot.tensor.fixed_delta_chi_ax
+        dchi_rh = snapshot.tensor.fixed_delta_chi_rh
+        if snapshot.tensor.fit_delta_chi_ax and snapshot.tensor.fit_delta_chi_rh:
             theta, alpha, dchi_ax, dchi_rh = x
-        elif fit_delta_chi:
-            # Δχ_ax만 fit: x = [theta, alpha, dchi_ax], Δχ_rh는 고정
+        elif snapshot.tensor.fit_delta_chi_ax:
             theta, alpha, dchi_ax = x
-            dchi_rh = dchi_rh_fixed
-        elif fit_delta_chi_rh:
-            # Δχ_rh만 fit: x = [theta, alpha, dchi_rh], Δχ_ax는 고정
+        elif snapshot.tensor.fit_delta_chi_rh:
             theta, alpha, dchi_rh = x
-            dchi_ax = dchi_ax_fixed
         else:
-            # 둘 다 고정: x = [theta, alpha]
             theta, alpha = x
-            dchi_ax = dchi_ax_fixed
-            dchi_rh = dchi_rh_fixed
+        return theta, alpha, dchi_ax, dchi_rh
 
-        # --------------------------------------------
-        # 2) 좌표 회전(Mode A: multi-donor axis)
-        #    - donor들로부터 축(v)을 만들고,
-        #    - 그 축이 z축과 이루는 각을 theta로 맞추도록 회전,
-        #    - 이후 새 축(v')을 기준으로 alpha 회전 (리간드 axial twist)
-        #    => 이 단계까지는 "z축(주축)" 방향을 정렬하는 작업에 해당
-        # --------------------------------------------
+    def rotated_geometry(theta, alpha):
         rot_all = _angles_to_rotation_multi(
             points=abs_coords,
             metal=metal,
             donor_points=donor_pts,
             theta_deg=theta, alpha_deg=alpha,
-            axis_mode=axis_mode
+            axis_mode=snapshot.axis_mode,
         )
         raw_rot_all = _angles_to_rotation_multi(
             points=raw_abs_coords,
             metal=metal,
             donor_points=donor_pts,
             theta_deg=theta, alpha_deg=alpha,
-            axis_mode=axis_mode
+            axis_mode=snapshot.axis_mode,
         ) if len(raw_abs_coords) else raw_abs_coords
-
-        # --------------------------------------------
-        # 3) φ(azimuth) 기준 고정: z축 주위 회전(az) 추가 적용
-        #    왜 필요한가?
-        #    - axial PCS(Δχ_ax)는 θ만 보므로, z축이 맞으면 충분하다. (φ에 무관)
-        #    - rhombic PCS(Δχ_rh)는 cos(2φ) 항을 포함한다. 즉 φ가 바뀌면 예측값이 변한다.
-        #
-        #    그런데 φ는 "z축을 기준으로 xy평면에서의 각도"라서,
-        #    같은 z축 정렬 상태에서도 xy축이 어디를 향하느냐(= z축 주위 회전)에 따라
-        #    φ가 통째로 이동(φ -> φ + const)한다.
-        #
-        #    => Δχ_rh을 의미 있게 fit하려면,
-        #       'φ=0의 기준(=x축 방향)'을 어떤 방식으로든 "고정"해야 한다.
-        #
-        #    여기서는:
-        #    - Rhombicity 탭에서 사용자가 조절하는 angle_z_var(az)를
-        #      fitting에서도 동일하게 적용해서,
-        #      "사용자가 정의한 tensor frame의 xy기준"과
-        #      "fitting이 사용하는 φ 기준"을 일치시키는 전략을 택한다.
-        # --------------------------------------------
-        try:
-            az = float(state.get('angle_z_var', 0.0).get())  # Rhombicity 탭의 z-rotation 슬라이더 값
-        except Exception:
-            az = 0.0
-
+        az = snapshot.mode_a_angle_z
         if abs(az) > 1e-12:
-            # rotate_euler는 원점 기준 회전이므로, metal을 원점으로 이동했다가 회전 후 복귀
             coords0 = rot_all - metal
-
-            # z축(=tensor 주축) 주위로 az 만큼 회전
-            # -> z축은 유지되지만, xy 기준이 회전하면서 φ 기준이 함께 이동한다.
             rot0 = rotate_euler(coords0, 0.0, 0.0, az)
-
-            # 다시 metal 기준 절대좌표로 복귀
             rot_all = rot0 + metal
             if len(raw_rot_all):
                 raw0 = raw_rot_all - metal
                 raw_rot_all = rotate_euler(raw0, 0.0, 0.0, az) + metal
+        return rot_all, raw_rot_all
 
-        valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
-        if not valid_obs_pairs:
-            raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
+    delta_exp = np.array([item.pcs for item in snapshot.observations], dtype=float)
 
-        obs_ids = [rid for rid, _ in valid_obs_pairs]
-        pts_obs = coords_for_ids(rot_all, obs_ids)
-        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-
-        _, _, _, Gax, Grh = _effective_obs_factors(
-            state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    def residuals(x):
+        theta, alpha, dchi_ax, dchi_rh = unpack_params(x)
+        rot_all, raw_rot_all = rotated_geometry(theta, alpha)
+        dpcs = _predict_snapshot_observations(
+            snapshot, rot_all, raw_rot_all, metal,
+            dchi_ax,
+            dchi_rh if (snapshot.tensor.fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0,
         )
-        dpcs = _pcs_from_effective_factors(
-            Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
-        )
+        return _optimizer_residuals(snapshot, dpcs - delta_exp)
 
-        # --------------------------------------------
-        # 6) residual = (예측 PCS) - (실험 δ_Exp)
-        #    least_squares는 residual 벡터의 제곱합을 최소화한다.
-        # --------------------------------------------
-        return dpcs - delta_exp
-
-    if fit_delta_chi and fit_delta_chi_rh:
-        # x = [theta, alpha, dchi_ax, dchi_rh]
-        lb = [-180, -180, -np.inf, -np.inf]
-        ub = [180, 180, np.inf, np.inf]
-    elif fit_delta_chi:
-        # x = [theta, alpha, dchi_ax]
-        lb = [-180, -180, -np.inf]
-        ub = [180, 180, np.inf]
-    elif fit_delta_chi_rh:
-        # x = [theta, alpha, dchi_rh]  (Δχ_ax는 고정)
-        lb = [-180, -180, -np.inf]
-        ub = [180, 180, np.inf]
-    else:
-        # x = [theta, alpha]
-        lb = [-180, -180]
-        ub = [180, 180]
     res = _run_two_stage_fit(
         residuals, x0, lb, ub,
-        use_global_search=use_global_search,
+        use_global_search=snapshot.optimizer.use_global_search,
         progress_cb=progress_cb,
+        effective_de_bounds=snapshot.optimizer.effective_de_bounds,
+        de_seed=snapshot.optimizer.de_seed,
+        de_polish=snapshot.optimizer.de_polish,
     )
-
-    if fit_delta_chi and fit_delta_chi_rh:
-        theta, alpha, dchi_ax, dchi_rh = res.x
-    elif fit_delta_chi:
-        theta, alpha, dchi_ax = res.x
-        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-    elif fit_delta_chi_rh:
-        theta, alpha, dchi_rh = res.x
-        tensor_entry = state.get('tensor_entry')
-        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-    else:
-        theta, alpha = res.x
-        tensor_entry = state.get('tensor_entry')
-        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-
-    # 결과 요약
-    rot_all = _angles_to_rotation_multi(abs_coords, metal, donor_pts, theta, alpha, axis_mode)
-    raw_rot_all = _angles_to_rotation_multi(
-        raw_abs_coords, metal, donor_pts, theta, alpha, axis_mode
-    ) if len(raw_abs_coords) else raw_abs_coords
-
-    # φ 기준 고정: UI의 z-rotation(angle_z_var)을 동일 적용
-    try:
-        az = float(state.get('angle_z_var', 0.0).get())
-    except Exception:
-        az = 0.0
-
-    if abs(az) > 1e-12:
-        coords0 = rot_all - metal
-        rot0 = rotate_euler(coords0, 0.0, 0.0, az)
-        rot_all = rot0 + metal
-        if len(raw_rot_all):
-            raw0 = raw_rot_all - metal
-            raw_rot_all = rotate_euler(raw0, 0.0, 0.0, az) + metal
-
-    valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
-    if not valid_obs_pairs:
-        raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
-
-    obs_ids = [rid for rid, _ in valid_obs_pairs]
-    pts_obs = coords_for_ids(rot_all, obs_ids)
-    _, _, _, Gax, Grh = _effective_obs_factors(
-        state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    theta, alpha, dchi_ax, dchi_rh = unpack_params(res.x)
+    rot_all, raw_rot_all = rotated_geometry(theta, alpha)
+    dpcs = _predict_snapshot_observations(
+        snapshot, rot_all, raw_rot_all, metal,
+        dchi_ax,
+        dchi_rh if (snapshot.tensor.fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0,
     )
-    dpcs = _pcs_from_effective_factors(
-        Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
-    )
-
-    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-    resid = dpcs - delta_exp
-    per_point = [(rid, float(exp), float(pred), float(r))
-                 for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)]
+    _, resid, per_point, per_observable = _fit_result_rows(snapshot, dpcs)
 
     if progress_cb:
         progress_cb("Computing fit quality metrics...")
 
     metrics = compute_quality_metrics(per_point)
+    metrics.update(_weighted_quality_metrics(snapshot, resid))
 
-    return dict(
+    return annotate_standard_fit_result(
+        dict(
+            mode='theta_alpha_multi',
+            donor_ids=list(snapshot.donor_ids),
+            axis_mode=snapshot.axis_mode,
+            theta=float(theta),
+            alpha=float(alpha),
+            delta_chi_ax=float(dchi_ax),
+            delta_chi_rh=float(dchi_rh),
+            per_point=per_point,
+            per_observable=per_observable,
+            **metrics,
+        ),
         mode='theta_alpha_multi',
-        donor_ids=list(donor_ids),
-        axis_mode=axis_mode,
-        theta=float(theta),
-        alpha=float(alpha),
-        delta_chi_ax=float(dchi_ax),
-        delta_chi_rh=float(dchi_rh),
-        per_point=per_point,
-        **metrics,
+        use_global_search=snapshot.optimizer.use_global_search,
+        free_parameters=snapshot.free_parameters,
+        optimizer=snapshot.optimizer.identity,
+        weighting_mode=snapshot.weighting_mode,
+        input_fingerprint=fingerprint_fit_input_snapshot(snapshot),
+        input_configuration=fit_input_reconstruction_config(snapshot),
     )
 
 # ---------- Mode B: 3D Euler rotation (ax, ay, az) ----------
-def fit_euler_global(state, proton_ids,
+def fit_euler_global(state, proton_ids=(),
                      fit_visible_as_group=True,
                      fit_delta_chi=False,
                      fit_delta_chi_rh=False,
                      use_global_search=False,
-                     progress_cb=None):
-    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
-    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
-    if not atom_data or not ids:
-        raise RuntimeError("No atom data")
+                     progress_cb=None,
+                     use_current_tensor=False,
+                     observation_ids=None,
+                     weighting_mode=FitWeightingMode.UNWEIGHTED.value):
     if progress_cb:
         progress_cb("Preparing Euler fit...")
+    snapshot = build_standard_fit_input_snapshot(
+        state,
+        mode="euler_global",
+        proton_ids=proton_ids,
+        observation_ids=observation_ids,
+        fit_delta_chi=fit_delta_chi,
+        fit_delta_chi_rh=fit_delta_chi_rh,
+        use_global_search=use_global_search,
+        use_current_tensor=use_current_tensor,
+        weighting_mode=weighting_mode,
+    )
+    if fit_visible_as_group and callable(state.get("filter_atoms")):
+        state["filter_atoms"](state)
+    ids = snapshot.geometry.effective_ref_ids
+    metal = np.asarray(snapshot.geometry.metal_position, dtype=float)
+    abs_coords = snapshot.geometry.effective_array()
+    raw_ids = snapshot.geometry.raw_ref_ids
+    raw_abs_coords = snapshot.geometry.raw_array()
+    delta_exp = np.asarray([item.pcs for item in snapshot.observations], dtype=float)
+    x0 = snapshot.x0_array()
 
-    id2idx = {rid: i for i, rid in enumerate(ids)}
-    metal = np.array([state['x0'], state['y0'], state['z0']])
-    abs_coords = np.array([a[1:4] for a in atom_data])
-    raw_ids, raw_abs_coords = _raw_structure_arrays(state)
-
-    if fit_visible_as_group:
-        state['filter_atoms'](state)
-        sel_ids = state.get('current_selected_ids', []) or ids
-        group_indices = [id2idx[rid] for rid in sel_ids if rid in id2idx]
-    else:
-        group_indices = list(range(len(atom_data)))
-
-    delta_exp_values = state.get('delta_exp_values', {})
-    obs_pairs = [(rid, delta_exp_values[rid]) for rid in proton_ids if rid in delta_exp_values]
-    if len(obs_pairs) < 3 and not fit_delta_chi:
-        pass
-
-    # 초기값
-    ax0, ay0, az0 = 0.0, 0.0, 0.0
-    tensor_entry = state.get('tensor_entry')
-    dchi_ax0 = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-    dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-
-    if fit_delta_chi and fit_delta_chi_rh:
-        x0 = np.array([ax0, ay0, az0, dchi_ax0, dchi_rh0])
-    elif fit_delta_chi:
-        x0 = np.array([ax0, ay0, az0, dchi_ax0])
-    elif fit_delta_chi_rh:
-        # Δχ_ax 고정, Δχ_rh만 fit
-        x0 = np.array([ax0, ay0, az0, dchi_rh0])
-    else:
-        x0 = np.array([ax0, ay0, az0])
-
-    def coords_for_ids(points, ids_subset):
-        idxs = [id2idx[rid] for rid in ids_subset if rid in id2idx]
-        return np.array([points[i] for i in idxs])
-
-    def residuals(x):
-        tensor_entry = state.get('tensor_entry')
-        dchi_ax_fixed = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-        dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-
-        if fit_delta_chi and fit_delta_chi_rh:
+    def unpack_params(x):
+        dchi_ax = snapshot.tensor.fixed_delta_chi_ax
+        dchi_rh = snapshot.tensor.fixed_delta_chi_rh
+        if snapshot.tensor.fit_delta_chi_ax and snapshot.tensor.fit_delta_chi_rh:
             ax, ay, az, dchi_ax, dchi_rh = x
-        elif fit_delta_chi:
+        elif snapshot.tensor.fit_delta_chi_ax:
             ax, ay, az, dchi_ax = x
-            dchi_rh = dchi_rh_fixed
-        elif fit_delta_chi_rh:
+        elif snapshot.tensor.fit_delta_chi_rh:
             ax, ay, az, dchi_rh = x
-            dchi_ax = dchi_ax_fixed
         else:
             ax, ay, az = x
-            dchi_ax = dchi_ax_fixed
-            dchi_rh = dchi_rh_fixed
+        return ax, ay, az, dchi_ax, dchi_rh
 
-        # 중심 기준 이동 → 오일러 회전 → 복귀
+    def rotated_geometry(ax, ay, az):
         coords0 = abs_coords - metal
         rot0 = rotate_euler(coords0, ax, ay, az)
         rot_all = rot0 + metal
@@ -650,178 +1031,106 @@ def fit_euler_global(state, proton_ids,
             raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
         else:
             raw_rot_all = raw_abs_coords
+        return rot_all, raw_rot_all
 
-        valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
-        if not valid_obs_pairs:
-            raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
-
-        obs_ids = [rid for rid, _ in valid_obs_pairs]
-        pts_obs = coords_for_ids(rot_all, obs_ids)
-        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-        _, _, _, Gax, Grh = _effective_obs_factors(
-            state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    def residuals(x):
+        ax, ay, az, dchi_ax, dchi_rh = unpack_params(x)
+        rot_all, raw_rot_all = rotated_geometry(ax, ay, az)
+        dpcs = _predict_snapshot_observations(
+            snapshot, rot_all, raw_rot_all, metal,
+            dchi_ax,
+            dchi_rh if (snapshot.tensor.fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0,
         )
-        dpcs = _pcs_from_effective_factors(
-            Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
-        )
+        return _optimizer_residuals(snapshot, dpcs - delta_exp)
 
-        return dpcs - delta_exp
-
-    if fit_delta_chi and fit_delta_chi_rh:
-        lb = [-180, -180, -180, -np.inf, -np.inf]
-        ub = [180, 180, 180, np.inf, np.inf]
-    elif fit_delta_chi:
-        lb = [-180, -180, -180, -np.inf]
-        ub = [180, 180, 180, np.inf]
-    elif fit_delta_chi_rh:
-        lb = [-180, -180, -180, -np.inf]  # ax,ay,az,dchi_rh
-        ub = [180, 180, 180, np.inf]
-    else:
-        lb = [-180, -180, -180]
-        ub = [180, 180, 180]
     res = _run_two_stage_fit(
-        residuals, x0, lb, ub,
-        use_global_search=use_global_search,
+        residuals, x0, snapshot.lower_bounds, snapshot.upper_bounds,
+        use_global_search=snapshot.optimizer.use_global_search,
         progress_cb=progress_cb,
+        effective_de_bounds=snapshot.optimizer.effective_de_bounds,
+        de_seed=snapshot.optimizer.de_seed,
+        de_polish=snapshot.optimizer.de_polish,
     )
-
-    if fit_delta_chi and fit_delta_chi_rh:
-        ax, ay, az, dchi_ax, dchi_rh = res.x
-    elif fit_delta_chi:
-        ax, ay, az, dchi_ax = res.x
-        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-    elif fit_delta_chi_rh:
-        ax, ay, az, dchi_rh = res.x
-        tensor_entry = state.get('tensor_entry')
-        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-    else:
-        ax, ay, az = res.x
-        tensor_entry = state.get('tensor_entry')
-        dchi_ax = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-        dchi_rh = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-
-    # 결과 요약
-    coords0 = abs_coords - metal
-    rot0 = rotate_euler(coords0, ax, ay, az)
-    rot_all = rot0 + metal
-    if len(raw_abs_coords):
-        raw0 = raw_abs_coords - metal
-        raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
-    else:
-        raw_rot_all = raw_abs_coords
-
-    valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
-    if not valid_obs_pairs:
-        raise RuntimeError("No valid proton ids with δ_exp for current atom set.")
-
-    obs_ids = [rid for rid, _ in valid_obs_pairs]
-    pts_obs = coords_for_ids(rot_all, obs_ids)
-    _, _, _, Gax, Grh = _effective_obs_factors(
-        state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    ax, ay, az, dchi_ax, dchi_rh = unpack_params(res.x)
+    rot_all, raw_rot_all = rotated_geometry(ax, ay, az)
+    dpcs = _predict_snapshot_observations(
+        snapshot, rot_all, raw_rot_all, metal,
+        dchi_ax,
+        dchi_rh if (snapshot.tensor.fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0,
     )
-    dpcs = _pcs_from_effective_factors(
-        Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
-    )
-
-    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-    resid = dpcs - delta_exp
-    per_point = [(rid, float(exp), float(pred), float(r))
-                 for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)]
+    _, resid, per_point, per_observable = _fit_result_rows(snapshot, dpcs)
 
     if progress_cb:
         progress_cb("Computing fit quality metrics...")
 
     metrics = compute_quality_metrics(per_point)
+    metrics.update(_weighted_quality_metrics(snapshot, resid))
 
-    return dict(
+    return annotate_standard_fit_result(
+        dict(
+            mode='euler_global',
+            ax=float(ax),
+            ay=float(ay),
+            az=float(az),
+            delta_chi_ax=float(dchi_ax),
+            delta_chi_rh=float(dchi_rh),
+            per_point=per_point,
+            per_observable=per_observable,
+            **metrics,
+        ),
         mode='euler_global',
-        ax=float(ax),
-        ay=float(ay),
-        az=float(az),
-        delta_chi_ax=float(dchi_ax),
-        delta_chi_rh=float(dchi_rh),
-        per_point=per_point,
-        **metrics,
+        use_global_search=snapshot.optimizer.use_global_search,
+        free_parameters=snapshot.free_parameters,
+        optimizer=snapshot.optimizer.identity,
+        weighting_mode=snapshot.weighting_mode,
+        input_fingerprint=fingerprint_fit_input_snapshot(snapshot),
+        input_configuration=fit_input_reconstruction_config(snapshot),
     )
 
 # ---------- Mode C: Fit full tensor ----------
-def fit_full_tensor(state, proton_ids,
+def fit_full_tensor(state, proton_ids=(),
                     fit_delta_chi=True,
                     fit_delta_chi_rh=False,
                     use_global_search=False,
-                    progress_cb=None):
-    atom_data = state.get("atom_data_eff") or state.get("atom_data") or []
-    ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
-    if not atom_data or not ids:
-        raise RuntimeError("No atom data")
-
+                    progress_cb=None,
+                    use_current_tensor=False,
+                    observation_ids=None,
+                    weighting_mode=FitWeightingMode.UNWEIGHTED.value):
     if progress_cb:
         progress_cb("Preparing 8-parameter fit...")
-
-    id2idx = {rid: i for i, rid in enumerate(ids)}
-    abs_coords = np.array([a[1:4] for a in atom_data], float)
-    raw_ids, raw_abs_coords = _raw_structure_arrays(state)
-
-    metal0 = np.array([state['x0'], state['y0'], state['z0']], float)
-
-    delta_exp_values = state.get('delta_exp_values', {})
-    obs_pairs = [(rid, delta_exp_values[rid]) for rid in proton_ids if rid in delta_exp_values]
-    valid_obs_pairs = [(rid, v) for rid, v in obs_pairs if rid in id2idx]
-    if len(valid_obs_pairs) < 3:
-        raise RuntimeError("Need at least 3 valid proton points with δ_exp.")
-
-    tensor_entry = state.get('tensor_entry')
-    dchi_ax0 = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-    dchi_rh0 = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-
-    ax0, ay0, az0 = 0.0, 0.0, 0.0
-    mx0, my0, mz0 = metal0
-    pos_window = 1.0        # metal center +- 1 A range
-
-    if fit_delta_chi and fit_delta_chi_rh:
-        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0, dchi_ax0, dchi_rh0], float)
-        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window, -np.inf, -np.inf]
-        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,  np.inf,  np.inf]
-    elif fit_delta_chi:
-        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0, dchi_ax0], float)
-        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window, -np.inf]
-        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,  np.inf]
-    elif fit_delta_chi_rh:
-        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0, dchi_rh0], float)
-        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window, -np.inf]
-        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,  np.inf]
-    else:
-        x0 = np.array([ax0, ay0, az0, mx0, my0, mz0], float)
-        lb = [-180, -180, -180, mx0 - pos_window, my0 - pos_window, mz0 - pos_window]
-        ub = [ 180,  180,  180, mx0 + pos_window, my0 + pos_window, mz0 + pos_window,]
-
-    def coords_for_ids(points, ids_subset):
-        idxs = [id2idx[rid] for rid in ids_subset if rid in id2idx]
-        return np.array([points[i] for i in idxs], float)
+    snapshot = build_standard_fit_input_snapshot(
+        state,
+        mode="full_tensor",
+        proton_ids=proton_ids,
+        observation_ids=observation_ids,
+        fit_delta_chi=fit_delta_chi,
+        fit_delta_chi_rh=fit_delta_chi_rh,
+        use_global_search=use_global_search,
+        use_current_tensor=use_current_tensor,
+        weighting_mode=weighting_mode,
+    )
+    ids = snapshot.geometry.effective_ref_ids
+    abs_coords = snapshot.geometry.effective_array()
+    raw_ids = snapshot.geometry.raw_ref_ids
+    raw_abs_coords = snapshot.geometry.raw_array()
+    delta_exp = np.asarray([item.pcs for item in snapshot.observations], dtype=float)
+    x0 = snapshot.x0_array()
 
     def unpack_params(x):
-        dchi_ax_fixed = float((tensor_entry.get() if tensor_entry else None) or state.get('tensor', 1.0) or 1.0)
-        dchi_rh_fixed = float(state.get('rh_dchi_rh', 0.0) or 0.0)
-
-        if fit_delta_chi and fit_delta_chi_rh:
+        dchi_ax = snapshot.tensor.fixed_delta_chi_ax
+        dchi_rh = snapshot.tensor.fixed_delta_chi_rh
+        if snapshot.tensor.fit_delta_chi_ax and snapshot.tensor.fit_delta_chi_rh:
             ax, ay, az, mx, my, mz, dchi_ax, dchi_rh = x
-        elif fit_delta_chi:
+        elif snapshot.tensor.fit_delta_chi_ax:
             ax, ay, az, mx, my, mz, dchi_ax = x
-            dchi_rh = dchi_rh_fixed
-        elif fit_delta_chi_rh:
+        elif snapshot.tensor.fit_delta_chi_rh:
             ax, ay, az, mx, my, mz, dchi_rh = x
-            dchi_ax = dchi_ax_fixed
         else:
             ax, ay, az, mx, my, mz = x
-            dchi_ax = dchi_ax_fixed
-            dchi_rh = dchi_rh_fixed
-
         metal = np.array([mx, my, mz], float)
         return ax, ay, az, metal, dchi_ax, dchi_rh
 
-    def residuals(x):
-        ax, ay, az, metal, dchi_ax, dchi_rh = unpack_params(x)
-
+    def rotated_geometry(ax, ay, az, metal):
         coords0 = abs_coords - metal
         rot0 = rotate_euler(coords0, ax, ay, az)
         rot_all = rot0 + metal
@@ -830,65 +1139,60 @@ def fit_full_tensor(state, proton_ids,
             raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
         else:
             raw_rot_all = raw_abs_coords
+        return rot_all, raw_rot_all
 
-        obs_ids = [rid for rid, _ in valid_obs_pairs]
-        pts_obs = coords_for_ids(rot_all, obs_ids)
-        delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-        _, _, _, Gax, Grh = _effective_obs_factors(
-            state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    def residuals(x):
+        ax, ay, az, metal, dchi_ax, dchi_rh = unpack_params(x)
+        rot_all, raw_rot_all = rotated_geometry(ax, ay, az, metal)
+        dpcs = _predict_snapshot_observations(
+            snapshot, rot_all, raw_rot_all, metal,
+            dchi_ax,
+            dchi_rh if (snapshot.tensor.fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0,
         )
-        dpcs = _pcs_from_effective_factors(
-            Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
-        )
-
-        return dpcs - delta_exp
+        return _optimizer_residuals(snapshot, dpcs - delta_exp)
 
     res = _run_two_stage_fit(
-        residuals, x0, lb, ub,
-        use_global_search=use_global_search,
+        residuals, x0, snapshot.lower_bounds, snapshot.upper_bounds,
+        use_global_search=snapshot.optimizer.use_global_search,
         progress_cb=progress_cb,
+        effective_de_bounds=snapshot.optimizer.effective_de_bounds,
+        de_seed=snapshot.optimizer.de_seed,
+        de_polish=snapshot.optimizer.de_polish,
     )
 
     ax, ay, az, metal, dchi_ax, dchi_rh = unpack_params(res.x)
-
-    coords0 = abs_coords - metal
-    rot0 = rotate_euler(coords0, ax, ay, az)
-    rot_all = rot0 + metal
-    if len(raw_abs_coords):
-        raw0 = raw_abs_coords - metal
-        raw_rot_all = rotate_euler(raw0, ax, ay, az) + metal
-    else:
-        raw_rot_all = raw_abs_coords
-
-    obs_ids = [rid for rid, _ in valid_obs_pairs]
-    pts_obs = coords_for_ids(rot_all, obs_ids)
-    delta_exp = np.array([v for _, v in valid_obs_pairs], float)
-    _, _, _, Gax, Grh = _effective_obs_factors(
-        state, obs_ids, pts_obs, metal, raw_ids, raw_rot_all
+    rot_all, raw_rot_all = rotated_geometry(ax, ay, az, metal)
+    dpcs = _predict_snapshot_observations(
+        snapshot, rot_all, raw_rot_all, metal,
+        dchi_ax,
+        dchi_rh if (snapshot.tensor.fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0,
     )
-    dpcs = _pcs_from_effective_factors(
-        Gax, Grh, dchi_ax, dchi_rh if (fit_delta_chi_rh or abs(dchi_rh) > 0.0) else 0.0
-    )
-
-    resid = dpcs - delta_exp
-    per_point = [
-        (rid, float(exp), float(pred), float(r))
-        for (rid, exp), pred, r in zip(valid_obs_pairs, dpcs, resid)
-    ]
+    _, resid, per_point, per_observable = _fit_result_rows(snapshot, dpcs)
 
     if progress_cb:
         progress_cb("Computing fit quality metrics...")
 
     metrics = compute_quality_metrics(per_point)
+    metrics.update(_weighted_quality_metrics(snapshot, resid))
 
-    return dict(
+    return annotate_standard_fit_result(
+        dict(
+            mode='full_tensor',
+            euler_deg=(float(ax), float(ay), float(az)),
+            metal_pos=(float(metal[0]), float(metal[1]), float(metal[2])),
+            delta_chi_ax=float(dchi_ax),
+            delta_chi_rh=float(dchi_rh),
+            per_point=per_point,
+            per_observable=per_observable,
+            **metrics,
+        ),
         mode='full_tensor',
-        euler_deg=(float(ax), float(ay), float(az)),
-        metal_pos=(float(metal[0]), float(metal[1]), float(metal[2])),
-        delta_chi_ax=float(dchi_ax),
-        delta_chi_rh=float(dchi_rh),
-        per_point=per_point,
-        **metrics,
+        use_global_search=snapshot.optimizer.use_global_search,
+        free_parameters=snapshot.free_parameters,
+        optimizer=snapshot.optimizer.identity,
+        weighting_mode=snapshot.weighting_mode,
+        input_fingerprint=fingerprint_fit_input_snapshot(snapshot),
+        input_configuration=fit_input_reconstruction_config(snapshot),
     )
 
 
@@ -899,10 +1203,20 @@ def populate_fitting_controls(state):
     ids = state.get("atom_ids_eff") or state.get("atom_ids") or []
 
     if not atom_data or not ids:
+        refresh = state.get("refresh_fitting_commands")
+        if callable(refresh):
+            refresh()
         return
 
-    # Donor list: exclude H
-    items = [f"{rid}:{atom}" for rid, (atom, *_ ) in zip(ids, atom_data) if atom != 'H']
+    visible_ids = visible_ref_id_set(state, atom_data=atom_data, ref_ids=ids)
+
+    # Donor list: visible non-H atoms only. Hidden Element/Ligand atoms must not
+    # remain selectable as fitting inputs.
+    items = [
+        f"{rid}:{atom}"
+        for rid, (atom, *_) in zip(ids, atom_data)
+        if atom != 'H' and int(rid) in visible_ids
+    ]
     lst = state.get('fit_donor_list')
     if lst:
         lst.delete(0, "end")
@@ -925,15 +1239,81 @@ def populate_fitting_controls(state):
     pl = state.get('fit_proton_list')
     if pl:
         pl.delete(0, "end")
-        for rid in proton_ids:
-            pl.insert("end", str(rid))
+        records = state.get(OBSERVATIONS_KEY, ()) or ()
+        if records:
+            selectors = []
+            raw_data = state.get("atom_data_raw") or state.get("atom_data") or []
+            raw_ids = state.get("atom_ids_raw") or list(range(1, len(raw_data) + 1))
+            visible_fit_refs = set(visible_ids) | visible_ref_id_set(
+                state, atom_data=raw_data, ref_ids=raw_ids
+            )
+            for index, record in enumerate(records):
+                observable_id = str(record.get("id", "") or f"invalid:{index}")
+                assignment = str(record.get("assignment", "") or "Unassigned")
+                try:
+                    target = structure_target_from_payload(
+                        record.get("target"),
+                        assignment=assignment,
+                        target_id=observable_id,
+                    )
+                    if not set(target.member_ref_ids).issubset(visible_fit_refs):
+                        continue
+                except Exception:
+                    # Preserve existing validation behavior for malformed records;
+                    # the fitting boundary will still report the actual error.
+                    pass
+                pl.insert("end", f"{assignment} · {observable_id}")
+                selectors.append(observable_id)
+            state["fit_observation_selectors"] = selectors
+        else:
+            state["fit_observation_selectors"] = None
+            for rid in proton_ids:
+                pl.insert("end", str(rid))
 
-def apply_fit_to_views(state):
+    refresh = state.get("refresh_fitting_commands")
+    if callable(refresh):
+        refresh()
+
+def apply_fit_to_views(state, *, notify=True):
     res = state.get('last_fit_result')
     if not res:
         return
 
+    from logic.pcs_fit_result_status import (
+        FIT_RESULT_STALE,
+        STALE_FIT_RESULT_MESSAGE,
+        evaluate_fit_result_status,
+    )
+    result_status = evaluate_fit_result_status(res, state)
+    if result_status["status"] == FIT_RESULT_STALE:
+        messagebox = state.get('messagebox')
+        if messagebox is not None and hasattr(messagebox, 'showerror'):
+            messagebox.showerror("Fitting", STALE_FIT_RESULT_MESSAGE)
+        return False
+
     mode = res.get('mode')
+
+    if mode == 'theta_alpha_multi':
+        current_ids = (
+            state.get('atom_ids_eff')
+            or state.get('atom_ids')
+            or state.get('atom_ids_raw')
+            or list(range(1, len(state.get('atom_data') or []) + 1))
+        )
+        available = {int(ref_id) for ref_id in current_ids}
+        missing = [
+            int(ref_id) for ref_id in res.get('donor_ids', ())
+            if int(ref_id) not in available
+        ]
+        if missing:
+            message = (
+                "The restored Mode A result cannot be applied to the plot "
+                f"because donor Ref IDs are missing: {missing}."
+            )
+            messagebox = state.get('messagebox')
+            if messagebox is not None and hasattr(messagebox, 'showerror'):
+                messagebox.showerror("Fitting", message)
+            return False
 
     if mode == 'theta_alpha_multi':
         state['fit_override'] = dict(
@@ -943,7 +1323,8 @@ def apply_fit_to_views(state):
             alpha=res['alpha'],
             axis_mode=res.get('axis_mode', 'bisector')
         )
-        state['messagebox'].showinfo("Fitting", "Mode A applied. Click 'Update' to redraw.")
+        if notify:
+            state['messagebox'].showinfo("Fitting", "Mode A applied. Click 'Update' to redraw.")
 
     elif mode == 'euler_global':
         state['fit_override'] = dict(
@@ -952,7 +1333,8 @@ def apply_fit_to_views(state):
             ay=res['ay'],
             az=res['az']
         )
-        state['messagebox'].showinfo("Fitting", "Mode B applied. Click 'Update' to redraw.")
+        if notify:
+            state['messagebox'].showinfo("Fitting", "Mode B applied. Click 'Update' to redraw.")
 
     elif mode == 'full_tensor':
         state['fit_override'] = dict(
@@ -965,15 +1347,16 @@ def apply_fit_to_views(state):
 
         try:
             state['tensor_entry'].delete(0, "end")
-            state['tensor_entry'].insert(0, f"{float(res['delta_chi_ax']):g}")
+            state['tensor_entry'].insert(0, str(float(res['delta_chi_ax'])))
         except Exception:
             pass
 
         if 'rh_dchi_rh_var' in state:
             try:
-                state['rh_dchi_rh_var'].set(f"{float(res.get('delta_chi_rh', 0.0)):g}")
+                state['rh_dchi_rh_var'].set(str(float(res.get('delta_chi_rh', 0.0))))
                 state['rh_dchi_rh'] = float(res.get('delta_chi_rh', 0.0))
             except Exception:
                 pass
 
-        state['messagebox'].showinfo("Fitting", "Mode C applied. Click 'Update' to redraw.")
+        if notify:
+            state['messagebox'].showinfo("Fitting", "Mode C applied. Click 'Update' to redraw.")

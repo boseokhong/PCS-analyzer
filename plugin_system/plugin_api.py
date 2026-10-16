@@ -23,12 +23,50 @@ class PluginApp:
             raise RuntimeError(f"Menu not found: {menu}")
 
         target.add_command(label=label, command=command)
+        if menu == "Modules":
+            from plugin_system.ribbon_modules import capture_launcher
+            capture_launcher(self, label, command)
 
     def add_separator(self, menu: str = "Modules"):
         menus = self.state.get("menus", {})
         target = menus.get(menu)
         if target is not None:
             target.add_separator()
+
+    def register_tool(
+        self,
+        tool_id: str,
+        label: str,
+        command,
+        *,
+        category: str = "Plugins",
+        enabled=None,
+        order: int = 0,
+        tooltip: str = "",
+    ):
+        """Register a plugin launcher for menus and Control Panel pinning."""
+        from plugin_system.tool_registry import ToolLauncher, ensure_tool_registry
+
+        source = str(getattr(self, "current_plugin_id", "plugin"))
+        tool = ToolLauncher(
+            id=str(tool_id),
+            label=str(label),
+            category=str(category),
+            launch=command,
+            source=source,
+            enabled=enabled,
+            order=int(order),
+            tooltip=str(tooltip),
+        )
+        ensure_tool_registry(self.state).register(tool)
+        from plugin_system.ribbon_modules import capture_launcher
+        capture_launcher(self, label, command, tool_id=tool_id,
+                         category=None if category == "Plugins" else category,
+                         enabled=enabled, tooltip=tooltip)
+        refresh = self.state.get("refresh_control_panel_tools")
+        if callable(refresh):
+            refresh()
+        return tool
 
     def get_current_structure(self):
         return self.state.get("atom_data_eff") or self.state.get("atom_data")

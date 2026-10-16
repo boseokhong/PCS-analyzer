@@ -2,6 +2,11 @@
 
 import tkinter as tk
 from tkinter import ttk
+from tkinter import font as tkfont
+from ui.theme_palette import base_palette, normalize_theme, theme_mode
+
+from ui.widget_style import (presentation_palette, button_skin, selection_skin,
+                             notebook_skin, scrollbar_skin, scale_skin, sash_skin, compact_button_skin, refresh_prose_styles, ui_font_name)
 
 
 # Default:
@@ -45,10 +50,10 @@ def build_fonts(settings=None):
     scale = max(0.5, min(2.5, scale))
 
     ui_family = str(settings.get("font_family_ui", "Segoe UI") or "Segoe UI").strip()
-    ui_size = _scaled_size(settings.get("font_size_ui", 10), scale, 7)
+    ui_size = _scaled_size(settings.get("font_size_ui", 9), scale, 7)
 
     table_family = str(settings.get("font_family_table", ui_family) or ui_family).strip()
-    table_size = _scaled_size(settings.get("font_size_table", ui_size), scale, 7)
+    table_size = _scaled_size(settings.get("font_size_table", 10), scale, 7)
 
     report_family = str(settings.get("font_family_report", "Consolas") or "Consolas").strip()
     report_size = _scaled_size(settings.get("font_size_report", 9), scale, 7)
@@ -88,6 +93,13 @@ def build_fonts(settings=None):
         "plot_annotation": max(plot_size - 2, 6),
         "viewer_label_size": plot_size + 1,
     }
+
+
+def table_row_height(root, font, minimum=18):
+    """Fit the rendered font in a pixel row, without scaling points twice."""
+    linespace = tkfont.Font(root=root, font=font).metrics("linespace")
+    padding = max(3, round(float(root.tk.call("tk", "scaling")) * 2))
+    return max(minimum, linespace + padding)
 
 
 def get_app_fonts(state_or_root=None):
@@ -138,9 +150,8 @@ def apply_style(root, variant="light", accent=None, settings=None):
         Optional app_settings dictionary. Font-related keys are read from here.
     """
 
-    variant = str(variant or "light").lower().strip()
-    if variant not in ("light", "dark"):
-        variant = "light"
+    selected_theme = normalize_theme(variant)
+    variant = theme_mode(selected_theme)
 
     accent = str(accent or "blue").lower().strip()
     fonts = build_fonts(settings or {})
@@ -198,45 +209,32 @@ def apply_style(root, variant="light", accent=None, settings=None):
     # -------------------------------------------------
     # Base colors
     # -------------------------------------------------
-    if variant == "light":
-        bg = "#F5F6FA"
-        fg = "#111111"
+    colors = base_palette(selected_theme)
+    bg = colors["bg"]
+    fg = colors["fg"]
+    panel_bg = colors["panel_bg"]
+    input_bg = colors["input_bg"]
+    input_fg = colors["input_fg"]
+    input_disabled_bg = colors["input_disabled_bg"]
+    tree_bg = colors["tree_bg"]
+    tree_fg = colors["tree_fg"]
+    tree_odd_bg = colors["tree_odd_bg"]
+    tree_sel_bg = colors["tree_sel_bg"]
+    tree_sel_fg = colors["tree_sel_fg"]
+    heading_bg = colors["heading_bg"]
+    scale_trough = colors["scale_trough"]
+    scale_active = colors["scale_active"]
 
-        panel_bg = bg
-        input_bg = "#FFFFFF"
-        input_fg = "#111111"
-        input_disabled_bg = "#ECEEF2"
-
-        tree_bg = "#FFFFFF"
-        tree_fg = "#111111"
-        tree_odd_bg = "#EEF1F6"
-        tree_sel_bg = "#AFCBF3"
-        tree_sel_fg = "#111111"
-
-        heading_bg = "#E4E2DC"
-
-        scale_trough = "#FFFFFF"
-        scale_active = "#808080"
-
-    else:
-        bg = "#1F2125"
-        fg = "#EEEEEE"
-
-        panel_bg = bg
-        input_bg = "#2B2F36"
-        input_fg = "#EEEEEE"
-        input_disabled_bg = "#3A3F46"
-
-        tree_bg = "#202428"
-        tree_fg = "#EEEEEE"
-        tree_odd_bg = "#25292E"
-        tree_sel_bg = "#58779B"
-        tree_sel_fg = "#FFFFFF"
-
-        heading_bg = "#D8D5CC"
-
-        scale_trough = "#2B2F36"
-        scale_active = "#A0A0A0"
+    palette = presentation_palette(selected_theme)
+    bg = panel_bg = palette["surface"]
+    fg = input_fg = tree_fg = palette["text"]
+    input_bg = tree_bg = palette["field"]
+    input_disabled_bg = palette["disabled"]
+    tree_sel_bg, tree_sel_fg = palette["selected"], palette["text"]
+    heading_bg = palette["button"]
+    root._app_palette = palette
+    if not hasattr(root, "_pcs_native_button_layout"):
+        root._pcs_native_button_layout = style.layout("TButton")
 
     try:
         root.configure(bg=bg)
@@ -249,32 +247,56 @@ def apply_style(root, variant="light", accent=None, settings=None):
     style.configure(".", padding=0, font=fonts["ui"])
 
     style.configure("TFrame", padding=6, background=panel_bg)
-    style.configure("TLabelframe", background=panel_bg)
+    style.configure("TLabelframe", background=panel_bg, borderwidth=1,
+                    bordercolor=palette["edge"], lightcolor=panel_bg, darkcolor=panel_bg)
     style.configure("TLabelframe.Label", background=panel_bg, foreground=fg, font=fonts["section"])
     style.configure("TLabel", padding=(2, 1), background=panel_bg, foreground=fg, font=fonts["ui"])
 
-    style.configure("TNotebook", background=panel_bg)
+    style.configure("TNotebook", background=panel_bg, borderwidth=1,
+                    bordercolor=palette["edge"], lightcolor=panel_bg, darkcolor=panel_bg)
     style.configure(
         "TNotebook.Tab",
         padding=(6, 2),
-        background=heading_bg if variant == "light" else "#D8D5CC",
-        foreground="#111111" if variant == "light" else "#111111",
+        background=palette["surface"],
+        foreground=fg,
         font=fonts["ui"],
     )
-    style.map(
-        "TNotebook.Tab",
-        background=[
-            ("selected", "#FFFFFF" if variant == "light" else "#2B2F36"),
-            ("active", "#FFFFFF" if variant == "light" else "#3A3F46"),
-        ],
-        foreground=[
-            ("selected", "#111111" if variant == "light" else "#FFFFFF"),
-            ("active", "#111111" if variant == "light" else "#FFFFFF"),
-        ],
-        expand=[("selected", [1, 1, 1, 0])],
-    )
-
     style.configure("TButton", padding=(6, 2), font=fonts["ui"])
+
+    # -------------------------------------------------
+    # PCS Analyzer action hierarchy
+    # -------------------------------------------------
+    # Fonts and compact metrics stay here; shared faces are installed below.
+    style.configure("Primary.TButton", padding=(6, 2), font=fonts["ui_bold"])
+    style.configure("Secondary.TButton", padding=(6, 2), font=fonts["ui"])
+    style.configure("Utility.TButton", padding=(6, 2), font=fonts["ui"])
+    style.configure("Danger.TButton", padding=(6, 2), font=fonts["ui"])
+
+    # Control-panel section headers remain neutral gray rather than adopting an
+    # action/accent color.
+    header_hover = palette["hover"]
+    style.configure(
+        "ControlPanel.Section.TFrame",
+        background=panel_bg,
+        relief="flat",
+        borderwidth=0,
+    )
+    style.configure(
+        "ControlPanel.Header.TFrame",
+        background=heading_bg,
+    )
+    style.configure(
+        "ControlPanel.Header.TButton",
+        padding=(6, 2),
+        background=heading_bg,
+        foreground=fg,
+        font=fonts["ui_bold"],
+        anchor="w",
+    )
+    style.map(
+        "ControlPanel.Header.TButton",
+        background=[("active", header_hover), ("pressed", header_hover)],
+    )
 
     # -------------------------------------------------
     # Entry / Combobox
@@ -312,12 +334,12 @@ def apply_style(root, variant="light", accent=None, settings=None):
     style.map(
         "TCombobox",
         fieldbackground=[
-            ("readonly", input_bg),
             ("disabled", input_disabled_bg),
+            ("readonly", input_bg),
         ],
         foreground=[
+            ("disabled", palette["disabled_text"]),
             ("readonly", input_fg),
-            ("disabled", "#888888" if variant == "light" else "#BBBBBB"),
         ],
     )
 
@@ -362,12 +384,15 @@ def apply_style(root, variant="light", accent=None, settings=None):
     # -------------------------------------------------
     style.configure(
         "Treeview",
-        rowheight=fonts["table_rowheight"],
+        rowheight=table_row_height(root, fonts["table"], fonts["table_rowheight"]),
         font=fonts["table"],
         background=tree_bg,
         fieldbackground=tree_bg,
         foreground=tree_fg,
         borderwidth=0,
+        bordercolor=palette["edge"],
+        lightcolor=tree_bg,
+        darkcolor=tree_bg,
     )
     style.map(
         "Treeview",
@@ -379,26 +404,33 @@ def apply_style(root, variant="light", accent=None, settings=None):
         padding=(2, 1),
         font=fonts["table_heading"],
         background=heading_bg,
-        foreground="#111111",
+        foreground=fg,
+        bordercolor=palette["edge"],
+        lightcolor=heading_bg,
+        darkcolor=heading_bg,
     )
-
-    # -------------------------------------------------
-    # Scrollbar
-    # -------------------------------------------------
-    try:
-        style.configure("Vertical.TScrollbar", arrowsize=10, width=12)
-        style.configure("Horizontal.TScrollbar", arrowsize=10, width=12)
-    except tk.TclError:
-        pass
+    style.map("Treeview.Heading", background=[("active", palette["hover"])],
+              foreground=[("!disabled", fg)])
 
     # -------------------------------------------------
     # Option database for tk widgets
     # -------------------------------------------------
-    root.option_add("*Font", base_font)
-    root.option_add("*Entry.Font", base_font)
+    root._app_fonts = fonts
+    live_ui_font = ui_font_name(root, "ui")
+    root.option_add("*Font", live_ui_font)
+    root.option_add("*Entry.Font", live_ui_font)
     root.option_add("*Text.Font", fonts["report"])
-    root.option_add("*Listbox.Font", fonts["ui"])
-    root.option_add("*TCombobox*Listbox.Font", base_font)
+    root.option_add("*Text.Background", palette["field"])
+    root.option_add("*Text.Foreground", palette["text"])
+    root.option_add("*Text.InsertBackground", palette["text"])
+    root.option_add("*Text.SelectBackground", palette["selected"])
+    root.option_add("*Text.SelectForeground", palette["text"])
+    root.option_add("*Listbox.Font", live_ui_font)
+    root.option_add("*TCombobox*Listbox.Font", live_ui_font)
+    root.option_add("*TCombobox*Listbox.Background", input_bg)
+    root.option_add("*TCombobox*Listbox.Foreground", fg)
+    root.option_add("*TCombobox*Listbox.SelectBackground", palette["selected"])
+    root.option_add("*TCombobox*Listbox.SelectForeground", fg)
 
     root.option_add("*Scale.troughColor", scale_trough)
     root.option_add("*Scale.activeBackground", scale_active)
@@ -424,6 +456,37 @@ def apply_style(root, variant="light", accent=None, settings=None):
     setattr(root, "_app_bg", bg)
     setattr(root, "_app_fg", fg)
     setattr(root, "_theme_variant", variant)
+    setattr(root, "_theme_id", selected_theme)
     setattr(root, "_app_fonts", fonts)
 
+    notebook_skin(root, style, palette)
+    for name, role in (("TButton", "Secondary"), ("Primary.TButton", "Primary"),
+                       ("Secondary.TButton", "Secondary"), ("Utility.TButton", "Utility"),
+                       ("Danger.TButton", "Danger")):
+        button_skin(root, style, name, palette, role)
+    # Disclosure/header controls retain their compact, neutral native geometry.
+    compact_button_skin(root, style, "ControlPanel.Header.TButton", palette)
+    for kind in ("TCheckbutton", "TRadiobutton"):
+        selection_skin(root, style, kind, palette)
+    scrollbar_skin(root, style, palette)
+    scale_skin(root, style, palette)
+    sash_skin(root, style, palette)
+    style.configure("TSeparator", background=palette["edge"])
+    for orientation in ("Horizontal", "Vertical"):
+        style.configure(orientation + ".TSeparator", background=palette["edge"])
+        style.configure(orientation + ".TProgressbar",
+                        troughcolor=palette["field"], background=palette["accent"],
+                        bordercolor=palette["edge"], lightcolor=palette["accent"],
+                        darkcolor=palette["accent"], borderwidth=1)
+    button_skin(root, style, "TMenubutton", palette)
+    for kind in ("TEntry", "TCombobox", "TSpinbox"):
+        style.configure(kind, bordercolor=palette["edge"], lightcolor=input_bg,
+                        darkcolor=input_bg, fieldbackground=input_bg, foreground=fg)
+        style.map(kind, bordercolor=[("disabled", palette["edge"]), ("invalid", palette["danger"]), ("focus", palette["accent"])],
+                  fieldbackground=[("disabled", palette["disabled"]), ("readonly", input_bg)],
+                  foreground=[("disabled", palette["disabled_text"]), ("!disabled", fg)])
+    style.configure("Muted.TLabel", foreground=palette["muted"], font=fonts["ui_small"])
+    style.configure("Warning.TLabel", foreground=palette["warning"], font=fonts["ui_small"])
+
+    refresh_prose_styles(root, style)
     return style

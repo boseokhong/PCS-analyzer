@@ -13,8 +13,11 @@ from mpl_toolkits.mplot3d import proj3d
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from logic.chem_constants import CPK_COLORS, covalent_radii
-from logic.rotate_align import rotate_coordinates, rotate_euler
+from logic.visibility import visible_ref_id_set
+from logic.molecule_view_data import apply_molecule_fit_override, prepare_molecule_view_data
+from logic.molecule_figure_export import save_molecule_figure
 from logic.fitting import _angles_to_rotation_multi
+from logic.selection_context import ensure_selection_hub, publish_ref_selection
 
 
 class Arrow3D(FancyArrowPatch):
@@ -234,162 +237,56 @@ def _get_selected_elements(state):
 
 
 def _apply_fit_override_to_raw_coords(state, abs_coords, ref_ids, metal):
-    """
-    Apply fit override to raw coordinates using the same logic used by the main 2D/table pipeline.
-    """
-    fo = state.get("fit_override")
-    if not fo:
-        return abs_coords, metal
-
-    mode = (fo.get("mode") or "").lower()
-
-    if mode == "theta_alpha_multi":
-        id2idx = {rid: i for i, rid in enumerate(ref_ids)}
-        donor_ids = fo.get("donor_ids") or []
-        if donor_ids:
-            donor_pts = [abs_coords[id2idx[rid]] for rid in donor_ids if rid in id2idx]
-            if donor_pts:
-                abs_coords = _angles_to_rotation_multi(
-                    points=abs_coords,
-                    metal=metal,
-                    donor_points=donor_pts,
-                    theta_deg=fo.get("theta", 0.0),
-                    alpha_deg=fo.get("alpha", 0.0),
-                    axis_mode=fo.get("axis_mode", "bisector"),
-                )
-
-    elif mode == "euler_global":
-        ax_deg = float(fo.get("ax", 0.0))
-        ay_deg = float(fo.get("ay", 0.0))
-        az_deg = float(fo.get("az", 0.0))
-        coords0 = abs_coords - metal
-        rot0 = rotate_euler(coords0, ax_deg, ay_deg, az_deg)
-        abs_coords = rot0 + metal
-
-    elif mode == "full_tensor":
-        euler_deg = fo.get("euler_deg", (0.0, 0.0, 0.0))
-        ax_deg, ay_deg, az_deg = euler_deg
-
-        metal_pos = fo.get("metal_pos")
-        if metal_pos is not None:
-            metal = np.array(metal_pos, dtype=float)
-
-        coords0 = abs_coords - metal
-        rot0 = rotate_euler(coords0, ax_deg, ay_deg, az_deg)
-        abs_coords = rot0 + metal
-
-    return abs_coords, metal
+    """Compatibility wrapper for existing callers of the fitted display path."""
+    return apply_molecule_fit_override(
+        abs_coords, ref_ids, metal, state.get("fit_override"),
+        donor_rotation=_angles_to_rotation_multi,
+    )
 
 
 def _get_3d_view_data(state):
-    """
-    Build the currently visible 3D coordinates using:
-    - raw structure
-    - current metal center
-    - fit override
-    - current x/y/z rotation
-    - current element checklist
-    """
+    """Adapt document/Tk values to the shared, UI-independent coordinate path."""
     atom_data, raw_ref_ids = _get_3d_structure(state)
     if not atom_data:
         return None
-
-    selected_elements = _get_selected_elements(state)
-
-    coords_abs = np.array([[x, y, z] for _, x, y, z in atom_data], dtype=float)
-    labels = [a for a, *_ in atom_data]
-    ref_ids = list(raw_ref_ids)
-
-    metal = np.array([state["x0"], state["y0"], state["z0"]], dtype=float)
-
-    coords_abs, metal = _apply_fit_override_to_raw_coords(state, coords_abs, ref_ids, metal)
-
-    coords0 = coords_abs - metal
-
-    ax_deg = float(state["angle_x_var"].get()) if "angle_x_var" in state else 0.0
-    ay_deg = float(state["angle_y_var"].get()) if "angle_y_var" in state else 0.0
-    az_deg = float(state["angle_z_var"].get()) if "angle_z_var" in state else 0.0
-
-    coords_rot = rotate_coordinates(coords0, ax_deg, ay_deg, az_deg, (0.0, 0.0, 0.0))
-
-    rows = []
-    for label, coord, rid in zip(labels, coords_rot, ref_ids):
-        s = str(label).strip()
-        if s.startswith("MeH@"):
-            element = "H"
-        elif s.startswith("CF3F@"):
-            element = "F"
-        elif len(s) >= 2 and s[1].islower():
-            element = s[:2]
-        else:
-            element = s[:1]
-        if selected_elements is not None and element not in selected_elements:
-            continue
-        rows.append((label, coord, rid))
-
-    if not rows:
-        return None
-
-    out_labels = [r[0] for r in rows]
-    out_coords = np.array([r[1] for r in rows], dtype=float)
-    out_ref_ids = [r[2] for r in rows]
-    out_elements = list(out_labels)
-
-    result = {
-        "labels": out_labels,
-        "coords": out_coords,
-        "ref_ids": out_ref_ids,
-        "elements": out_elements,
-    }
-
-    # Optional reference geometry for enabled torsional fragments.
+    visible_ids = visible_ref_id_set(state, atom_data=atom_data, ref_ids=raw_ref_ids)
+    angles = tuple(
+        float(state[key].get()) if key in state else 0.0
+        for key in ("angle_x_var", "angle_y_var", "angle_z_var")
+    )
     torsion_var = state.get("torsion_avg_enabled_var")
     keep_var = state.get("torsion_avg_keep_reference_var")
-    torsion_enabled = bool(torsion_var.get()) if torsion_var is not None else False
-    keep_reference = bool(keep_var.get()) if keep_var is not None else False
-    if torsion_enabled and keep_reference:
-        raw = state.get("atom_data_raw") or state.get("atom_data") or []
-        raw_ids2 = list(state.get("atom_ids_raw") or range(1, len(raw) + 1))
-        if raw and len(raw_ids2) == len(raw):
-            ref_abs = np.asarray([[x, y, z] for _, x, y, z in raw], dtype=float)
-            ref_labels0 = [a for a, *_ in raw]
-            ref_abs, ref_metal = _apply_fit_override_to_raw_coords(
-                state, ref_abs, raw_ids2, np.array([state["x0"], state["y0"], state["z0"]], dtype=float)
-            )
-            ref0 = ref_abs - ref_metal
-            ref_rot = rotate_coordinates(ref0, ax_deg, ay_deg, az_deg, (0.0, 0.0, 0.0))
-            moving_refs = set()
-            for g in (state.get("torsion_avg_groups", []) or []):
-                if bool(g.get("enabled", True)):
-                    moving_refs.update(int(r) for r in g.get("rotating_atoms", ()))
-            ref_rows = []
-            for lbl, coord, rid in zip(ref_labels0, ref_rot, raw_ids2):
-                if rid not in moving_refs:
-                    continue
-                ss = str(lbl).strip()
-                if len(ss) >= 2 and ss[1].islower():
-                    el = ss[:2]
-                else:
-                    el = ss[:1]
-                if selected_elements is not None and el not in selected_elements:
-                    continue
-                ref_rows.append((lbl, coord, rid))
-            if ref_rows:
-                result["reference_labels"] = [r[0] for r in ref_rows]
-                result["reference_coords"] = np.asarray([r[1] for r in ref_rows], dtype=float)
-                result["reference_ref_ids"] = [r[2] for r in ref_rows]
-
-    return result
+    keep_reference = (
+        bool(torsion_var.get()) if torsion_var is not None else False
+    ) and (bool(keep_var.get()) if keep_var is not None else False)
+    raw = (state.get("atom_data_raw") or state.get("atom_data") or []) if keep_reference else []
+    moving_refs = set()
+    if keep_reference and raw:
+        raw_ids = list(state.get("atom_ids_raw") or range(1, len(raw) + 1))
+        if len(raw_ids) == len(raw):
+            for group in state.get("torsion_avg_groups", []) or []:
+                if bool(group.get("enabled", True)):
+                    moving_refs.update(int(r) for r in group.get("rotating_atoms", ()))
+    return prepare_molecule_view_data(
+        atom_data, raw_ref_ids,
+        metal=(state["x0"], state["y0"], state["z0"]), angles=angles,
+        fit_override=state.get("fit_override"), visible_ids=visible_ids,
+        reference_atom_data=raw,
+        reference_ref_ids=state.get("atom_ids_raw") or (),
+        moving_ref_ids=moving_refs, donor_rotation=_angles_to_rotation_multi,
+    )
 
 
 def _get_color_mode(state):
     var = state.get("plot3d_color_mode_var")
-    return var.get() if var is not None else "Element"
+    getter = getattr(var, "get", None)
+    return getter() if callable(getter) else (var if var is not None else "Element")
 
 
 def _get_show_labels(state):
     var = state.get("plot3d_show_labels_var")
-    return bool(var.get()) if var is not None else False
+    getter = getattr(var, "get", None)
+    return bool(getter()) if callable(getter) else bool(var)
 
 def _get_3d_atom_scale(state):
     """
@@ -472,10 +369,25 @@ def _build_atom_colors_and_sizes(state, labels, ref_ids):
 
 
 def _draw_3d_plot(state):
+    isolated_viewer = state.get("_isolated_molecule_viewer")
+    if isolated_viewer is not None:
+        isolated_viewer.request_refresh()
     fig = state.get("plot3d_figure")
     canvas = state.get("plot3d_canvas")
     if fig is None or canvas is None:
         return
+
+    from logic.pcs_document import active_document_id
+    from ui.document_integrations import active_document_title
+
+    win = state.get("plot3d_popup")
+    try:
+        if win is not None and win.winfo_exists():
+            win.title(active_document_title(state, "3D Structure (Matplotlib)"))
+    except Exception:
+        pass
+    current_document_id = active_document_id(state)
+    same_document = state.get("plot3d_rendered_document_id") == current_document_id
 
     font_cfg = _get_plot_font_settings(state)
     plot_font_family = font_cfg["family"]
@@ -500,14 +412,21 @@ def _draw_3d_plot(state):
             )
         except Exception:
             saved_limits = None
+        if not same_document:
+            saved_limits = None
 
     fig.clear()
 
     data = _get_3d_view_data(state)
     if data is None:
         ax = fig.add_subplot(111, projection="3d")
-        ax.text2D(0.5, 0.5, "No visible atoms.", transform=ax.transAxes, ha="center", va="center")
+        message = ("No structure loaded.\nLoad a structure in PCS Analyzer to display it here."
+                   if not _get_3d_structure(state)[0] else
+                   "No visible atoms.\nCheck the element filters in PCS Analyzer.")
+        ax.text2D(0.5, 0.5, message, transform=ax.transAxes, ha="center", va="center",
+                  fontfamily=plot_font_family, fontsize=plot_label)
         ax.set_axis_off()
+        state["plot3d_rendered_document_id"] = current_document_id
         canvas.draw_idle()
         return
 
@@ -559,15 +478,7 @@ def _draw_3d_plot(state):
     pick_pairs = []
 
     show_labels = _get_show_labels(state)
-    current_tree = state.get("tree")
-    selected_ref = None
-    if current_tree is not None:
-        sel = current_tree.selection()
-        if sel:
-            try:
-                selected_ref = int(current_tree.item(sel[0], "values")[0])
-            except Exception:
-                selected_ref = None
+    selected_ref = ensure_selection_hub(state).context.primary_ref_id
 
     for label, (x, y, z), rid, color, size in zip(labels, coords, ref_ids, colors, sizes):
         is_avg = rid in torsion_avg_ref_ids
@@ -695,19 +606,14 @@ def _draw_3d_plot(state):
         state["plot3d_click_cid"] = None
 
     def _on_click(event):
-        row_by_id = state.get("row_by_id", {})
-        tree = state.get("tree")
-        if tree is None:
-            return
-
         for artist, rid in pick_pairs:
             contains, _ = artist.contains(event)
             if contains:
-                item = row_by_id.get(rid)
-                if item:
-                    tree.selection_set(item)
-                    tree.focus(item)
-                    tree.see(item)
+                publish_ref_selection(
+                    state,
+                    [rid],
+                    source="3d_structure",
+                )
                 break
 
     state["plot3d_click_cid"] = fig.canvas.mpl_connect("button_press_event", _on_click)
@@ -718,6 +624,13 @@ def _draw_3d_plot(state):
         pass
 
     canvas.draw_idle()
+    state["plot3d_rendered_document_id"] = current_document_id
+
+def open_isolated_pyvista_structure_window(state):
+    """Launch the child viewer without importing Qt/VTK into the Tk process."""
+    from ui.molecule_viewer_host import open_isolated_molecule_viewer
+    return open_isolated_molecule_viewer(state)
+
 
 def open_pyvista_structure_window(state):
     """
@@ -843,15 +756,16 @@ def open_pyvista_structure_window(state):
     state["plot3d_pyvista_plotter"] = plotter
 
 def open_3d_plot_window(state):
+    """Default 3D entry; keep Qt/VTK isolated from the Tk host."""
+    from ui.molecule_viewer_host import open_isolated_molecule_viewer
+    return open_isolated_molecule_viewer(state, offer_fallback=True)
+
+
+def open_matplotlib_3d_window(state):
     """
     Open or focus the integrated 3D structure viewer.
     The 3D view follows the current element filter and current rotation state.
     """
-    atom_data, _ = _get_3d_structure(state)
-    if not atom_data:
-        state["messagebox"].showerror("Error", "No atom data loaded.")
-        return
-
     win = state.get("plot3d_popup")
     if win is not None:
         try:
@@ -864,7 +778,9 @@ def open_3d_plot_window(state):
             pass
 
     win = tk.Toplevel(state["root"])
-    win.title("3D Structure")
+    from ui.document_integrations import active_document_title
+
+    win.title(active_document_title(state, "3D Structure (Matplotlib)"))
     win.geometry("650x560")
 
     outer = ttk.Frame(win)
@@ -875,7 +791,7 @@ def open_3d_plot_window(state):
 
     ttk.Label(control, text="Color mode:").pack(side=tk.LEFT)
 
-    color_mode_var = tk.StringVar(value="Element")
+    color_mode_var = tk.StringVar(value=_get_color_mode(state))
     state["plot3d_color_mode_var"] = color_mode_var
     color_mode_box = ttk.Combobox(
         control,
@@ -886,7 +802,7 @@ def open_3d_plot_window(state):
     )
     color_mode_box.pack(side=tk.LEFT, padx=(6, 12))
 
-    show_labels_var = tk.BooleanVar(value=False)
+    show_labels_var = tk.BooleanVar(value=_get_show_labels(state))
     state["plot3d_show_labels_var"] = show_labels_var
     ttk.Checkbutton(
         control,
@@ -907,12 +823,6 @@ def open_3d_plot_window(state):
         command=lambda: _save_3d_figure(state),
     ).pack(side=tk.RIGHT, padx=(0, 6))
 
-    ttk.Button(
-        control,
-        text="Open PyVista",
-        command=lambda: open_pyvista_structure_window(state),
-    ).pack(side=tk.RIGHT, padx=(0, 6))
-
     fig_frame = ttk.Frame(outer)
     fig_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
 
@@ -931,15 +841,18 @@ def open_3d_plot_window(state):
     color_mode_box.bind("<<ComboboxSelected>>", lambda e: _draw_3d_plot(state))
 
     def _on_close():
+        # Display preferences remain authoritative after the legacy widgets close.
         try:
             win.destroy()
         finally:
             state["plot3d_popup"] = None
             state["plot3d_figure"] = None
             state["plot3d_canvas"] = None
-            state["plot3d_color_mode_var"] = None
-            state["plot3d_show_labels_var"] = None
             state["plot3d_click_cid"] = None
+            state["plot3d_rendered_document_id"] = None
+            isolated_viewer = state.get("_isolated_molecule_viewer")
+            if isolated_viewer is not None:
+                isolated_viewer.request_refresh()
 
     win.protocol("WM_DELETE_WINDOW", _on_close)
 
@@ -965,7 +878,7 @@ def _save_3d_figure(state):
         return
 
     try:
-        fig.savefig(path, dpi=600, bbox_inches="tight")
+        save_molecule_figure(fig, path)
         state["messagebox"].showinfo("3D Structure", f"Saved:\n{path}")
     except Exception as exc:
         state["messagebox"].showerror("3D Structure", f"Save failed:\n{exc}")

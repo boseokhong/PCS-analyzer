@@ -5,398 +5,528 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-import traceback
-import shutil
-import tempfile
-import zipfile
+import traceback as traceback_module
 from pathlib import Path
 
+from app_version import APP_VERSION
+from plugin_system import plugin_installer
+from plugin_system.plugin_manifest import ManifestValidationError, resolve_entry_path
 from plugin_system.plugin_registry import (
     INSTALLED_DIR,
-    load_registry,
-    save_registry,
+    PluginRegistryError,
     ensure_plugin_dirs,
+    load_registry,
 )
+from plugin_system.plugin_version import PluginVersionError, check_app_compatibility
+
+
+_MISSING = object()
+
+
+def _load_result(
+    plugin_id: str | None,
+    *,
+    status: str,
+    category: str,
+    phase: str,
+    message: str,
+    error: str | None = None,
+    exception: BaseException | None = None,
+    path: Path | None = None,
+    enabled: bool | None = None,
+    manifest: dict | None = None,
+    module=None,
+    warnings: list[dict] | None = None,
+    reused_module: bool = False,
+    **extra,
+) -> dict:
+    """Build the stable, UI-independent plugin load result shape."""
+    result = {
+        "ok": status != "failed",
+        "plugin_id": plugin_id,
+        "status": status,
+        "category": category,
+        "phase": phase,
+        "message": message,
+        "error": error,
+        "exception_type": type(exception).__name__ if exception else None,
+        "traceback": (
+            "".join(
+                traceback_module.format_exception(
+                    type(exception), exception, exception.__traceback__
+                )
+            )
+            if exception
+            else None
+        ),
+        "path": str(path) if path is not None else None,
+        "enabled": enabled,
+        "manifest": manifest,
+        "module": module,
+        "warnings": list(warnings or ()),
+        "reused_module": reused_module,
+    }
+    result.update(extra)
+    return result
+
+
+def _read_manifest(plugin_dir: Path) -> dict:
+    manifest_path = plugin_dir / "manifest.json"
+    with manifest_path.open("r", encoding="utf-8") as manifest_file:
+        manifest = json.load(manifest_file)
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest.json must contain a JSON object.")
+    return manifest
+
 
 def load_manifest(plugin_dir: Path) -> dict | None:
-    manifest_path = plugin_dir / "manifest.json"
-
-    if not manifest_path.exists():
+    """Return a legacy manifest result while preserving the historic public API."""
+    try:
+        return _read_manifest(plugin_dir)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
         return None
+
+
+def _compatibility_warning(field: str, value: object, detail: str) -> dict:
+    return {
+        "category": "invalid_compatibility_metadata",
+        "field": field,
+        "value": value,
+        "message": f"Ignoring invalid {field} value {value!r}: {detail}",
+    }
+
+
+def _check_legacy_compatibility(manifest: dict) -> tuple[object | None, list[dict]]:
+    """Check valid compatibility bounds without rejecting malformed legacy data."""
+    warnings = []
+    valid_bounds = {}
+
+    for field in ("min_app_version", "max_app_version"):
+        if field not in manifest:
+            continue
+        value = manifest[field]
+        try:
+            if field == "min_app_version":
+                check_app_compatibility(APP_VERSION, min_app_version=value)
+            else:
+                check_app_compatibility(APP_VERSION, max_app_version=value)
+        except PluginVersionError as exc:
+            warnings.append(_compatibility_warning(field, value, str(exc)))
+        else:
+            valid_bounds[field] = value
 
     try:
-        with manifest_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else None
-    except Exception:
+        compatibility = check_app_compatibility(
+            APP_VERSION,
+            min_app_version=valid_bounds.get("min_app_version"),
+            max_app_version=valid_bounds.get("max_app_version"),
+        )
+    except PluginVersionError as exc:
+        warnings.append(
+            _compatibility_warning(
+                "min_app_version/max_app_version",
+                {
+                    "min_app_version": valid_bounds.get("min_app_version"),
+                    "max_app_version": valid_bounds.get("max_app_version"),
+                },
+                str(exc),
+            )
+        )
+        return None, warnings
+
+    return compatibility, warnings
+
+
+def _canonical_module_path(module) -> Path | None:
+    module_file = getattr(module, "__file__", None)
+    if not module_file:
         return None
+    try:
+        return Path(module_file).resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+
+
+def _restore_module(sys_name: str, previous) -> None:
+    if previous is _MISSING:
+        sys.modules.pop(sys_name, None)
+    else:
+        sys.modules[sys_name] = previous
+
+
+def _remove_new_alias_modules(prefixes: tuple[str, ...], previous_names: set[str]) -> None:
+    for name in tuple(sys.modules):
+        if name in previous_names:
+            continue
+        if any(name == prefix or name.startswith(prefix + ".") for prefix in prefixes):
+            sys.modules.pop(name, None)
 
 
 def load_plugin(plugin_id: str, record: dict, app) -> dict:
-    plugin_dir = Path(record.get("dir", ""))
-
-    if not plugin_dir.is_absolute():
-        plugin_dir = INSTALLED_DIR / plugin_id
-
-    manifest = load_manifest(plugin_dir)
-    if manifest is None:
-        return {
-            "ok": False,
-            "plugin_id": plugin_id,
-            "error": f"Missing or invalid manifest.json in {plugin_dir}",
-        }
-
-    entry = manifest.get("entry", "plugin.py")
-    entry_path = plugin_dir / entry
-
-    if not entry_path.exists():
-        return {
-            "ok": False,
-            "plugin_id": plugin_id,
-            "error": f"Plugin entry file does not exist: {entry_path}",
-        }
-
-    plugin_dir_str = str(plugin_dir)
-    if plugin_dir_str not in sys.path:
-        sys.path.insert(0, plugin_dir_str)
+    enabled = bool(record.get("enabled", False)) if isinstance(record, dict) else None
+    warnings = []
 
     try:
-        module_name = f"pcs_plugin_{plugin_id}"
-        public_package_name = plugin_id
-
-        spec = importlib.util.spec_from_file_location(
-            module_name,
-            entry_path,
-            submodule_search_locations=[str(plugin_dir)],
+        directory = record.get("dir", "")
+        plugin_dir = Path(directory)
+    except (AttributeError, TypeError, ValueError) as exc:
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="path_error",
+            phase="locate",
+            message="The installed plugin path is invalid.",
+            error=str(exc),
+            exception=exc,
+            enabled=enabled,
         )
 
-        module = importlib.util.module_from_spec(spec)
+    # Preserve the original loader's interpretation of legacy relative paths.
+    if not plugin_dir.is_absolute():
+        plugin_dir = INSTALLED_DIR / plugin_id
+    plugin_dir = plugin_dir.resolve(strict=False)
 
-        if spec.loader is None:
-            raise RuntimeError("Could not create plugin loader.")
+    if not plugin_dir.is_dir():
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="path_error",
+            phase="locate",
+            message="The installed plugin directory is missing or invalid.",
+            error=f"Plugin directory is not a directory: {plugin_dir}",
+            path=plugin_dir,
+            enabled=enabled,
+        )
 
-        sys.modules[module_name] = module
+    manifest_path = plugin_dir / "manifest.json"
+    if not manifest_path.exists():
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="missing_manifest",
+            phase="manifest",
+            message="The plugin manifest is missing.",
+            error=f"Manifest does not exist: {manifest_path}",
+            path=manifest_path,
+            enabled=enabled,
+        )
 
-        # For folder-type plugins, also expose the plugin under its actual plugin_id.
-        # This is needed when internal files use absolute imports:
-        #     from pcs_motion_explorer.core... import ...
-        old_public_module = sys.modules.get(public_package_name)
-        sys.modules[public_package_name] = module
+    try:
+        manifest = _read_manifest(plugin_dir)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="malformed_manifest",
+            phase="manifest",
+            message="The plugin manifest could not be read.",
+            error=str(exc),
+            exception=exc,
+            path=manifest_path,
+            enabled=enabled,
+        )
+
+    manifest_id = manifest.get("id")
+    if manifest_id is not None and manifest_id != plugin_id:
+        warnings.append(
+            {
+                "category": "legacy_metadata",
+                "field": "id",
+                "value": manifest_id,
+                "message": (
+                    f"Manifest id {manifest_id!r} differs from registry id {plugin_id!r}."
+                ),
+            }
+        )
+
+    entry = manifest.get("entry", "plugin.py")
+    try:
+        entry_path = resolve_entry_path(plugin_dir, entry)
+    except ManifestValidationError as exc:
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="path_error",
+            phase="entry",
+            message="The plugin entry path is unsafe or invalid.",
+            error=str(exc),
+            exception=exc,
+            path=plugin_dir,
+            enabled=enabled,
+            manifest=manifest,
+            warnings=warnings,
+        )
+
+    if not entry_path.is_file():
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="missing_entry",
+            phase="entry",
+            message="The plugin entry file is missing.",
+            error=f"Plugin entry file does not exist: {entry_path}",
+            path=entry_path,
+            enabled=enabled,
+            manifest=manifest,
+            warnings=warnings,
+        )
+
+    compatibility, compatibility_warnings = _check_legacy_compatibility(manifest)
+    warnings.extend(compatibility_warnings)
+    if compatibility is not None and not compatibility.compatible:
+        reason = compatibility.reason or "Plugin is incompatible with this application."
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="incompatible",
+            phase="compatibility",
+            message="The plugin is not compatible with this PCS Analyzer version.",
+            error=reason,
+            path=entry_path,
+            enabled=enabled,
+            manifest=manifest,
+            warnings=warnings,
+        )
+
+    module_name = f"pcs_plugin_{plugin_id}"
+    public_name = plugin_id
+    entry_identity = entry_path.resolve(strict=False)
+    existing_module = sys.modules.get(module_name)
+    reused_module = False
+
+    if existing_module is not None:
+        if _canonical_module_path(existing_module) != entry_identity:
+            return _load_result(
+                plugin_id,
+                status="failed",
+                category="import_error",
+                phase="import",
+                message="A conflicting plugin module is already loaded.",
+                error=(
+                    f"Module {module_name!r} is loaded from "
+                    f"{_canonical_module_path(existing_module)!s}, not {entry_identity}."
+                ),
+                path=entry_path,
+                enabled=enabled,
+                manifest=manifest,
+                warnings=warnings,
+            )
+        module = existing_module
+        reused_module = True
+    else:
+        module = None
+
+    original_sys_path = list(sys.path)
+    previous_names = set(sys.modules)
+    old_module = sys.modules.get(module_name, _MISSING)
+    old_public_module = sys.modules.get(public_name, _MISSING)
+    import_completed = reused_module
+
+    try:
+        sys.path.insert(0, str(plugin_dir))
+
+        if not reused_module:
+            spec = importlib.util.spec_from_file_location(
+                module_name,
+                entry_path,
+                submodule_search_locations=[str(plugin_dir)],
+            )
+            if spec is None or spec.loader is None:
+                raise RuntimeError("Could not create plugin loader.")
+
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            sys.modules[public_name] = module
+            try:
+                spec.loader.exec_module(module)
+            except ModuleNotFoundError as exc:
+                _restore_module(module_name, old_module)
+                _restore_module(public_name, old_public_module)
+                _remove_new_alias_modules((module_name, public_name), previous_names)
+                return _load_result(
+                    plugin_id,
+                    status="failed",
+                    category="dependency_error",
+                    phase="import",
+                    message="A plugin dependency could not be imported.",
+                    error=str(exc),
+                    exception=exc,
+                    path=entry_path,
+                    enabled=enabled,
+                    manifest=manifest,
+                    warnings=warnings,
+                    missing_module=exc.name,
+                )
+            except Exception as exc:
+                _restore_module(module_name, old_module)
+                _restore_module(public_name, old_public_module)
+                _remove_new_alias_modules((module_name, public_name), previous_names)
+                return _load_result(
+                    plugin_id,
+                    status="failed",
+                    category="import_error",
+                    phase="import",
+                    message="The plugin raised an exception while importing.",
+                    error=str(exc),
+                    exception=exc,
+                    path=entry_path,
+                    enabled=enabled,
+                    manifest=manifest,
+                    warnings=warnings,
+                )
+            import_completed = True
+        else:
+            # This alias supports existing plugins that import their own ID.
+            sys.modules[public_name] = module
+
+        register = getattr(module, "register", None)
+        if not callable(register):
+            if not reused_module:
+                _restore_module(module_name, old_module)
+                _restore_module(public_name, old_public_module)
+                _remove_new_alias_modules((module_name, public_name), previous_names)
+            return _load_result(
+                plugin_id,
+                status="failed",
+                category="missing_register",
+                phase="register",
+                message="The plugin does not define register(app).",
+                error="register(app) function is missing or not callable.",
+                path=entry_path,
+                enabled=enabled,
+                manifest=manifest,
+                module=module if reused_module else None,
+                warnings=warnings,
+                reused_module=reused_module,
+            )
+
+        previous_plugin_id = getattr(app, "current_plugin_id", None)
+        previous_manifest = getattr(app, "current_plugin_manifest", None)
 
         try:
-            spec.loader.exec_module(module)
-        except Exception:
-            # Restore old module only if loading failed.
-            if old_public_module is not None:
-                sys.modules[public_package_name] = old_public_module
-            else:
-                sys.modules.pop(public_package_name, None)
-            raise
+            app.current_plugin_id = plugin_id
+            app.current_plugin_manifest = manifest
+            register(app)
+        except Exception as exc:
+            return _load_result(
+                plugin_id,
+                status="failed",
+                category="register_error",
+                phase="register",
+                message="The plugin raised an exception during registration.",
+                error=str(exc),
+                exception=exc,
+                path=entry_path,
+                enabled=enabled,
+                manifest=manifest,
+                module=module,
+                warnings=warnings,
+                reused_module=reused_module,
+            )
+        finally:
+            app.current_plugin_id = previous_plugin_id
+            app.current_plugin_manifest = previous_manifest
 
-        if not hasattr(module, "register"):
-            return {
-                "ok": False,
-                "plugin_id": plugin_id,
-                "error": "register(app) function is missing.",
-            }
-
-        module.register(app)
-
-        return {
-            "ok": True,
-            "plugin_id": plugin_id,
-            "module": module,
-            "manifest": manifest,
-        }
-
-    except Exception:
-        return {
-            "ok": False,
-            "plugin_id": plugin_id,
-            "error": traceback.format_exc(),
-        }
+        return _load_result(
+            plugin_id,
+            status="loaded",
+            category="success",
+            phase="register",
+            message="Plugin loaded successfully.",
+            path=entry_path,
+            enabled=enabled,
+            manifest=manifest,
+            module=module,
+            warnings=warnings,
+            reused_module=reused_module,
+        )
+    except Exception as exc:
+        if not import_completed:
+            _restore_module(module_name, old_module)
+            _restore_module(public_name, old_public_module)
+            _remove_new_alias_modules((module_name, public_name), previous_names)
+        return _load_result(
+            plugin_id,
+            status="failed",
+            category="import_error",
+            phase="import",
+            message="The plugin could not be imported.",
+            error=str(exc),
+            exception=exc,
+            path=entry_path,
+            enabled=enabled,
+            manifest=manifest,
+            module=module if import_completed else None,
+            warnings=warnings,
+            reused_module=reused_module,
+        )
+    finally:
+        sys.path[:] = original_sys_path
 
 
 def load_enabled_plugins(app) -> list[dict]:
-    ensure_plugin_dirs()
+    try:
+        ensure_plugin_dirs()
+        registry = load_registry()
+    except PluginRegistryError as exc:
+        return [
+            _load_result(
+                None,
+                status="failed",
+                category="registry_error",
+                phase="registry",
+                message="The plugin registry could not be loaded.",
+                error=str(exc),
+                exception=exc,
+            )
+        ]
 
-    registry = load_registry()
     results = []
-
     for plugin_id, record in registry.items():
         if not record.get("enabled", False):
+            results.append(
+                _load_result(
+                    plugin_id,
+                    status="skipped",
+                    category="disabled",
+                    phase="selection",
+                    message="Plugin is disabled.",
+                    enabled=False,
+                )
+            )
             continue
 
-        result = load_plugin(plugin_id, record, app)
-        results.append(result)
+        try:
+            results.append(load_plugin(plugin_id, record, app))
+        except Exception as exc:
+            # Keep an unforeseen loader defect in one plugin from blocking others.
+            results.append(
+                _load_result(
+                    plugin_id,
+                    status="failed",
+                    category="load_error",
+                    phase="load",
+                    message="The plugin could not be loaded.",
+                    error=str(exc),
+                    exception=exc,
+                    enabled=True,
+                )
+            )
 
     return results
 
 
-def _safe_plugin_id(text: str) -> str:
-    text = str(text or "").strip().lower()
-    out = []
-
-    for ch in text:
-        if ch.isalnum():
-            out.append(ch)
-        elif ch in (" ", "-", "_", "."):
-            out.append("_")
-
-    plugin_id = "".join(out).strip("_")
-    return plugin_id or "unnamed_plugin"
-
-
 def inspect_plugin_file(py_path: str | Path) -> dict:
-    """
-    Temporarily load a .py plugin to read PLUGIN_INFO.
-    Does not call register(app).
-    """
-    py_path = Path(py_path)
-
-    if not py_path.exists():
-        return {"ok": False, "error": f"File does not exist: {py_path}"}
-
-    try:
-        module_name = f"_pcs_plugin_inspect_{py_path.stem}"
-        plugin_dir = py_path.parent
-
-        spec = importlib.util.spec_from_file_location(
-            module_name,
-            py_path,
-            submodule_search_locations=[str(plugin_dir)],
-        )
-
-        module = importlib.util.module_from_spec(spec)
-
-        if spec.loader is None:
-            raise RuntimeError("Could not create plugin loader.")
-
-        # Important for @dataclass and other introspection-heavy decorators.
-        sys.modules[module_name] = module
-
-        try:
-            spec.loader.exec_module(module)
-        finally:
-            # Inspection-only import. Remove it to avoid stale temporary modules.
-            sys.modules.pop(module_name, None)
-
-        info = getattr(module, "PLUGIN_INFO", None)
-        if not isinstance(info, dict):
-            return {
-                "ok": False,
-                "error": "PLUGIN_INFO dictionary is missing.",
-            }
-
-        if not hasattr(module, "register"):
-            return {
-                "ok": False,
-                "error": "register(app) function is missing.",
-            }
-
-        plugin_id = _safe_plugin_id(
-            info.get("id") or info.get("name") or py_path.stem
-        )
-
-        return {
-            "ok": True,
-            "plugin_id": plugin_id,
-            "info": info,
-        }
-
-    except Exception:
-        return {
-            "ok": False,
-            "error": traceback.format_exc(),
-        }
+    return plugin_installer.inspect_plugin_file(py_path)
 
 
-def _write_manifest(plugin_dir: Path, info: dict, entry: str = "plugin.py") -> dict:
-    plugin_id = _safe_plugin_id(info.get("id") or info.get("name") or plugin_dir.name)
-
-    manifest = {
-        "id": plugin_id,
-        "name": info.get("name", plugin_id),
-        "version": info.get("version", ""),
-        "author": info.get("author", ""),
-        "description": info.get("description", ""),
-        "entry": entry,
-        "type": info.get("type", "window"),
-        "standalone": bool(info.get("standalone", True)),
-        "dependencies": info.get("dependencies", []),
-    }
-
-    manifest_path = plugin_dir / "manifest.json"
-    with manifest_path.open("w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2, ensure_ascii=False)
-
-    return manifest
+def install_plugin_file(py_path: str | Path, **kwargs) -> dict:
+    return plugin_installer.install_plugin_file(py_path, **kwargs)
 
 
-def _register_installed_plugin(plugin_id: str, manifest: dict) -> dict:
-    registry = load_registry()
-
-    registry[plugin_id] = {
-        "id": plugin_id,
-        "name": manifest.get("name", plugin_id),
-        "version": manifest.get("version", ""),
-        "author": manifest.get("author", ""),
-        "description": manifest.get("description", ""),
-        "dir": plugin_id,
-        "enabled": True,
-        "type": manifest.get("type", "window"),
-    }
-
-    save_registry(registry)
-    return registry[plugin_id]
+def install_plugin_folder(folder_path: str | Path, **kwargs) -> dict:
+    return plugin_installer.install_plugin_folder(folder_path, **kwargs)
 
 
-def install_plugin_file(py_path: str | Path) -> dict:
-    """
-    Install a single .py plugin.
-
-    External input:
-        some_plugin.py
-
-    Internal installed form:
-        plugins/installed/<plugin_id>/
-            manifest.json
-            plugin.py
-    """
-    ensure_plugin_dirs()
-    py_path = Path(py_path)
-
-    inspected = inspect_plugin_file(py_path)
-    if not inspected.get("ok"):
-        return inspected
-
-    info = inspected["info"]
-    plugin_id = inspected["plugin_id"]
-
-    target_dir = INSTALLED_DIR / plugin_id
-
-    if target_dir.exists():
-        shutil.rmtree(target_dir)
-
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target_file = target_dir / "plugin.py"
-
-    shutil.copy2(py_path, target_file)
-
-    manifest = _write_manifest(target_dir, info, entry="plugin.py")
-    rec = _register_installed_plugin(plugin_id, manifest)
-
-    return {
-        "ok": True,
-        "plugin_id": plugin_id,
-        "info": rec,
-    }
-
-
-def _find_manifest_dir(folder: Path) -> Path | None:
-    """
-    Accept either:
-      folder/manifest.json
-    or
-      folder/<plugin_name>/manifest.json
-    """
-    folder = Path(folder)
-
-    if (folder / "manifest.json").exists():
-        return folder
-
-    children = [p for p in folder.iterdir() if p.is_dir()]
-    for child in children:
-        if (child / "manifest.json").exists():
-            return child
-
-    return None
-
-
-def install_plugin_folder(folder_path: str | Path) -> dict:
-    """
-    Install a folder-type plugin.
-    The folder must contain manifest.json and an entry file.
-    """
-    ensure_plugin_dirs()
-    folder_path = Path(folder_path)
-
-    src_dir = _find_manifest_dir(folder_path)
-    if src_dir is None:
-        return {
-            "ok": False,
-            "error": "manifest.json was not found in the selected folder.",
-        }
-
-    manifest_path = src_dir / "manifest.json"
-
-    try:
-        with manifest_path.open("r", encoding="utf-8") as f:
-            manifest = json.load(f)
-    except Exception:
-        return {
-            "ok": False,
-            "error": traceback.format_exc(),
-        }
-
-    plugin_id = _safe_plugin_id(manifest.get("id") or manifest.get("name") or src_dir.name)
-    entry = manifest.get("entry", "plugin.py")
-
-    if not (src_dir / entry).exists():
-        return {
-            "ok": False,
-            "error": f"Entry file does not exist: {entry}",
-        }
-
-    target_dir = INSTALLED_DIR / plugin_id
-
-    if target_dir.exists():
-        shutil.rmtree(target_dir)
-
-    shutil.copytree(src_dir, target_dir)
-
-    # Ensure manifest has normalized id/name fields.
-    manifest["id"] = plugin_id
-    manifest.setdefault("name", plugin_id)
-    manifest.setdefault("entry", entry)
-
-    with (target_dir / "manifest.json").open("w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2, ensure_ascii=False)
-
-    rec = _register_installed_plugin(plugin_id, manifest)
-
-    return {
-        "ok": True,
-        "plugin_id": plugin_id,
-        "info": rec,
-    }
-
-
-def install_plugin_zip(zip_path: str | Path) -> dict:
-    """
-    Install a ZIP plugin package.
-    The zip must contain either manifest.json at root,
-    or one top-level folder containing manifest.json.
-    """
-    ensure_plugin_dirs()
-    zip_path = Path(zip_path)
-
-    if not zip_path.exists():
-        return {
-            "ok": False,
-            "error": f"ZIP file does not exist: {zip_path}",
-        }
-
-    with tempfile.TemporaryDirectory() as td:
-        td = Path(td)
-
-        try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(td)
-        except Exception:
-            return {
-                "ok": False,
-                "error": traceback.format_exc(),
-            }
-
-        return install_plugin_folder(td)
+def install_plugin_zip(zip_path: str | Path, **kwargs) -> dict:
+    return plugin_installer.install_plugin_zip(zip_path, **kwargs)

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-09-26",
+  "component": "D4 structure-aware integration",
+  "runtime_dependencies_added_by_d4a": [],
+  "packages": [
+    {
+      "name": "NumPy",
+      "status": "existing_runtime_dependency",
+      "license": "BSD-3-Clause",
+      "d4_usage": "Cartesian geometry and distance calculations",
+      "bundled_by_d4a": false,
+      "release_action": "covered by the application's general third-party inventory"
+    },
+    {
+      "name": "RDKit",
+      "status": "candidate_for_D4c_not_yet_required",
+      "license": "BSD-3-Clause",
+      "d4_usage": "future 2D depiction and optional ligand connectivity/bond-order assistance",
+      "bundled_by_d4a": false,
+      "release_action": "review binary size, PyInstaller behavior, license files and transitive components before bundling",
+      "license_source": "https://github.com/rdkit/rdkit"
+    },
+    {
+      "name": "NetworkX",
+      "status": "candidate_only_if_graph_isomorphism_is_needed",
+      "license": "BSD-3-Clause",
+      "d4_usage": "future ligand graph isomorphism/canonical grouping",
+      "bundled_by_d4a": false,
+      "release_action": "do not add unless custom graph algorithms become insufficient",
+      "license_source": "https://networkx.org/documentation/latest/"
+    },
+    {
+      "name": "SCINE Molassembler",
+      "status": "optional_future_backend",
+      "license": "BSD-3-Clause",
+      "d4_usage": "advanced inorganic/coordination-aware graph handling",
+      "bundled_by_d4a": false,
+      "release_action": "separate review required for platform support and transitive dependencies",
+      "license_source": "https://scine.ethz.ch/download/molassembler"
+    },
+    {
+      "name": "Open Babel",
+      "status": "excluded_from_core_bundle",
+      "license": "GNU GPL version 2 text in upstream COPYING",
+      "d4_usage": "none",
+      "bundled_by_d4a": false,
+      "release_action": "do not bundle/link into BSD core without a dedicated compatibility/compliance review",
+      "license_source": "https://github.com/openbabel/openbabel/blob/master/COPYING"
+    }
+  ]
+}

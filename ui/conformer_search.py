@@ -41,12 +41,13 @@ CLI:  python -m utils.conformer_search --help
 
 from __future__ import annotations
 
+from ui.widget_style import ui_text_color, ui_label_style, ui_font_name, ui_native_colors
 import os
 import sys
 import math
 import itertools
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext, simpledialog
+from tkinter import ttk, filedialog, messagebox, simpledialog
 from typing import List, Tuple, Dict, Optional, Set
 
 import numpy as np
@@ -659,7 +660,8 @@ def calc_pcs(coords: np.ndarray,
     phi     = np.arctan2(dt[:, 1], dt[:, 0])
     Gax     = (3 * cos2 - 1) / r_safe ** 3
     Grh     = 1.5 * sin2 * np.cos(2 * phi) / r_safe ** 3
-    return (dchi_ax * Gax + dchi_rh * Grh) * 1e4 / (12.0 * np.pi)
+    from logic.pcs_fitting_adapter import predict_pcs_from_factors
+    return predict_pcs_from_factors(Gax, Grh, dchi_ax, dchi_rh)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CLASH DETECTION
@@ -1253,15 +1255,17 @@ class ConformerOptimiser:
                 -1.0,
                 1.0,
             )
-            ang_devs = np.degrees(np.arccos(cos_ang))
-            max_ang_dev = float(ang_devs.max())
-
             ref_vecs = (
                 self._ref_coords[self._fixed_list]
                 - self._ref_coords[self.metal_idx]
             )
             ref_dists = np.linalg.norm(ref_vecs, axis=1)
             cur_dists = np.linalg.norm(cur_vecs, axis=1)
+            # A direction is undefined at the metal (or at a collapsed vector).
+            # Keep these atoms in Cartesian/radial diagnostics, not angles.
+            valid_directions = (ref_dists > 1e-9) & (cur_dists > 1e-9)
+            ang_devs = np.degrees(np.arccos(cos_ang[valid_directions]))
+            max_ang_dev = float(ang_devs.max()) if ang_devs.size else 0.0
             max_radial_change = float(np.max(np.abs(cur_dists - ref_dists)))
         else:
             max_ang_dev = 0.0
@@ -1826,8 +1830,13 @@ class RigidBodyAnchorOptimiser:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def load_xyz(path: str) -> Tuple[List[str], np.ndarray]:
-    with open(path) as f:
-        lines = f.readlines()
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            lines = f.readlines()
+    except UnicodeDecodeError:
+        # Retain the previous platform-codepage path for older XYZ comments.
+        with open(path) as f:
+            lines = f.readlines()
     n = int(lines[0].strip())
     elements, coords = [], []
     for line in lines[2:2+n]:
@@ -1842,7 +1851,7 @@ def load_xyz(path: str) -> Tuple[List[str], np.ndarray]:
 
 def save_xyz(path: str, elements: List[str], coords: np.ndarray,
              comment: str = "Optimised conformer – PCS Suite"):
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(f"{len(elements)}\n{comment}\n")
         for el, (x, y, z) in zip(elements, coords):
             f.write(f"{el:<4s}  {x:12.6f}  {y:12.6f}  {z:12.6f}\n")
@@ -2092,6 +2101,7 @@ class ConformerSearchGUI:
         on_preview_result=None,
         initial_data: Optional[dict] = None,
         embed_in: Optional[tk.Misc] = None,
+        status_var: Optional[tk.StringVar] = None,
     ):
         if embed_in is not None:
             self.root = embed_in
@@ -2133,6 +2143,22 @@ class ConformerSearchGUI:
         self._n_candidates_var = tk.StringVar(value="5")
         self._dedup_tol_var = tk.StringVar(value="5.0")
         self._search_model_hint_var = tk.StringVar(value="")
+        self._presentation_state_changed = None
+
+        # Optional PCS Analyzer integration status.  Keep the full caller-owned
+        # message intact; render only a compact derivative in embedded mode.
+        self._external_status_var = status_var
+        self._external_status_display_var = tk.StringVar(value="Ready")
+        self._external_status_labels = []
+        self._external_status_trace = None
+        if self._external_status_var is not None:
+            self._sync_external_status_display()
+            try:
+                self._external_status_trace = self._external_status_var.trace_add(
+                    "write", self._sync_external_status_display
+                )
+            except Exception:
+                self._external_status_trace = None
 
         # Search-mode selector: existing dihedral search vs rigid-body anchor rotation
         self._search_mode_var = tk.StringVar(value="dihedral")
@@ -2174,6 +2200,7 @@ class ConformerSearchGUI:
             euler_deg=(alpha,beta,gamma)
         """
         data = self.initial_data or {}
+        self._restored_pcs = None
         try:
             xyz_path = data.get("xyz_path")
             if xyz_path:
@@ -2200,9 +2227,9 @@ class ConformerSearchGUI:
 
             euler_deg = data.get("euler_deg")
             if euler_deg is not None and len(euler_deg) == 3:
-                self._ea_var.set(f"{float(euler_deg[0]):g}")
-                self._eb_var.set(f"{float(euler_deg[1]):g}")
-                self._eg_var.set(f"{float(euler_deg[2]):g}")
+                self._ea_var.set(f"{float(euler_deg[0]):.15g}")
+                self._eb_var.set(f"{float(euler_deg[1]):.15g}")
+                self._eg_var.set(f"{float(euler_deg[2]):.15g}")
             self._refresh_imported_summary()
             self._refresh_search_setup_summary()
 
@@ -2213,6 +2240,8 @@ class ConformerSearchGUI:
     # Summary helper
     def _get_imported_summary_items(self):
         pcs_points = "N/A"
+        if getattr(self, "_restored_pcs", None):
+            pcs_points = str(len(self._restored_pcs))
         try:
             pcs_path = self._pcs_var.get().strip()
             if pcs_path and os.path.isfile(pcs_path):
@@ -2327,6 +2356,71 @@ class ConformerSearchGUI:
                     self._progress_bar.stop()
         except Exception:
             pass
+        self._notify_presentation_state()
+
+    def _notify_presentation_state(self):
+        callback = self._presentation_state_changed
+        if callable(callback):
+            callback()
+
+    def _worker_result_is_current(self) -> bool:
+        validator = getattr(
+            self, "_pcs_document_completion_validator", None
+        )
+        if not callable(validator):
+            return True
+        return bool(
+            validator(getattr(self, "_worker_document_identity", None))
+        )
+
+    def _complete_search_success(self, candidates: list, recorded_run=None) -> bool:
+        self._set_running_state(False, "Completed.")
+        if not self._worker_result_is_current():
+            self._status_var.set(
+                "Search result discarded because its PCS document changed."
+            )
+            return False
+        identity = getattr(self, "_worker_document_identity", None)
+        active_validator = getattr(self, "_pcs_document_active_validator", None)
+        if callable(active_validator) and not active_validator(identity):
+            if candidates and callable(self.on_preview_result):
+                best = candidates[0]
+                report = (
+                    format_rigid_body_report(best, self.mol, rank=1, n_total=len(candidates))
+                    if best.get("mode") == "rigid"
+                    else format_report(
+                        best, best["selected_bonds"], self.mol,
+                        best.get("locked_bonds"), rank=1, n_total=len(candidates)
+                    )
+                )
+                self.on_preview_result({
+                    "result": best,
+                    "elements": list(self.mol.elements),
+                    "coords_initial": self.mol.coords.copy(),
+                    "coords_opt": best["coords_opt"].copy(),
+                    "report": report,
+                    "metal_idx": self.metal_idx,
+                    "_document_worker_identity": identity,
+                    "search_project": self._project_adapter.export(candidates=candidates,
+                        run=recorded_run, preview_index=0) if getattr(self, "_project_adapter", None) and recorded_run else None,
+                })
+            return True
+        if recorded_run is not None:
+            self._recorded_run = recorded_run
+            self._recorded_reports = None
+        self._show_results(candidates)
+        return True
+
+    def _complete_search_error(self, title: str, traceback_text: str) -> bool:
+        self._set_running_state(False, "Error.")
+        if not self._worker_result_is_current():
+            self._status_var.set(
+                "Search stopped because its PCS document changed."
+            )
+            return False
+        messagebox.showerror(title, traceback_text[:1200])
+        self._status_var.set("Error.")
+        return True
 
     def _build_search_setup_text(self) -> str:
         try:
@@ -2361,6 +2455,66 @@ class ConformerSearchGUI:
             self._setup_summary_var.set(self._build_search_setup_text())
         except Exception:
             pass
+
+    def _sync_external_status_display(self, *_args):
+        """Render caller-owned integration status as a short, stable label."""
+        var = getattr(self, "_external_status_var", None)
+        if var is None:
+            return
+        try:
+            text = str(var.get() or "").strip()
+        except Exception:
+            text = ""
+
+        lower = text.lower()
+        if not text:
+            compact = ""
+        elif "structure loaded" in lower:
+            compact = "Structure loaded"
+        elif "update complete" in lower or "sync complete" in lower:
+            compact = "Synced"
+        elif "preview ready" in lower:
+            if "rmsd=" in lower:
+                tail = text[lower.index("rmsd="):].split("—", 1)[0].strip()
+                compact = f"Preview ready · {tail}"
+            else:
+                compact = "Preview ready"
+        elif "applied" in lower:
+            compact = "Applied"
+        elif "reverted" in lower:
+            compact = "Reverted"
+        elif "discarded" in lower:
+            compact = "Discarded"
+        elif "done" in lower and "rmsd=" in lower:
+            tail = text[lower.index("rmsd="):].strip()
+            compact = f"Done · {tail}"
+        elif "running" in lower or "optim" in lower:
+            compact = "Running…"
+        elif text.rstrip(".").lower() == "ready":
+            compact = "Ready"
+        else:
+            compact = text if len(text) <= 34 else text[:31].rstrip() + "…"
+
+        self._external_status_display_var.set(compact)
+
+    def _add_embedded_status(self, parent):
+        """Place compact integration status in an existing workflow header."""
+        if not getattr(self, "_embedded", False):
+            return None
+        if getattr(self, "_external_status_var", None) is None:
+            return None
+
+        label = ttk.Label(
+            parent,
+            textvariable=self._external_status_display_var,
+            style=ui_label_style(parent, "muted"),
+            anchor="e",
+            width=28,
+            font=ui_font_name(self.root, "ui_small"),
+        )
+        label.pack(side="right", padx=(12, 0))
+        self._external_status_labels.append(label)
+        return label
 
     # ── Layout ───────────────────────────────────────────────────────────────
 
@@ -2401,7 +2555,7 @@ class ConformerSearchGUI:
             outer = ttk.Frame(p)
             outer.pack(fill="both", expand=True)
 
-            canvas = tk.Canvas(outer, bg="#f5f6fa", highlightthickness=0)
+            canvas = ui_native_colors(tk.Canvas(outer, highlightthickness=0), background="surface")
             vsb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
             canvas.configure(yscrollcommand=vsb.set)
 
@@ -2499,11 +2653,14 @@ class ConformerSearchGUI:
         )
         inf.pack(fill="x", **pad)
 
+        imported_header = ttk.Frame(inf)
+        imported_header.pack(fill="x", pady=(0, 4))
         ttk.Label(
-            inf,
+            imported_header,
             text="These values are used as the starting point for the current search.",
-            foreground="#555555",
-        ).pack(anchor="w", pady=(0, 4))
+            style=ui_label_style(imported_header, "muted"),
+        ).pack(side="left", anchor="w")
+        self._add_embedded_status(imported_header)
 
         self._imported_value_labels = []
 
@@ -2524,7 +2681,7 @@ class ConformerSearchGUI:
             ttk.Label(
                 grid,
                 text=key,
-                font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
+                font=ui_font_name(self.root, "section"),
                 width=14,
                 anchor="w",
             ).grid(row=r, column=0, sticky="nw", padx=(0, 10), pady=2)
@@ -2534,7 +2691,7 @@ class ConformerSearchGUI:
                 text=value,
                 anchor="w",
                 justify="left",
-                foreground="#333333",
+                style=ui_label_style(grid, "text"),
             )
             val_lbl.grid(row=r, column=1, sticky="w", pady=2)
             self._imported_value_labels.append(val_lbl)
@@ -2558,7 +2715,7 @@ class ConformerSearchGUI:
             text=(
                 "Use this for flexible ligand arms with meaningful rotatable bonds."
             ),
-            foreground="#666666",
+            style=ui_label_style(mode_box, "muted"),
             wraplength=850,
         ).pack(anchor="w", padx=(24, 0), pady=(0, 4))
 
@@ -2576,7 +2733,7 @@ class ConformerSearchGUI:
                 "Use this for closed chelate/ring-like ligands with no free dihedrals. "
                 "Anchor atoms are selected in the Fixed atoms tab."
             ),
-            foreground="#666666",
+            style=ui_label_style(mode_box, "muted"),
             wraplength=850,
         ).pack(anchor="w", padx=(24, 0), pady=(0, 4))
 
@@ -2636,7 +2793,7 @@ class ConformerSearchGUI:
         ttk.Label(
             self._rb_bounds_frame,
             text="× initial metal–anchor distance",
-            foreground="#666666",
+            style=ui_label_style(self._rb_bounds_frame, "muted"),
         ).pack(side="left")
 
         self._rb_lock_mode_var.trace_add("write", lambda *_: self._on_search_mode_change())
@@ -2663,7 +2820,7 @@ class ConformerSearchGUI:
         ttk.Label(
             r_preset,
             text="Optimization level:",
-            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
+            font=ui_font_name(self.root, "section"),
         ).pack(side="left")
 
         preset_box = ttk.Combobox(
@@ -2679,7 +2836,7 @@ class ConformerSearchGUI:
         ttk.Label(
             r_preset,
             text="Quick = faster / Balanced = recommended / Thorough = slower but more robust",
-            foreground="#555555",
+            style=ui_label_style(r_preset, "muted"),
         ).pack(side="left", padx=(10, 0))
 
         r2 = ttk.Frame(of)
@@ -2688,7 +2845,7 @@ class ConformerSearchGUI:
         ttk.Label(
             r2,
             text="Custom values:",
-            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
+            font=ui_font_name(self.root, "section"),
         ).pack(side="left", padx=(0, 8))
 
         ttk.Label(r2, text="DE iterations").pack(side="left")
@@ -2704,7 +2861,7 @@ class ConformerSearchGUI:
         ttk.Label(
             of,
             text="Changing the values manually switches the level to Custom.",
-            foreground="#777777",
+            style=ui_label_style(of, "muted"),
         ).pack(anchor="w", pady=(6, 0))
 
         # ── Search model ──────────────────────────────────────────────────────────
@@ -2715,7 +2872,7 @@ class ConformerSearchGUI:
             mf,
             text=("Choose how fixed atoms are treated and how many distinct conformer "
                   "candidates should be kept."),
-            foreground="#555555",
+            style=ui_label_style(mf, "muted"),
         ).pack(anchor="w", pady=(0, 4))
 
         rsm1 = ttk.Frame(mf)
@@ -2724,7 +2881,7 @@ class ConformerSearchGUI:
         ttk.Label(
             rsm1,
             text="Constraint model:",
-            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
+            font=ui_font_name(self.root, "section"),
         ).pack(side="left")
 
         constraint_cb = ttk.Combobox(
@@ -2739,7 +2896,7 @@ class ConformerSearchGUI:
         ttk.Label(
             rsm1,
             text="position = keep fixed atoms near original XYZ / angular = keep metal-centered directions and allow radial relaxation",
-            foreground="#666666",
+            style=ui_label_style(rsm1, "muted"),
         ).pack(side="left", padx=(10, 0))
 
         rsm2 = ttk.Frame(mf)
@@ -2748,7 +2905,7 @@ class ConformerSearchGUI:
         ttk.Label(
             rsm2,
             text="Output mode:",
-            font=self.fonts.get("section", ("TkDefaultFont", 9, "bold")),
+            font=ui_font_name(self.root, "section"),
         ).pack(side="left")
 
         output_cb = ttk.Combobox(
@@ -2771,7 +2928,7 @@ class ConformerSearchGUI:
         ttk.Label(
             mf,
             textvariable=self._search_model_hint_var,
-            foreground="#777777",
+            style=ui_label_style(mf, "muted"),
         ).pack(anchor="w", pady=(6, 0))
 
         def _update_search_model_ui(*_):
@@ -2815,12 +2972,13 @@ class ConformerSearchGUI:
         )
         self._progress_bar.pack(side="left", padx=(0, 8))
 
-        self._run_btn = ttk.Button(
-            af,
-            text="▶▶ Run conformer search",
-            command=self._run_search
-        )
-        self._run_btn.pack(side="left", padx=(0, 10))
+        if not embedded:
+            self._run_btn = ttk.Button(
+                af,
+                text="▶▶ Run conformer search",
+                command=self._run_search
+            )
+            self._run_btn.pack(side="left", padx=(0, 10))
 
         self._status_var = tk.StringVar(
             value="Run after 'Sync structure & PCS'." if embedded else "Load an XYZ file to start."
@@ -2829,7 +2987,7 @@ class ConformerSearchGUI:
         ttk.Label(
             af,
             textvariable=self._status_var,
-            foreground="#666666",
+            style=ui_label_style(af, "muted"),
         ).pack(side="left", fill="x", expand=True)
 
     # ─── Tab 1: Fixed atoms ──────────────────────────────────────────────────
@@ -2839,11 +2997,14 @@ class ConformerSearchGUI:
         hdr = ttk.Frame(p)
         hdr.pack(fill="x", padx=10, pady=(10, 6))
 
+        title_row = ttk.Frame(hdr)
+        title_row.pack(fill="x")
         ttk.Label(
-            hdr,
+            title_row,
             text="Fix atoms that should stay unchanged",
-            font=self.fonts.get("section_large", ("TkDefaultFont", 11, "bold")),
-        ).pack(anchor="w")
+            font=ui_font_name(self.root, "section_large"),
+        ).pack(side="left", anchor="w")
+        self._add_embedded_status(title_row)
 
         ttk.Label(
             hdr,
@@ -2853,28 +3014,26 @@ class ConformerSearchGUI:
                 "so the search focuses on flexible parts of the structure."
             ),
             justify="left",
-            foreground="#444444",
+            style=ui_label_style(hdr, "text"),
             wraplength=900,
         ).pack(anchor="w", pady=(4, 0))
 
-        tip = tk.Frame(hdr, bg="#eef4ff", bd=0, highlightthickness=1, highlightbackground="#d7e3ff")
+        tip = ui_native_colors(tk.Frame(hdr, bd=0, highlightthickness=1), background="surface", highlightbackground="edge")
         tip.pack(fill="x", pady=(8, 0))
 
-        tk.Label(
+        ui_native_colors(tk.Label(
             tip,
             text=(
                 "Typical use\n"
                 "• Fix donor atoms (N, O, P, S...) and rigid core atoms\n"
                 "• Leave pendant arms free for conformational optimization"
             ),
-            bg="#eef4ff",
-            fg="#284b7a",
             justify="left",
             anchor="w",
-            font=self.fonts.get("ui", ("TkDefaultFont", 9)),
+            font=ui_font_name(self.root, "ui"),
             padx=8,
             pady=6,
-        ).pack(anchor="w", fill="x")
+        ), background="surface", foreground="text").pack(anchor="w", fill="x")
 
         # Filter / bulk controls
         ctrl = ttk.Frame(p); ctrl.pack(fill="x", padx=8, pady=(0, 4))
@@ -2884,31 +3043,31 @@ class ConformerSearchGUI:
                   width=5).pack(side="left", padx=4)
         ttk.Button(ctrl, text="Apply filter",
                    command=self._apply_fixed_filter).pack(side="left", padx=2)
-        ttk.Separator(ctrl, orient="vertical").pack(
-            side="left", fill="y", padx=8, pady=2)
-        ttk.Button(ctrl, text="\u2714 Fix all shown",
-                   command=lambda: self._set_fixed_all(True)).pack(side="left")
-        ttk.Button(ctrl, text="\u2718 Unfix all",
-                   command=lambda: self._set_fixed_all(False)).pack(side="left", padx=4)
-        ttk.Button(ctrl, text="\u2195 Invert",
-                   command=self._invert_fixed).pack(side="left")
-        ttk.Separator(ctrl, orient="vertical").pack(
-            side="left", fill="y", padx=8, pady=2)
-        # THE KEY BUTTON — apply selection and jump to Tab ③
-        ttk.Button(ctrl,
-                   text="\u27f3  Apply & show locked bonds",
-                   command=self._refresh_bond_locks,
-                   ).pack(side="left", padx=6)
+        if not getattr(self, '_embedded', False):
+            ttk.Separator(ctrl, orient="vertical").pack(
+                side="left", fill="y", padx=8, pady=2)
+            ttk.Button(ctrl, text="\u2714 Fix all shown",
+                       command=lambda: self._set_fixed_all(True)).pack(side="left")
+            ttk.Button(ctrl, text="\u2718 Unfix all",
+                       command=lambda: self._set_fixed_all(False)).pack(side="left", padx=4)
+            ttk.Button(ctrl, text="\u2195 Invert",
+                       command=self._invert_fixed).pack(side="left")
+            ttk.Separator(ctrl, orient="vertical").pack(
+                side="left", fill="y", padx=8, pady=2)
+            ttk.Button(ctrl,
+                       text="\u27f3  Apply & show locked bonds",
+                       command=self._refresh_bond_locks,
+                       ).pack(side="left", padx=6)
 
         # Scrollable atom list
         cf = ttk.Frame(p); cf.pack(fill="both", expand=True, padx=8, pady=(0, 6))
-        self._fix_canvas = tk.Canvas(cf, bg="#f5f6fa", highlightthickness=0)
+        self._fix_canvas = ui_native_colors(tk.Canvas(cf, highlightthickness=0), background="surface")
         vsb = ttk.Scrollbar(cf, orient="vertical",
                             command=self._fix_canvas.yview)
         self._fix_canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y")
         self._fix_canvas.pack(side="left", fill="both", expand=True)
-        self._fix_inner = tk.Frame(self._fix_canvas, bg="#f5f6fa")
+        self._fix_inner = ui_native_colors(tk.Frame(self._fix_canvas), background="surface")
         self._fix_canvas.create_window((0, 0), window=self._fix_inner, anchor="nw")
         self._fix_inner.bind("<Configure>",
                              lambda e: self._fix_canvas.configure(
@@ -2929,11 +3088,14 @@ class ConformerSearchGUI:
         hdr = ttk.Frame(p)
         hdr.pack(fill="x", padx=10, pady=(10, 6))
 
+        title_row = ttk.Frame(hdr)
+        title_row.pack(fill="x")
         ttk.Label(
-            hdr,
+            title_row,
             text="Choose which bonds are allowed to rotate",
-            font=self.fonts.get("section_large", ("TkDefaultFont", 11, "bold")),
-        ).pack(anchor="w")
+            font=ui_font_name(self.root, "section_large"),
+        ).pack(side="left", anchor="w")
+        self._add_embedded_status(title_row)
 
         ttk.Label(
             hdr,
@@ -2942,14 +3104,14 @@ class ConformerSearchGUI:
                 "are excluded automatically."
             ),
             justify="left",
-            foreground="#444444",
+            style=ui_label_style(hdr, "text"),
             wraplength=900,
         ).pack(anchor="w", pady=(4, 0))
 
-        legend = tk.Frame(hdr, bg="#f5f7fb", bd=0, highlightthickness=1, highlightbackground="#e2e7f0")
+        legend = ui_native_colors(tk.Frame(hdr, bd=0, highlightthickness=1), background="surface", highlightbackground="edge")
         legend.pack(fill="x", pady=(8, 0))
 
-        tk.Label(
+        legend_label = ui_native_colors(tk.Label(
             legend,
             text=(
                 "🔓 Free to rotate    🔒 Locked and unavailable\n\n"
@@ -2959,14 +3121,15 @@ class ConformerSearchGUI:
                 "Fixed atoms act as anchors, so nearby flexible bonds can still rotate. "
                 "This works well for ligands with rigid donor regions and flexible side arms."
             ),
-            bg="#eef4ff",
-            fg="#284b7a",
             justify="left",
             anchor="w",
-            font=self.fonts.get("ui", ("TkDefaultFont", 9)),
+            font=ui_font_name(self.root, "ui"),
             padx=8,
             pady=6,
-        ).pack(anchor="w", fill="x")
+        ), background="surface", foreground="text")
+        legend_label.pack(anchor="w", fill="x")
+        legend_label.bind("<Configure>", lambda event: legend_label.configure(
+            wraplength=max(1, event.width - 16)))
 
         # Mode selector
         mode_row = ttk.Frame(p); mode_row.pack(fill="x", padx=8, pady=(0, 4))
@@ -2976,52 +3139,50 @@ class ConformerSearchGUI:
                         variable=self._anchor_mode_var,
                         command=self._refresh_bond_locks).pack(side="left")
 
-        btn = ttk.Frame(p); btn.pack(fill="x", padx=8)
-        ttk.Button(btn, text="\u2714 Select all free",
-                   command=lambda: [v.set(True)
-                                    for v, lk in zip(self.bond_vars,
-                                                     self.bond_locked)
-                                    if not lk]).pack(side="left")
-        ttk.Button(btn, text="\u2718 Select none",
-                   command=lambda: [v.set(False)
-                                    for v in self.bond_vars]).pack(side="left", padx=6)
-        ttk.Button(btn, text="\u2195 Invert",
-                   command=lambda: [v.set(not v.get())
-                                    for v, lk in zip(self.bond_vars,
-                                                     self.bond_locked)
-                                    if not lk]).pack(side="left")
-
-        ttk.Separator(btn, orient="vertical").pack(
-            side="left", fill="y", padx=8, pady=2
-        )
-
-        ttk.Button(
-            btn,
-            text="⚠ Skipped contacts",
-            command=self._show_skipped_contacts,
-        ).pack(side="left", padx=(0, 4))
-
-        ttk.Button(
-            btn,
-            text="− Remove bond",
-            command=self._remove_manual_bond_dialog,
-        ).pack(side="left", padx=(0, 4))
-
-        ttk.Button(
-            btn,
-            text="+ Add bond",
-            command=self._add_manual_bond_dialog,
-        ).pack(side="left")
+        if not getattr(self, '_embedded', False):
+            btn = ttk.Frame(p); btn.pack(fill="x", padx=8)
+            ttk.Button(btn, text="\u2714 Select all free",
+                       command=lambda: [v.set(True)
+                                        for v, lk in zip(self.bond_vars,
+                                                         self.bond_locked)
+                                        if not lk]).pack(side="left")
+            ttk.Button(btn, text="\u2718 Select none",
+                       command=lambda: [v.set(False)
+                                        for v in self.bond_vars]).pack(side="left", padx=6)
+            ttk.Button(btn, text="\u2195 Invert",
+                       command=lambda: [v.set(not v.get())
+                                        for v, lk in zip(self.bond_vars,
+                                                         self.bond_locked)
+                                        if not lk]).pack(side="left")
+            ttk.Separator(btn, orient="vertical").pack(
+                side="left", fill="y", padx=8, pady=2
+            )
+            ttk.Button(btn, text="⚠ Skipped contacts",
+                       command=self._show_skipped_contacts).pack(side="left", padx=(0, 4))
+            ttk.Button(btn, text="− Remove bond",
+                       command=self._remove_manual_bond_dialog).pack(side="left", padx=(0, 4))
+            ttk.Button(btn, text="+ Add bond",
+                       command=self._add_manual_bond_dialog).pack(side="left")
 
         cf = ttk.Frame(p); cf.pack(fill="both", expand=True, padx=8, pady=6)
-        self._bond_canvas = tk.Canvas(cf, bg="#f5f6fa", highlightthickness=0)
+        self._bond_canvas = ui_native_colors(tk.Canvas(cf, highlightthickness=0), background="surface")
         vsb = ttk.Scrollbar(cf, orient="vertical",
                             command=self._bond_canvas.yview)
         self._bond_canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y")
         self._bond_canvas.pack(side="left", fill="both", expand=True)
-        self._bond_inner = tk.Frame(self._bond_canvas, bg="#f5f6fa")
-        self._bond_canvas.create_window((0, 0), window=self._bond_inner, anchor="nw")
+        self._bond_inner = ui_native_colors(tk.Frame(self._bond_canvas), background="surface")
+        bond_window = self._bond_canvas.create_window((0, 0), window=self._bond_inner, anchor="nw")
+        self._bond_row_styles = (f"{self._bond_canvas}.TCheckbutton",
+                                 f"{self._bond_canvas}.Locked.TCheckbutton")
+
+        def fit_bond_rows(event):
+            self._bond_canvas.itemconfigure(bond_window, width=event.width)
+            style = ttk.Style(self.root)
+            for name in self._bond_row_styles:
+                style.configure(name, wraplength=max(1, event.width - 36))
+
+        self._bond_canvas.bind("<Configure>", fit_bond_rows)
         self._bond_inner.bind("<Configure>",
                               lambda e: self._bond_canvas.configure(
                                   scrollregion=self._bond_canvas.bbox("all")))
@@ -3032,24 +3193,30 @@ class ConformerSearchGUI:
         # -- Candidate selector frame (initially empty; populated after run) --
         self._candidate_selector_frame = ttk.Frame(p)
         self._candidate_selector_frame.pack(fill="x", padx=8, pady=(6, 2))
+        self._add_embedded_status(self._candidate_selector_frame)
 
-        # -- Action buttons row --
-        btn_row = ttk.Frame(p)
-        btn_row.pack(fill="x", padx=8, pady=4)
-        ttk.Button(btn_row, text="🔍 View structure",
-                   command=self._show_structure_plot).pack(side="left", padx=(0, 4))
-        ttk.Button(btn_row, text="\u2714 Select candidate…",
-                   command=self._apply_selected).pack(side="left", padx=(0, 4))
-        ttk.Button(btn_row, text="💾 Save XYZ…",
-                   command=self._save_xyz).pack(side="left", padx=(0, 4))
-        ttk.Button(btn_row, text="💾 Save report…",
-                   command=self._save_report).pack(side="left", padx=(0, 4))
-        ttk.Button(btn_row, text="📊 Correlation plot",
-                   command=self._show_plot).pack(side="left")
+        if not getattr(self, '_embedded', False):
+            btn_row = ttk.Frame(p)
+            btn_row.pack(fill="x", padx=8, pady=4)
+            ttk.Button(btn_row, text="🔍 View structure",
+                       command=self._show_structure_plot).pack(side="left", padx=(0, 4))
+            ttk.Button(btn_row, text="\u2714 Select candidate…",
+                       command=self._apply_selected).pack(side="left", padx=(0, 4))
+            ttk.Button(btn_row, text="💾 Save XYZ…",
+                       command=self._save_xyz).pack(side="left", padx=(0, 4))
+            ttk.Button(btn_row, text="💾 Save report…",
+                       command=self._save_report).pack(side="left", padx=(0, 4))
+            ttk.Button(btn_row, text="📊 Correlation plot",
+                       command=self._show_plot).pack(side="left")
 
-        self._result_box = scrolledtext.ScrolledText(
-            p, font=self.fonts.get("report", ("Consolas", 9)), state="disabled")
-        self._result_box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        report_frame = ttk.Frame(p)
+        report_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self._result_box = tk.Text(
+            report_frame, font=ui_font_name(self.root, "report"), state="disabled")
+        report_scrollbar = ttk.Scrollbar(report_frame, orient="vertical", command=self._result_box.yview)
+        self._result_box.configure(yscrollcommand=report_scrollbar.set)
+        report_scrollbar.pack(side="right", fill="y")
+        self._result_box.pack(side="left", fill="both", expand=True)
 
     # ── Actions ───────────────────────────────────────────────────────────────
 
@@ -3071,6 +3238,7 @@ class ConformerSearchGUI:
         path = filedialog.askopenfilename(
             title="Open PCS CSV", filetypes=[("CSV","*.csv"),("All","*.*")])
         if path:
+            self._restored_pcs = None
             self._pcs_var.set(path)
 
     def _get_metal_idx(self) -> Optional[int]:
@@ -3099,6 +3267,7 @@ class ConformerSearchGUI:
             self._status_var.set(
                 f"Connectivity rebuilt. {len(self.rotatable_all)} rotatable bonds detected."
             )
+        self._notify_presentation_state()
 
     def _remove_manual_bond_dialog(self):
         """Remove a selected bond from the molecular graph."""
@@ -3209,6 +3378,7 @@ class ConformerSearchGUI:
                 self._rb_bounds_frame.pack(fill="x", pady=(4, 0))
             else:
                 self._rb_bounds_frame.pack_forget()
+        self._notify_presentation_state()
 
     def _detect_all(self):
         """Detect rotatable bonds and populate the atom list in Tab 1."""
@@ -3247,6 +3417,7 @@ class ConformerSearchGUI:
             )
 
         self._nb.select(0 if getattr(self, '_embedded', False) else 1)
+        self._notify_presentation_state()
 
     def _populate_atom_list(self):
         """Fill Tab ② with one row per heavy atom."""
@@ -3261,7 +3432,7 @@ class ConformerSearchGUI:
         for txt, w in [("Fix?", 5), ("Ref", 7), ("Atom", 5),
                         ("x [Å]", 9), ("y [Å]", 9), ("z [Å]", 9),
                         ("Bonds to", 20)]:
-            ttk.Label(header, text=txt, font=self.fonts.get("ui_small_bold", ("default", 8, "bold")),
+            ttk.Label(header, text=txt, font=ui_font_name(self.root, "ui_small_bold"),
                       width=w, anchor="center").pack(side="left")
         ttk.Separator(self._fix_inner, orient="horizontal").pack(fill="x", pady=2)
 
@@ -3277,8 +3448,8 @@ class ConformerSearchGUI:
             ttk.Label(
                 self._fix_inner,
                 text=f"⚠ Skipped suspicious metal contacts: {shown}",
-                foreground="#b35a00",
-                font=self.fonts.get("ui_small_bold", ("default", 8, "bold")),
+                style=ui_label_style(self._fix_inner, "warning"),
+                font=ui_font_name(self.root, "ui_small_bold"),
                 wraplength=850,
                 justify="left",
             ).pack(anchor="w", padx=6, pady=(2, 4))
@@ -3293,19 +3464,19 @@ class ConformerSearchGUI:
             v = tk.BooleanVar(value=False)
             self.atom_fix_vars.append(v)
 
-            row = tk.Frame(self._fix_inner, bg="#f5f6fa")
+            row = ui_native_colors(tk.Frame(self._fix_inner), background="surface")
             row.pack(fill="x", padx=4, pady=1)
 
             # No automatic command on checkbox — user controls when to apply
             ttk.Checkbutton(row, variable=v).pack(side="left")
             ttk.Label(row, text=str(idx+1), width=7, anchor="e").pack(side="left")
             ttk.Label(row, text=el, width=5, anchor="center",
-                      font=self.fonts.get("section", ("default", 9, "bold"))).pack(side="left")
+                      font=ui_font_name(self.root, "section")).pack(side="left")
             for val in xyz:
                 ttk.Label(row, text=f"{val:+8.3f}", width=9,
-                          anchor="e", font=self.fonts.get("report_small", ("Consolas", 8))).pack(side="left")
+                          anchor="e", font=ui_font_name(self.root, "report_small")).pack(side="left")
             ttk.Label(row, text=", ".join(nbs[:8]) + ("…" if len(nbs) > 8 else ""),
-                      font=self.fonts.get("ui_small", ("default", 8)), foreground="#555"
+                      font=ui_font_name(self.root, "ui_small"), style=ui_label_style(row, "muted")
                       ).pack(side="left", padx=(4, 0))
 
             self._fix_rows.append((v, el, idx, row))
@@ -3326,6 +3497,7 @@ class ConformerSearchGUI:
                 row.pack(fill="x", padx=4, pady=1)
                 self._visible_set.add(idx)
         self._update_fixed_summary()
+        self._notify_presentation_state()
 
     def _set_fixed_all(self, value: bool):
         """Set all *visible* atoms' fixed-state to value."""
@@ -3333,6 +3505,7 @@ class ConformerSearchGUI:
             if idx in self._visible_set:
                 v.set(value)
         self._update_fixed_summary()
+        self._notify_presentation_state()
 
     def _invert_fixed(self):
         """Invert fixed-state for all *visible* atoms."""
@@ -3340,6 +3513,7 @@ class ConformerSearchGUI:
             if idx in self._visible_set:
                 v.set(not v.get())
         self._update_fixed_summary()
+        self._notify_presentation_state()
 
     def _update_fixed_summary(self):
         """Update the summary label in Tab ② (not the bond list yet)."""
@@ -3386,7 +3560,7 @@ class ConformerSearchGUI:
         ttk.Label(self._bond_inner,
                   text=(f"{len(self.rotatable_all)} rotatable bonds  "
                         f"({n_free} free 🔓,  {n_locked} locked 🔒)"),
-                  font=self.fonts.get("section", ("default", 9, "bold"))
+                  font=ui_font_name(self.root, "section")
                   ).pack(anchor="w", padx=6, pady=(4, 2))
 
         for i, j in self.rotatable_all:
@@ -3416,7 +3590,7 @@ class ConformerSearchGUI:
             self.bond_vars.append(v)
             self.bond_locked.append(is_locked)
 
-            row = tk.Frame(self._bond_inner, bg="#f5f6fa")
+            row = ui_native_colors(tk.Frame(self._bond_inner), background="surface")
             row.pack(fill="x", padx=6, pady=1)
 
             state = "disabled" if is_locked else "normal"
@@ -3426,12 +3600,13 @@ class ConformerSearchGUI:
                      f"{ang_txt}  "
                      f"[{len(self.mol.subtree_of(j,i))} atoms]"
                      f"{lock_reason}")
-            cb = ttk.Checkbutton(row, text=label, variable=v, state=state)
+            cb = ttk.Checkbutton(row, text=label, variable=v, state=state,
+                                 style=self._bond_row_styles[1 if is_locked else 0])
             cb.pack(anchor="w")
             if is_locked:
                 # Grey-out locked rows visually
                 try:
-                    cb.configure(style="Locked.TCheckbutton")
+                    cb.configure(style=self._bond_row_styles[1])
                 except Exception:
                     pass
 
@@ -3446,10 +3621,11 @@ class ConformerSearchGUI:
                       text="⚠ All bonds locked in strict mode.\n"
                            "Try enabling 'Anchor mode' (checkbox above) — "
                            "fixed atoms then act as pivots instead of blockers.",
-                      foreground='#c0392b', font=self.fonts.get('section', ('default', 9, 'bold')),
+                      style=ui_label_style(self._bond_inner, "danger"), font=ui_font_name(self.root, "section"),
                       wraplength=700, justify='left').pack(anchor='w', padx=8, pady=4)
         self._refresh_search_setup_summary()
         self._nb.select(1 if getattr(self, '_embedded', False) else 2)
+        self._notify_presentation_state()
 
     def _run_search(self):
         if self.mol is None:
@@ -3488,12 +3664,16 @@ class ConformerSearchGUI:
 
         # Load PCS
         pcs_path = self._pcs_var.get().strip()
-        if not pcs_path or not os.path.isfile(pcs_path):
+        restored_pcs = getattr(self, "_restored_pcs", None)
+        if not restored_pcs and (not pcs_path or not os.path.isfile(pcs_path)):
             messagebox.showerror("PCS data",
                                  "Select a valid PCS CSV file in Tab ①.")
             return
         try:
-            atom_indices, pcs_values = load_pcs_csv(pcs_path, self.mol.elements)
+            if restored_pcs:
+                atom_indices, pcs_values = map(list, zip(*restored_pcs))
+            else:
+                atom_indices, pcs_values = load_pcs_csv(pcs_path, self.mol.elements)
         except Exception as e:
             messagebox.showerror("PCS CSV", str(e))
             return
@@ -3514,6 +3694,21 @@ class ConformerSearchGUI:
         except ValueError:
             dedup_tol_deg = 5.0
 
+        project_adapter = getattr(self, "_project_adapter", None)
+        if project_adapter:
+            project_adapter.capture()
+        identity_provider = getattr(self, "_pcs_document_identity_provider", None)
+        self._worker_document_identity = (
+            identity_provider() if callable(identity_provider) else None
+        )
+        recorded_run = project_adapter.begin_run(atom_indices, pcs_values) if project_adapter else None
+        if recorded_run:
+            recorded_run["inputs"]["effective_parameters"] = dict(
+                search_mode=mode, output_mode=output_mode, n_candidates=n_candidates,
+                dedup_tol_deg=dedup_tol_deg, dchi_ax=dchi_ax, dchi_rh=dchi_rh,
+                metal_position=metal.tolist(), euler_zyz_radians=list(euler))
+        run_molecule = self.mol
+        run_metal_index = self.metal_idx
         self._status_var.set("Running optimization…")
         self._set_running_state(True, "Preparing optimization...")
         self.root.update_idletasks()
@@ -3559,15 +3754,19 @@ class ConformerSearchGUI:
                 radial_bounds = (rb_lo, rb_hi)
             except ValueError:
                 radial_bounds = (0.8, 1.2)
+            if recorded_run:
+                recorded_run["inputs"]["effective_parameters"].update(
+                    grid_n=grid_n, axis_mode=axis_mode, lock_mode=lock_mode,
+                    radial_bounds=list(radial_bounds))
 
             def _run_rigid():
                 try:
                     opt = RigidBodyAnchorOptimiser(
-                        mol=self.mol,
+                        mol=run_molecule,
                         obs_atoms=atom_indices,
                         obs_pcs=np.array(pcs_values, float),
                         metal=metal,
-                        metal_idx=self.metal_idx,
+                        metal_idx=run_metal_index,
                         anchor_atoms=anchor_atoms,
                         axis_mode=axis_mode,
                         dchi_ax=dchi_ax,
@@ -3589,19 +3788,19 @@ class ConformerSearchGUI:
                     # opt.candidates is populated by run(); each dict already has rigid metadata.
                     candidates = opt.candidates  # list[dict], sorted by RMSD
 
-                    self.root.after(0, lambda c=candidates: (
-                        self._set_running_state(False, "Completed."),
-                        self._show_results(c),
-                    ))
+                    self.root.after(
+                        0, lambda c=candidates: self._complete_search_success(c, recorded_run)
+                    )
 
                 except Exception:
                     import traceback
                     tb = traceback.format_exc()
-                    self.root.after(0, lambda t=tb: (
-                        self._set_running_state(False, "Error."),
-                        messagebox.showerror("Rigid-body optimization error", t[:1200]),
-                        self._status_var.set("Error.")
-                    ))
+                    self.root.after(
+                        0,
+                        lambda t=tb: self._complete_search_error(
+                            "Rigid-body optimization error", t
+                        ),
+                    )
 
             threading.Thread(target=_run_rigid, daemon=True).start()
             return
@@ -3641,11 +3840,15 @@ class ConformerSearchGUI:
         constraint_mode = self._constraint_mode_var.get().strip().lower()
 
         use_global = self._use_global_var.get()
+        if recorded_run:
+            recorded_run["inputs"]["effective_parameters"].update(
+                constraint_mode=constraint_mode, anchor_mode=use_anchor2, use_global=bool(use_global),
+                de_maxiter=de_maxiter, de_popsize=de_popsize, de_workers=-1)
 
         def _run():
             try:
                 opt = ConformerOptimiser(
-                    mol=self.mol,
+                    mol=run_molecule,
                     rotatable=selected_bonds,
                     obs_atoms=atom_indices,
                     obs_pcs=np.array(pcs_values, float),
@@ -3653,7 +3856,7 @@ class ConformerSearchGUI:
                     dchi_ax=dchi_ax,
                     dchi_rh=dchi_rh,
                     euler_zyz=euler,
-                    metal_idx=self.metal_idx,
+                    metal_idx=run_metal_index,
                     fixed_atoms=fixed_set,
                     progress_cb=_progress,
                     constraint_mode=constraint_mode,
@@ -3676,19 +3879,19 @@ class ConformerSearchGUI:
                 for cand in candidates:
                     cand["mode"] = "dihedral"
 
-                self.root.after(0, lambda c=candidates: (
-                    self._set_running_state(False, "Completed."),
-                    self._show_results(c),
-                ))
+                self.root.after(
+                    0, lambda c=candidates: self._complete_search_success(c, recorded_run)
+                )
 
             except Exception:
                 import traceback
                 tb = traceback.format_exc()
-                self.root.after(0, lambda t=tb: (
-                    self._set_running_state(False, "Error."),
-                    messagebox.showerror("Optimization error", t[:1200]),
-                    self._status_var.set("Error.")
-                ))
+                self.root.after(
+                    0,
+                    lambda t=tb: self._complete_search_error(
+                        "Optimization error", t
+                    ),
+                )
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -3714,6 +3917,7 @@ class ConformerSearchGUI:
             + (f"  ⚠ fixed drift {fd:.3f} Å" if fd > 0.01 else "")
         )
         self._nb.select(3)
+        self._notify_presentation_state()
 
         if callable(self.on_preview_result):
             best = candidates[0]
@@ -3742,7 +3946,10 @@ class ConformerSearchGUI:
                 "coords_opt": best["coords_opt"].copy(),
                 "report": preview_report,
                 "metal_idx": self.metal_idx,
+                "_document_worker_identity": getattr(self, "_worker_document_identity", None),
             }
+            if getattr(self, "_project_adapter", None):
+                payload["search_project"] = self._project_adapter.export(preview_index=0)
 
             try:
                 self.on_preview_result(payload)
@@ -3756,10 +3963,11 @@ class ConformerSearchGUI:
         """(Re)build radio-button row in the results tab."""
         frame = self._candidate_selector_frame
         style = ttk.Style()
-        style.configure("Candidate.TRadiobutton", font=self.fonts.get("ui_small", ("Segoe UI", 8)))
+        style.configure("Candidate.TRadiobutton", font=ui_font_name(self.root, "ui_small"))
         for w in frame.winfo_children():
             w.destroy()
         self._candidate_var = tk.IntVar(value=0)
+        buttons = []
         for i, cand in enumerate(self.candidates):
             clash_warn = " ⚠" if cand['n_clashes'] else ""
             lbl = (f"#{i + 1}  RMSD {cand['rmsd']:.4f}"
@@ -3773,7 +3981,21 @@ class ConformerSearchGUI:
                 value=i,
                 command=lambda idx=i: self._display_candidate_report(idx),
             )
-            rb.grid(row=0, column=i, padx=(0, 12), sticky="w")
+            buttons.append(rb)
+
+        def arrange(_event=None):
+            if not buttons:
+                return
+            slot = max(button.winfo_reqwidth() for button in buttons) + 12
+            columns = max(1, min(len(buttons), (frame.winfo_width() + 12) // slot))
+            for index, button in enumerate(buttons):
+                button.grid(row=index // columns, column=index % columns,
+                            padx=(0, 12), pady=2, sticky="w")
+
+        frame.bind("<Configure>", arrange)
+        for button in buttons:
+            button.bind("<Configure>", arrange)
+        arrange()
 
     def _apply_selected(self):
         """
@@ -3816,12 +4038,16 @@ class ConformerSearchGUI:
                 "elements": list(self.mol.elements),
                 "coords_initial": self.mol.coords.copy(),
                 "coords_opt": cand["coords_opt"].copy(),
-                "report": format_report(
-                    cand, cand['selected_bonds'], self.mol,
-                    cand.get('locked_bonds'),
-                    rank=idx + 1, n_total=len(self.candidates)),
+                "report": (self._recorded_reports[idx] if getattr(self, "_recorded_reports", None) is not None
+                    else format_rigid_body_report(cand, self.mol, rank=idx+1, n_total=len(self.candidates))
+                    if cand.get("mode") == "rigid" else format_report(
+                    cand, cand['selected_bonds'], self.mol, cand.get('locked_bonds'),
+                    rank=idx + 1, n_total=len(self.candidates))),
                 "metal_idx": self.metal_idx,
+                "_document_worker_identity": getattr(self, "_worker_document_identity", None),
             }
+            if getattr(self, "_project_adapter", None):
+                payload["search_project"] = self._project_adapter.export(preview_index=idx)
             dlg.destroy()
 
             if callable(self.on_preview_result):
@@ -3891,13 +4117,13 @@ class ConformerSearchGUI:
         ttk.Label(
             header,
             text="Conformer Candidates",
-            font=self.fonts.get("title", ("TkDefaultFont", 12, "bold"))
+            font=ui_font_name(self.root, "title")
         ).pack(side="left")
 
         ttk.Label(
             header,
             text="2D polar view of original structure and optimized candidates",
-            foreground="#666666"
+            style=ui_label_style(header, "muted")
         ).pack(side="left", padx=(10, 0))
 
         body = ttk.Frame(outer)
@@ -4191,7 +4417,7 @@ class ConformerSearchGUI:
             box_info,
             textvariable=summary_var,
             justify="left",
-            foreground="#444444"
+            style=ui_label_style(box_info, "text")
         ).pack(anchor="w")
 
         ttk.Button(right, text="Save figure…", command=_save_plot).pack(fill="x", pady=(4, 0))
@@ -4220,6 +4446,8 @@ class ConformerSearchGUI:
                 n_total=len(self.candidates),
             )
 
+        if getattr(self, "_recorded_reports", None) is not None:
+            report = self._recorded_reports[idx]
         self._result_box.config(state="normal")
         self._result_box.delete("1.0", "end")
         self._result_box.insert("end", report)
@@ -4249,6 +4477,8 @@ class ConformerSearchGUI:
                 + (f"  ⚠ fixed drift {fd:.3f} Å" if fd > 0.01 else "")
             )
 
+        self._notify_presentation_state()
+
     def _save_xyz(self):
         if not getattr(self, 'candidates', None):
             messagebox.showwarning("No result", "Run the search first.")
@@ -4272,7 +4502,7 @@ class ConformerSearchGUI:
 
         info_var = tk.StringVar(value="")
         ttk.Label(dlg, textvariable=info_var,
-                  foreground="gray").pack(padx=16, pady=(4, 0), anchor="w")
+                  style=ui_label_style(dlg, "muted")).pack(padx=16, pady=(4, 0), anchor="w")
 
         def _update_info(*_):
             n = sum(v.get() for v in chk_vars)
@@ -4295,7 +4525,7 @@ class ConformerSearchGUI:
                 filetypes=[("XYZ", "*.xyz"), ("All", "*.*")])
             if not path:
                 return
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 for rank, cand in enumerate(chosen, 1):
                     comment = (f"Candidate #{rank} | "
                                f"RMSD={cand['rmsd']:.4f} ppm | "
@@ -4404,6 +4634,7 @@ class ConformerSearchGUI:
     def run(self):
         if self._standalone:
             self.root.mainloop()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PUBLIC ENTRY POINT

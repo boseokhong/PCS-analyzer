@@ -6,6 +6,10 @@ import re
 import json
 from copy import deepcopy
 from pathlib import Path
+from logic.control_panel_layout import (
+    default_control_panel_preferences,
+    normalize_control_panel_preferences,
+)
 
 
 DEFAULT_MAIN_GEOMETRY = "1320x930"
@@ -20,6 +24,15 @@ DEFAULT_APP_SETTINGS = {
     "open_2d_plot_on_start": True,
     "auto_open_3d_on_load": True,
     "remember_window_geometry": True,
+    "ribbon_collapsed": False,
+    "ribbon_module_order": [],
+
+    # Application-global Control Panel docking preference.
+    "control_panel_side": "right",
+
+    # Main workspace vertical split: PCS table/status vs analysis notebook.
+    # This is application-global presentation state, not document data.
+    "main_workspace_split_ratio": 0.42,
 
     "remember_recent_files": True,
     "max_recent_files": 8,
@@ -46,6 +59,8 @@ DEFAULT_APP_SETTINGS = {
     "font_size_plot": 9,
 
     "font_scale": 1.0,
+
+    "control_panel": default_control_panel_preferences(),
 }
 
 
@@ -174,7 +189,7 @@ def _coerce_settings(raw: dict) -> dict:
 
     # strings
     theme_variant = str(raw.get("theme_variant", cfg["theme_variant"])).strip().lower()
-    if theme_variant in ("light", "dark"):
+    if theme_variant in ("light", "dark", "light_teal", "dark_teal", "light_violet", "dark_violet", "light_slate", "dark_slate"):
         cfg["theme_variant"] = theme_variant
 
     theme_accent = str(raw.get("theme_accent", cfg["theme_accent"])).strip().lower()
@@ -199,6 +214,7 @@ def _coerce_settings(raw: dict) -> dict:
         "auto_open_3d_on_load",
         "remember_window_geometry",
         "remember_recent_files",
+        "ribbon_collapsed",
     ):
         if key in raw:
             cfg[key] = bool(raw[key])
@@ -254,6 +270,19 @@ def _coerce_settings(raw: dict) -> dict:
     except Exception:
         pass
 
+    try:
+        split_ratio = float(
+            raw.get(
+                "main_workspace_split_ratio",
+                cfg["main_workspace_split_ratio"],
+            )
+        )
+        # Keep both panes usable even if app_settings.json was edited manually.
+        if 0.15 <= split_ratio <= 0.85:
+            cfg["main_workspace_split_ratio"] = split_ratio
+    except Exception:
+        pass
+
     # logical sanity
     if cfg["default_pcs_min"] >= cfg["default_pcs_max"]:
         cfg["default_pcs_min"] = DEFAULT_APP_SETTINGS["default_pcs_min"]
@@ -261,6 +290,12 @@ def _coerce_settings(raw: dict) -> dict:
 
     if cfg["default_pcs_interval"] <= 0:
         cfg["default_pcs_interval"] = DEFAULT_APP_SETTINGS["default_pcs_interval"]
+
+    cfg["control_panel"] = normalize_control_panel_preferences(
+        raw.get("control_panel")
+    )
+    from plugin_system.ribbon_modules import normalize_order
+    cfg["ribbon_module_order"] = normalize_order(raw.get("ribbon_module_order"))
 
     return cfg
 

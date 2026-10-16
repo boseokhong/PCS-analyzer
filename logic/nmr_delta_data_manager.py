@@ -194,10 +194,32 @@ def build_nmr_layers(state: dict) -> Tuple[List[NMRLayer], str]:
 
 def push_layers_to_nmr_if_open(state: dict) -> None:
     """
-    Push current layer data to the NMR spectrum window if it exists and supports set_layers().
-    Falls back to set_data() with PCS only.
-    Also supports state['schedule_nmr_update'] debounce mechanism.
+    Compatibility notifier for NMR views.
+
+    D4e uses NMR Workbench as the first-class NMR UI. When it is open, refresh
+    synthetic legacy-project shift datasets from delta_obs/delta_dia state.
+
+    The old NMRSpectrumWindow path is retained below temporarily so third-party
+    callers that instantiate it directly do not break during the migration.
     """
+    # During an event-driven canonical refresh, the ordered NMR event consumer
+    # pushes once after update_graph has rebuilt pcs_by_id. Direct callers and
+    # legacy-origin refreshes continue through this public compatibility API.
+    if state.get("_pcs_event_refresh_active"):
+        return
+
+    workbench = state.get("nmr_workbench_window", None)
+    if workbench is not None:
+        try:
+            if not hasattr(workbench, "winfo_exists") or workbench.winfo_exists():
+                refresh = getattr(workbench, "refresh_from_pcs_state", None)
+                if callable(refresh):
+                    refresh()
+            else:
+                state["nmr_workbench_window"] = None
+        except Exception:
+            pass
+
     win = state.get("nmr_win", None)
     if win is None:
         return

@@ -4,6 +4,8 @@ import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 
+from ui.document_integrations import active_document_title
+
 
 def open_pcs_plot_popup(state):
     """
@@ -16,6 +18,7 @@ def open_pcs_plot_popup(state):
     if win is not None:
         try:
             if win.winfo_exists():
+                win.title(active_document_title(state, "2D PCS"))
                 win.lift()
                 win.focus_force()
                 return
@@ -23,7 +26,7 @@ def open_pcs_plot_popup(state):
             pass
 
     win = tk.Toplevel(root)
-    win.title("2D Polar PCS Plot")
+    win.title(active_document_title(state, "2D PCS"))
     win.geometry("620x700")
 
     frame = tk.Frame(win)

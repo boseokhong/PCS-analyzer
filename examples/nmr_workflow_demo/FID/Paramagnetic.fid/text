@@ -1,0 +1,8 @@
+SYNTHETIC TEACHING DATA — Paramagnetic
+Not an experimental acquisition or structural assignment.
+4 Lorentzian resonances; shifts=(2.0, 5.0, 8.0, 11.0) ppm; T=298.15 K.
+Plus small TMS, true shift 0 ppm; apparent TMS=+0.18 ppm.
+All sample peaks share this reference error; reference TMS separately in each dataset.
+Smooth baseline artifact scale=0.08 of the strongest unphased peak.
+Applied phase=+25.0 degrees; correct once with P0=-25.0, P1=0.
+H1-H4 are illustrative correspondence labels only.

@@ -1,138 +1,30 @@
 '''
-PCS analyzer
+===============================================================================
+                                  PCS Analyzer
+===============================================================================
 
-The following code requires the numpy, matplotlib, pandas, and openpyxl module packages to run.
-(Optional / additional packages: `ttkbootstrap`, `pyvista`, `vtk`, `pyfftw`, `tkinterdnd2`, and `imageio`)
-A tool for PCS analysis and 2D/3D visualization, particularly suited for small paramagnetic complexes with rotational symmetry.
+A desktop tool for paramagnetic NMR and pseudocontact-shift analysis,
+with molecular visualization and fitting workflows.
 
-v.1.3.4 updates
-Module update: PCS Workbench v0.1.0 updates
-- **Corrected isotropic susceptibility calculation.**
-- Reorganized the control panel
-- Improved interaction between the control panel and PyVista viewer.
-- Added camera presets, projection modes, view saving/restoration, and improved PNG export.
+-------------------------------------------------------------------------------
+2026.10. Boseok Hong
+Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR
+Author email: <bshong66@gmail.com>
+-------------------------------------------------------------------------------
 
-3d pyvista view updates
-- Reorganized the control panel into a two-column layout.
-- Added bond appearance and hydrogen-visibility controls.
-- Added camera controls, view preservation, and improved PNG export.
+GitHub repository: <https://github.com/boseokhong/PCS-analyzer>
+Documentation:     <https://boseokhong.github.io/PCS-analyzer/>
 
-Symmetry averaging
-- Corrected PCS calculations to use averaged geometrical factors (G_i) rather than G_i evaluated at averaged coordinates.
-- Added rotational ensemble averaging for planar ring systems with automatic detection and configurable sampling.
-- Added visualization of ensemble-averaged coordinates and optional reference-structure overlays.
+Dependencies:      requirements.txt
+Version history:   docs/reference/changelog.md
 
-v.1.3.3 updates
-- *New: Added a main menu bar and settings menu for improved workflow organization.
-- *New: Added a Modules/Plugins menu with a dedicated Module Manager window.
-- *New: Added lasso selection to the Gᵢ vs δExp plot for interactive subset selection.
-- *New: Support `.pcsp` project file I/O for project reproducibility
-- Extended Conformer Search with a new constraint-mode selector:
-  - **Position mode**: legacy v1.3.0 mode that keeps fixed atoms close to their original Cartesian coordinates.
-  - **Angular mode**: preserves metal-centered donor directions while allowing radial relaxation, suitable for flexible coordination-complex searches.
-  - Added false-bond detection and skipped-bond handling to Conformer Search.
-  - Added **Rigid mode** for fully constrained conformer-search workflows.
-- Fonts options in Settings window, code refactoring
-- Drag & Drop to load `.pcsp`,`.xyz`,`.out`,`.log` files
-- Improved 2D polar contour plot visualization
-- Main window control panel UI changed
-
-v.1.3.2 updates
-- added **PCS Workbench** for FFT-based distributed PCS / PDE analysis
-  - direct import of ORCA `.out` / `.log` files together with ORCA `.3d` spin-density files for PDE workflows
-  - temperature-resolved tensor selection, ORCA tensor conversion, and rank-2 traceless tensor handling
-  - configurable PDE options including zero-padding, density normalization, and contour auto-scaling
-  - PyVista-based PDE field visualization with multi-level PCS isosurfaces, spin-density surfaces, and slice display
-  - quantitative comparison between distributed PDE PCS and point-dipole PCS
-  - export of computed PDE results to `.png`, `.csv`, compressed **NumPy (`.npz`)**, and temperature-dependent `.gif`
-  - **oblique PCS slice plotting** for user-defined planes through the metal centre
-  - a **traceless tensor spheroid viewer**
-  - PDE field calculation follows the distributed PCS formalism of Charnock and Kuprov: *Phys. Chem. Chem. Phys.*, **2014**, DOI: `10.1039/C4CP03106G`
-
-v.1.3.1 updates
-- Added a PyVista-based 3D viewer for PCS fields and molecular structures.
-- Fixed coordinate reference used in the Rhombicity analysis table
-- Added residual-based text color highlighting for PCS tables
-- Added export function to save the current visible structure as an .xyz file
-
-v.1.3.0 updates
-- Separated 2D PCS polar plot from main window
-- G_i vs delta_PCS Plot : better interaction and result box
-- Table ↔ plot select/highlight interaction
-- 3D molecular, Projection plots updated
-- Fitting tab : [Mode C] 8-parameter fitting added
-- Advanced Fitting Tab added
-- Conformer search and fitting app added
-
------------------
-Version history
------------------
-
-v.0.1 updates
--Excel export: x, y cartesian coordinates are calculated, and each column are separated by PCS values.
-
-v.0.2 updates
--tensor values, PCS range, and intervals can now be input for calculations.
--molar susceptibility tensor calculation
-
-v.0.3 updates
--XYZ file import and plot, coordinate rotation, atom coordinate table added, geometrical parameter analysis plot
-
-v.0.3.1 updates
--clicking on a atom point on the PCS plot to highlight the corresponding table entry.
-
-v.0.4 updates
--Added 3d molecule scatter plot
--The code from the following project was referred to for implementing the 3D scatter plot.
- This file includes portions of code derived from work by Sebastian Dechert,
- licensed under the BSD 3-Clause License. See LICENSE or the project's README.md for full license details. The original code can be found at:
- <https://github.com/radi0sus/xyz2tab>
-
-v.0.5 updates
--Reorganized GUI
--Added Mollweide projection plot
-
-v.0.6 updates
--PCS plot: Half/Quarter view toggle function
-
-v.0.7 updates
--bug fix
-
-v.1.0.0 updates
--Code refactoring
--PCS fitting
-
-v.1.0.1 updates
--Added table δ_exp data export/import
-
-v.1.0.2 updates
--CSV export encoding fixed
-
-v.1.1.0 updates
--Diagnostics, Rhombicity utilities, fitting functions update
-
-v.1.1.1 updates
--bug fix
-
-v.1.2.0 updates
--Added NMR spectrum viewer
--Added automatic methyl/CF3 symmetry averaging
--Improved xyz loader: more robust and now supports ORCA .out .log files
--Bug fixes and code refactoring
-
-
-
-2026.04. Boseok Hong [Department of Chemistry of the f-elements, Institute of Resource Ecology, HZDR]
-<bshong66@gmail.com>
-<https://github.com/boseokhong/PCS-analyzer>
+===============================================================================
 '''
-
 
 from pathlib import Path
 import sys
 from multiprocessing import freeze_support
 
-from ui.components import build_app, wire
 from app_version import APP_NAME, APP_VERSION
 
 
@@ -168,7 +60,9 @@ def apply_window_icon(root):
         pass
 
 
-def main():
+def main(*, molecule_viewer_host_probe=False):
+    from ui.components import build_app, wire
+
     state = build_app()
 
     state["app_name"] = APP_NAME
@@ -182,12 +76,23 @@ def main():
     apply_window_icon(state["root"])
 
     wire(state)
+    if molecule_viewer_host_probe:
+        from ui.molecule_viewer_host import open_isolated_molecule_viewer
+        state["root"].after_idle(lambda: open_isolated_molecule_viewer(state))
     state["root"].mainloop()
 
 
 if __name__ == "__main__":
     freeze_support()
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--molecule-viewer-prototype":
+        from logic.molecule_viewer_stdio import restore_child_stdio
+        restore_child_stdio()
+        if len(sys.argv) != 3:
+            raise SystemExit("Usage: --molecule-viewer-prototype SCENE_JSON")
+        from ui.molecule_viewer_entry import run
+        raise SystemExit(run(sys.argv[2]))
+    else:
+        main(molecule_viewer_host_probe=sys.argv[1:] == ["--molecule-viewer-host-probe"])
 
 '''
 When we try to pick out anything by itself, we find it hitched to everything else in the universe.

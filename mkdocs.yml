@@ -2,6 +2,11 @@ site_name: PCS Analyzer Documentation
 site_description: Analysis and visualization of pseudocontact shifts in paramagnetic molecular systems
 site_author: Boseok Hong
 
+# Keep repository instructions available to contributors, outside the public manual.
+exclude_docs: |
+  /AGENTS.md
+  /KNOWN_IMPLEMENTATION_ISSUES.md
+
 theme:
   name: material
   language: en
@@ -36,6 +41,7 @@ nav:
       - Installation: installation.md
       - Quick Start: quick-start.md
       - Interface Overview: interface.md
+      - Projects and Persistence: projects.md
 
   - Structures:
       - Loading Structures: structures/loading.md
@@ -48,48 +54,73 @@ nav:
       - Axial and Rhombic PCS: pcs/axial-rhombic.md
       - PCS Contour Plots: pcs/contour-plots.md
 
-  - Experimental Data [WIP]:
+  - Experimental Data:
       - Experimental PCS Data: experimental-data/delta-exp.md
       - Observed and Diamagnetic Shifts: experimental-data/delta-obs-dia.md
       - Import and Export: experimental-data/import-export.md
 
-  - Fitting [WIP]:
+  - Fitting:
       - Overview: fitting/overview.md
+      - Standard Fitting and Rhombicity Tutorial: fitting/standard-fitting-tutorial.md
       - Orientation Fitting: fitting/orientation-fitting.md
       - Full Tensor Fitting: fitting/full-tensor-fitting.md
+      - Multi-Conformer Tutorial: fitting/multi-conformer-tutorial.md
+      - Joint PCS+RDC Tutorial: fitting/joint-pcs-rdc-tutorial.md
+      - PRE Tutorial: fitting/pre-tutorial.md
+      - Multi-Lanthanide and Reilley Tutorial: fitting/multi-lanthanide-tutorial.md
       - Quality Metrics: fitting/quality-metrics.md
+      - Fit History: fitting/fit-history.md
 
-  - Diagnostics [WIP]:
+  - Diagnostics:
       - Residual Analysis: diagnostics/residual-analysis.md
       - Rhombicity Diagnostics: diagnostics/rhombicity.md
 
-  - Visualization [WIP]:
+  - Visualization:
+      - Averaging and Visualization Practice: visualization/averaging-demo.md
+      - Chemical Map: visualization/chemical-map.md
       - 2D Polar PCS Plot: visualization/polar-plot.md
       - Projection Viewer: visualization/projection-viewer.md
-      - 3D Viewer: visualization/3d-viewer.md
+      - 3D Structure Viewer: visualization/3d-viewer.md
       - 3D PCS Plot: visualization/3d-pcs-isosurface.md
 
-  - PCS Workbench [WIP]:
+  - PCS Workbench:
       - Overview: pcs-workbench/overview.md
 
-  - NMR Tools [WIP]:
-      - Spectrum Viewer: nmr/spectrum-viewer.md
-      - non-PCS Analysis: nmr/non-pcs-analysis.md
+  - NMR Workbench:
+      - Overview: nmr/spectrum-viewer.md
+      - Raw Data and Processing: nmr/raw-processing.md
+      - NMR Data and Observed-Shift Tables: nmr/nmr-data.md
+      - Peaks and Assignments: nmr/peak-assignment.md
+      - Shift Analysis and PCS Preparation: nmr/non-pcs-analysis.md
+      - VT Workflow:
+          - Series and Stacked Spectra: nmr/vt-series.md
+          - Batch Processing: nmr/batch-processing.md
+          - Peak Tracking and Assignment Review: nmr/peak-tracking.md
+          - Observed-Shift Analysis: nmr/vt-analysis.md
+          - PCS Pairing and Reviewed Transfer: nmr/vt-pcs-preparation.md
+      - Sessions and Data Exchange: nmr/sessions.md
+      - "Tutorial: FID or CSV to Shift Comparison": nmr/tutorial-fid-csv.md
+      - "Tutorial: VT Series": nmr/tutorial-vt.md
+      - "Tutorial: Observed Shifts to PCS Fitting": nmr/tutorial-pcs-fitting.md
 
-  - Conformer Search [WIP]:
+  - Conformer Search:
       - Overview: conformer-search/overview.md
+      - One-Bond Search Tutorial: conformer-search/tutorial.md
       - Constraints: conformer-search/constraints.md
       - Optimization: conformer-search/optimization.md
 
-  - Plugins:
-      - Overview: plugins-docs/overview.md
-      - Creating Plugins: plugins-docs/creating-plugins.md
-      - Manifest Reference: plugins-docs/manifest.md
-      - Plugin API: plugins-docs/plugin-api.md
-      - Distribution: plugins-docs/distribution.md
+  - Modules and Plugins:
+      - Module Manager: plugins-docs/overview.md
+      - Installation and Distribution: plugins-docs/distribution.md
       - Troubleshooting: plugins-docs/troubleshooting.md
+      - Plugin Author Reference:
+          - Creating Plugins: plugins-docs/creating-plugins.md
+          - Manifest: plugins-docs/manifest.md
+          - PluginApp: plugins-docs/plugin-api.md
+          - Distribution Design Notes: plugin_distribution_guide_v0_1.md
 
-  - Reference [WIP]:
+  - Reference:
+      - Current Limitations: reference/limitations.md
       - Mathematical Conventions: reference/mathematical-conventions.md
       - Units: reference/units.md
       - File Formats: reference/file-formats.md
@@ -105,7 +136,6 @@ markdown_extensions:
   - md_in_html
   - tables
   - footnotes
-  - admonition
 
   - pymdownx.details
   - pymdownx.superfences

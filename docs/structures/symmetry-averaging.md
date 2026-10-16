@@ -25,155 +25,39 @@ Both approaches distinguish between a **representative averaged coordinate** use
 
 Averaging is configured from the dedicated **Averaging Settings** window.
 
-The window contains controls for:
+Open **Control Panel → Symmetry averaging → Options...**. Enable the
+required local groups or **Rotational ensemble averaging**, review the detected
+groups, and choose **Apply**. Use **Refresh detection** after changing structure
+or detection settings. Group membership and motion must be scientifically
+appropriate; detection is a convenience, not evidence of rapid exchange.
 
-- local CH\(_3\) averaging,
-- local CF\(_3\) averaging,
-- preservation of original local-symmetry atoms,
-- torsional ensemble averaging,
-- automatic planar-ring detection,
-- manual torsion definition,
-- angular range and sampling density,
-- preservation of the torsional reference structure.
-
-The main interface shows only a compact summary of the currently active averaging modes.
-
----
+The Nd(*i*Pr₂BA)₃ documentation project already enables methyl averaging and
+three phenyl rotational groups. Its status summary is visible in the
+[main workspace](../interface.md#main-interface).
 
 ## Local symmetry averaging
 
-### Supported groups
-
-The built-in local-symmetry workflow detects:
-
-- methyl groups, CH\(_3\),
-- trifluoromethyl groups, CF\(_3\).
-
-Both are treated through the same generic AX\(_3\) group logic.
-
-A candidate group consists of a centre atom A bonded to exactly three equivalent atoms X of the same element, together with the required external substituent connectivity for the supported group type.
-
 ### Connectivity detection
 
-XYZ and ORCA coordinate files do not normally contain the bond graph required by this feature.
+Groups are inferred from atom distances and covalent radii. Missing atoms,
+distorted geometry or ambiguous connectivity can produce missing or unsuitable
+groups. Inspect the detected membership before applying averaging. Bond-tolerance
+controls in viewers affect guide lines only, not averaging-group detection.
 
-PCS Analyzer therefore infers connectivity from interatomic distances and tabulated covalent radii (Cordero et al., 2008).
+### Methyl and CF3 sites
 
-Two atoms \(i\) and \(j\) are treated as bonded when
-
-\[
-d_{ij}
-\le
-(1+\mathrm{tol.})
-\left(
-r_i^\mathrm{cov}
-+
-r_j^\mathrm{cov}
-\right),
-\]
-
-where `tol.` is the **Bond tolerance** value defined in the PCS Workbench controls.
-
-The default value is
+Enable **Local symmetry averaging**, then **CH₃** or **CF₃**, when the three
+nuclei represent an equivalent observed site on the NMR timescale. Each detected
+group is represented by one pseudo atom, labelled for example `MeH@C12` or
+`CF3F@C7`, with a new Ref ID. Its display coordinate is the centroid,
 
 \[
-\mathrm{tol.}=0.03,
+\mathbf r_\mathrm{avg}=\frac{\mathbf r_1+\mathbf r_2+\mathbf r_3}{3}.
 \]
 
-corresponding to a bond-distance scale factor of
-
-\[
-1+\mathrm{tol.}=1.03.
-\]
-
-The tolerance can be adjusted when the default distance criterion is not appropriate for a particular structure.
-
-If an element is not present in the internal covalent-radius table, a fallback radius of
-
-\[
-0.77\ \text{Å}
-\]
-
-is used for bond-graph construction.
-
-!!! warning "Displayed connectivity is not a bond path"
-
-    The lines shown between atoms in the **2D Polar PCS Plot** are intended only as a visual aid for structural connectivity.
-
-    They do **not** represent experimentally determined bond paths, bond orders, or electronic bonding information.
-
-    The connections are generated from distance-based criteria and are used only to make the spatial relationship between atoms easier to follow in the 2D representation.
-
-### Methyl-group detection
-
-A methyl group is identified when a carbon atom has:
-
-1. exactly three bonded hydrogen atoms, and
-2. exactly one bonded non-hydrogen atom.
-
-Schematically,
-
-```text
-    H
-    |
-H — C — R
-    |
-    H
-```
-
-The three hydrogen atoms are the members of the detected symmetry group.
-
-### CF3-group detection
-
-A trifluoromethyl group is identified analogously when a carbon atom has:
-
-1. exactly three bonded fluorine atoms, and
-2. exactly one bonded non-fluorine atom.
-
-Schematically,
-
-```text
-    F
-    |
-F — C — R
-    |
-    F
-```
-
-The three fluorine atoms are the members of the detected symmetry group.
-
-### Pseudo-atom coordinate
-
-For a detected AX\(_3\) group with member coordinates
-
-\[
-\mathbf r_1,\quad
-\mathbf r_2,\quad
-\mathbf r_3,
-\]
-
-PCS Analyzer defines the pseudo-atom position as the Cartesian centroid,
-
-\[
-\mathbf r_\mathrm{avg}
-=
-\frac{
-\mathbf r_1+\mathbf r_2+\mathbf r_3
-}{3}.
-\]
-
-For methyl groups, the pseudo atom represents the three H atoms.
-
-For CF\(_3\) groups, the pseudo atom represents the three F atoms.
-
-The pseudo atom is assigned a new reference ID, while the mapping between the pseudo atom and its original member atoms is retained for subsequent geometrical-factor averaging.
-
-Labels are generated from the group type and the original centre atom, for example:
-
-```text
-MeH@C12
-CF3F@C7
-```
+This centroid is a visual representative, not the position used to calculate
+PCS. Check experimental assignments against the effective Ref IDs after
+changing averaging. Original unaffected atom IDs remain unchanged.
 
 ### Local-symmetry display modes
 
@@ -198,16 +82,6 @@ H1 + H2 + H3        F1 + F2 + F3
 When **Keep original atoms** is enabled, the original member atoms remain visible and the corresponding pseudo atom is displayed in addition to them.
 
 This option affects the representation only; the pseudo atom still represents the averaged local-symmetry site for PCS analysis.
-
-### Reference-ID handling
-
-PCS Analyzer preserves the existing atom reference IDs for original atoms that remain in the effective structure.
-
-Pseudo atoms receive newly generated IDs greater than the current maximum reference ID.
-
-When original local-symmetry member atoms are hidden from the effective representation, the IDs of unaffected atoms are retained.
-
-This allows experimental-data references to remain associated with the original atom numbering wherever those atoms are preserved.
 
 ### Local-symmetry geometrical-factor averaging
 
@@ -236,7 +110,9 @@ G_{\mathrm{ax},3}
 }{3}.
 \]
 
-When rhombicity is included, the axial and rhombic terms are averaged independently:
+When rhombicity is included, the axial and rhombic terms are averaged independently.
+Main predictions include the rhombic term only under **Full tensor** with
+rhombicity enabled; standard fitting uses its own fitted/fixed component choices:
 
 \[
 G_{\mathrm{ax,avg}}
@@ -301,71 +177,18 @@ For uniform sampling,
 w_k=\frac{1}{N}.
 \]
 
-The current workflow therefore treats the sampled torsional states as equally weighted unless another weighting model is introduced externally.
+The current controls use equal sample weights. They do not derive conformer
+populations from energies or steric accessibility.
 
-### Automatic planar-ring detection
+### Phenyl-style rotational groups
 
-Automatic torsional-group detection starts from the inferred molecular graph.
-
-The detection workflow is designed to avoid confusing ligand torsions with metal coordination geometry:
-
-```text
-Full molecular graph
-        ↓
-Remove metal atoms / metal-coordination edges
-        ↓
-Ligand-only covalent graph
-        ↓
-Cycle detection
-        ↓
-Planarity test
-        ↓
-Planar-system classification
-        ↓
-External attachment-bond detection
-        ↓
-Rotating-fragment definition
-```
-
-Candidate cycles are tested for planarity using their Cartesian geometry.
-
-Metal-containing coordination rings or chelate planes are not intended to be treated as automatically rotatable ligand rings.
-
-#### Fused planar systems
-
-Coplanar rings that share edges are treated as a single rigid planar system rather than as independent overlapping rotors.
-
-This is important for fused systems such as naphthalene-, quinoline-, or indole-like fragments, where rotation of an individual constituent ring would not represent a physically meaningful rigid-body torsion.
-
-### Ring classification
-
-Detected planar systems are assigned descriptive interface labels from their ring size and elemental composition.
-
-Examples include:
-
-- `Phenyl-like`
-- `Pyridyl-like`
-- `Diazine-like`
-- `Triazine-like`
-- `Pyrrolyl-like`
-- `Furyl-like`
-- `Thienyl-like`
-- `Diazolyl-like`
-- `Oxazolyl-like`
-- `Thiazolyl-like`
-- `Planar N-member ring`
-
-These labels are **descriptive only**. They do not assign aromaticity, protonation state, formal bond order, or a unique positional isomer.
-
-### Torsional axis and rotating fragment
-
-For an automatically detected planar system, the external bond connecting the planar system to the remainder of the molecular structure defines the candidate torsional axis.
-
-Conceptually, cutting this bond separates the graph into two components. The connected component on the ring side defines the rotating fragment.
-
-The rotating fragment can therefore include substituents that are rigidly attached to the planar ring; it is not restricted to the cycle atoms themselves.
-
-Metal-containing torsional axes are rejected from the automatic ligand-ring workflow.
+**Auto planar rings** proposes planar ligand fragments and their attachment
+axes, including phenyl-like and fused planar systems. Review the **Ring** and
+**Axis** entries and enable only the intended groups. Labels such as
+`Phenyl-like` describe geometry; they do not establish aromaticity, bond order,
+protonation or a unique chemical assignment. A fragment can include substituents
+that rotate with the ring. Metal-containing axes are excluded from automatic
+ligand-ring averaging.
 
 ### Manual torsion definition
 
@@ -373,8 +196,10 @@ When automatic detection is not appropriate, a torsional group can be defined ma
 
 The manual workflow specifies:
 
-- the two atoms defining the rotation axis, and
-- the fragment that moves about that axis.
+- **Manual axis A** and **B**: the two Ref IDs defining the axis; and
+- **Moving-side Ref**: a Ref on the fragment that should rotate.
+
+Choose **Add manual**, then review the group and its angular range.
 
 Manual definition is useful for non-standard rotors, unusual connectivity, or cases where automatic cycle detection does not capture the intended motion.
 
@@ -476,6 +301,17 @@ Overlapping rotating fragments require caution because independent averaging is 
 
 ---
 
+## Grouped experimental observations
+
+Symmetry and torsional averaging describe how calculated member PCS values
+are obtained. Separately, a structured experimental target can group members
+within one NMR site and combine several sites into one observation. The current
+arithmetic reduction averages predictions within each site, then averages the
+site predictions. It does not evaluate PCS at a mean coordinate or repeat one
+experimental value as independent measurements for every atom. Sites of
+different sizes therefore need not give the same result as a flat atom mean.
+See [Structured observations](../experimental-data/delta-exp.md#structured-observations-and-grouped-targets).
+
 ## Relationship between the two averaging approaches
 
 Local symmetry averaging and torsional ensemble averaging use the same central PCS principle but represent different physical situations.
@@ -546,7 +382,8 @@ CF3F@C7
 
 ### Local symmetry
 
-Local symmetry-group recognition depends on the distance-based bond graph.
+Local symmetry recognition infers connectivity from distances and covalent
+radii. Display bond-tolerance controls do not change group detection.
 
 Consequently, unusual geometries, distorted bond distances, missing atoms, non-standard element labels, or structures near the bond-distance threshold can affect group detection.
 
@@ -568,37 +405,6 @@ Potential limitations include:
 Uniform torsional sampling is a geometrical averaging model. It does not by itself provide an energetic or Boltzmann-weighted conformational distribution.
 
 For systems where conformer energies or experimentally determined populations are important, the sampled-state weights should be interpreted accordingly or a more explicit conformational-ensemble treatment should be used.
-
----
-
-## Processing summary
-
-```text
-Raw Cartesian structure
-        ↓
-Build distance-based molecular graph
-        ↓
-Local symmetry detection (CH3, CF3 groups)
-        ↓
-Generate symmetry pseudo atoms
-        ↓
-Planar-system / torsional-group detection
-        ↓
-Define torsional axis and rotating fragment
-        ↓
-Generate torsional conformer samples
-        ↓
-Apply tensor-frame translation / rotation
-        ↓
-Calculate Gax and, when required, Grh
-for original member or sampled coordinates
-        ↓
-Average geometrical factors
-        ↓
-Generate representative averaged coordinates
-        ↓
-PCS analysis / fitting / visualization
-```
 
 ---
 

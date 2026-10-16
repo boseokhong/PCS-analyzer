@@ -1,0 +1,1265 @@
+{
+  "schema_version": 1,
+  "description": "Chemical-shift reference presets for NMR Workbench. Values are source-resolved; peer-reviewed Fulmer et al. 2010 values are preferred where that paper directly reports the deuterated-solvent signal, while the CIL 295 K solvent chart supplies requested solvents not covered there. Exchangeable signals are explicitly marked as poor choices for precision referencing.",
+  "sources": {
+    "cil_solvent_chart_295k": {
+      "citation": "Cambridge Isotope Laboratories, Inc. NMR Solvent Data Chart.",
+      "url": "https://www.csustan.edu/sites/default/files/2022-02/cambridge_isotope_labs_nmr_solvent_data.pdf",
+      "publisher": "Cambridge Isotope Laboratories, Inc.",
+      "year": null,
+      "notes": "Branded CIL solvent chart. The chart states that 1H residual-solvent and 13C spectra were obtained on a Varian Gemini 200 at 295 K. The NMR solvents used for the spectra contained a maximum of 0.05% TMS (v/v) for 1H and 1.0% TMS (v/v) for 13C. Values can depend on solvent, concentration, and temperature."
+    },
+    "fulmer2010": {
+      "citation": "Fulmer, G. R.; Miller, A. J. M.; Sherden, N. H.; Gottlieb, H. E.; Nudelman, A.; Stoltz, B. M.; Bercaw, J. E.; Goldberg, K. I. NMR Chemical Shifts of Trace Impurities: Common Laboratory Solvents, Organics, and Gases in Deuterated Solvents Relevant to the Organometallic Chemist. Organometallics 2010, 29, 2176-2179.",
+      "doi": "10.1021/om100106e",
+      "url": "https://pubs.acs.org/doi/10.1021/om100106e",
+      "supporting_information_url": "https://scs.illinois.edu/system/files/inline-files/11BFulmer2010NMRSolventsSupplement.pdf",
+      "publisher": "American Chemical Society",
+      "year": 2010,
+      "notes": "Peer-reviewed source. Supporting Information Table S1 gives 1H residual solvent signals and Table S2 gives 13C solvent signals for THF-d8, CD2Cl2, CDCl3, toluene-d8, C6D6, acetone-d6, DMSO-d6, CD3CN, CD3OD and D2O, among others."
+    },
+    "gottlieb1997": {
+      "citation": "Gottlieb, H. E.; Kotlyar, V.; Nudelman, A. NMR Chemical Shifts of Common Laboratory Solvents as Trace Impurities. J. Org. Chem. 1997, 62, 7512-7515.",
+      "doi": "10.1021/jo971176v",
+      "url": "https://pubs.acs.org/doi/10.1021/jo971176v",
+      "publisher": "American Chemical Society",
+      "year": 1997,
+      "notes": "Foundational peer-reviewed residual-solvent reference. Also documents the strong temperature dependence of HDO in D2O."
+    },
+    "iupac_harris2001": {
+      "citation": "Harris, R. K.; Becker, E. D.; Cabral de Menezes, S. M.; Goodfellow, R.; Granger, P. NMR nomenclature. Nuclear spin properties and conventions for chemical shifts (IUPAC Recommendations 2001). Pure Appl. Chem. 2001, 73, 1795-1818.",
+      "doi": "10.1351/pac200173111795",
+      "url": "https://publications.iupac.org/pac/73/11/1795/index.html",
+      "publisher": "IUPAC",
+      "year": 2001,
+      "notes": "IUPAC recommends a unified chemical-shift scale relative to the 1H resonance of TMS in dilute solution. Used here to support TMS = 0 ppm as the reference standard."
+    },
+    "tamu_cil_crosscheck": {
+      "citation": "Texas A&M NMR Facility, OpenVnmrJ/Alma primer, CIL solvent chart reproduction.",
+      "url": "https://nmr.tamu.edu/pdf/OVJ_Alma_Primer_rev1.pdf",
+      "publisher": "Texas A&M University",
+      "year": null,
+      "notes": "Institutional cross-check reproducing CIL solvent-chart values for a broad set of deuterated solvents."
+    }
+  },
+  "residual_solvents": {
+    "1,4-dioxane-d8": {
+      "display_name": "1,4-Dioxane-d8",
+      "aliases": [
+        "1,4-dioxane-d8",
+        "dioxane-d8",
+        "p-dioxane-d8",
+        "c4d8o2"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "ring_h",
+            "label": "Residual ring proton(s)",
+            "ppm": 3.53,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "m",
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 3.53
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "ring_c",
+            "label": "Ring carbon",
+            "ppm": 66.66,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "quintet",
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 66.66
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "acetic-acid-d4": {
+      "display_name": "Acetic acid-d4",
+      "aliases": [
+        "acetic acid-d4",
+        "acetic-d4",
+        "cd3cood",
+        "acetic acid d4"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "acid_h",
+            "label": "Exchangeable COOH/COOD residual proton",
+            "ppm": 11.65,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": true,
+            "recommended_for_direct_referencing": false,
+            "multiplicity": "s",
+            "notes": "Exchangeable acid proton; position is condition-dependent and is not preferred for precise referencing."
+          },
+          {
+            "id": "methyl_h",
+            "label": "Residual methyl proton(s)",
+            "ppm": 2.04,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "quintet",
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 2.04
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "carbonyl_c",
+            "label": "Carbonyl carbon",
+            "ppm": 178.99,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "s"
+          },
+          {
+            "id": "methyl_c",
+            "label": "Methyl carbon",
+            "ppm": 20.0,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "septet"
+          }
+        ]
+      }
+    },
+    "acetone-d6": {
+      "display_name": "Acetone-d6",
+      "aliases": [
+        "acetone-d6",
+        "d6-acetone",
+        "(cd3)2co",
+        "acetone"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "methyl_h",
+            "label": "Residual methyl proton(s)",
+            "ppm": 2.05,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "quintet",
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 2.05
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "methyl_c",
+            "label": "Methyl carbon",
+            "ppm": 29.84,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 29.92
+              }
+            ]
+          },
+          {
+            "id": "carbonyl_c",
+            "label": "Carbonyl carbon",
+            "ppm": 206.26,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 206.68
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "acetonitrile-d3": {
+      "display_name": "Acetonitrile-d3",
+      "aliases": [
+        "acetonitrile-d3",
+        "cd3cn",
+        "mecn-d3",
+        "acetonitrile"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "methyl_h",
+            "label": "Residual methyl proton(s)",
+            "ppm": 1.94,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "quintet",
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 1.94
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "methyl_c",
+            "label": "Methyl carbon",
+            "ppm": 1.32,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 1.39
+              }
+            ]
+          },
+          {
+            "id": "nitrile_c",
+            "label": "Nitrile carbon",
+            "ppm": 118.26,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 118.69
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "benzene-d6": {
+      "display_name": "Benzene-d6",
+      "aliases": [
+        "benzene-d6",
+        "c6d6",
+        "benzene"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "ring_h",
+            "label": "Residual benzene proton",
+            "ppm": 7.16,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 7.16
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "ring_c",
+            "label": "Benzene carbon",
+            "ppm": 128.06,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 128.39
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "chloroform-d": {
+      "display_name": "Chloroform-d",
+      "aliases": [
+        "chloroform-d",
+        "cdcl3",
+        "chloroform",
+        "chcl3"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "chcl3_h",
+            "label": "Residual CHCl3",
+            "ppm": 7.26,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 7.24
+              },
+              {
+                "source_id": "gottlieb1997",
+                "ppm": 7.26
+              }
+            ],
+            "notes": "CIL's 295 K chart lists 7.24 ppm; the widely used peer-reviewed Fulmer/Gottlieb value is 7.26 ppm."
+          }
+        ],
+        "13C": [
+          {
+            "id": "cdcl3_c",
+            "label": "CDCl3 carbon",
+            "ppm": 77.16,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 77.23
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "cyclohexane-d12": {
+      "display_name": "Cyclohexane-d12",
+      "aliases": [
+        "cyclohexane-d12",
+        "c6d12",
+        "cyclohexane"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "ring_h",
+            "label": "Residual ring proton(s)",
+            "ppm": 1.38,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 1.38
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "ring_c",
+            "label": "Ring carbon",
+            "ppm": 26.43,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 26.43
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "deuterium-oxide": {
+      "display_name": "Deuterium oxide (D2O)",
+      "aliases": [
+        "deuterium oxide",
+        "d2o",
+        "heavy water"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "hdo",
+            "label": "HDO / water signal",
+            "ppm": 4.79,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": true,
+            "recommended_for_direct_referencing": false,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 4.8,
+                "reference": "DSS"
+              },
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 4.81,
+                "reference": "TSP"
+              }
+            ],
+            "notes": "Strongly temperature-, pH-, concentration- and composition-dependent. Use only with explicit conditions; not preferred for precise referencing."
+          }
+        ],
+        "13C": []
+      }
+    },
+    "dmso-d6": {
+      "display_name": "DMSO-d6",
+      "aliases": [
+        "dmso-d6",
+        "d6-dmso",
+        "(cd3)2so",
+        "dmso"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "methyl_h",
+            "label": "Residual DMSO proton(s)",
+            "ppm": 2.5,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 2.5
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "methyl_c",
+            "label": "DMSO carbon",
+            "ppm": 39.52,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 39.51
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ethanol-d6": {
+      "display_name": "Ethanol-d6",
+      "aliases": [
+        "ethanol-d6",
+        "etod-d6",
+        "c2d5od",
+        "ethanol"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "od_h",
+            "label": "Exchangeable OH/OD residual proton",
+            "ppm": 5.19,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": true,
+            "recommended_for_direct_referencing": false,
+            "notes": "Exchangeable proton; strongly condition-dependent. CIL chart value is retained but should not be preferred for precision referencing."
+          },
+          {
+            "id": "ch2_h",
+            "label": "Residual CH2 proton(s)",
+            "ppm": 3.56,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 3.56
+              }
+            ]
+          },
+          {
+            "id": "ch3_h",
+            "label": "Residual CH3 proton(s)",
+            "ppm": 1.11,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "m",
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 1.11
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "ch2_c",
+            "label": "CH2 carbon",
+            "ppm": 56.96,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 56.96
+              }
+            ]
+          },
+          {
+            "id": "ch3_c",
+            "label": "CH3 carbon",
+            "ppm": 17.31,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "tamu_cil_crosscheck",
+                "ppm": 17.31
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "methanol-d4": {
+      "display_name": "Methanol-d4",
+      "aliases": [
+        "methanol-d4",
+        "meod",
+        "cd3od",
+        "methanol",
+        "methyl alcohol-d4"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "od_h",
+            "label": "Exchangeable OH/OD residual proton",
+            "ppm": 4.78,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": true,
+            "recommended_for_direct_referencing": false,
+            "notes": "Exchangeable signal; condition-dependent and not preferred for precise referencing."
+          },
+          {
+            "id": "methyl_h",
+            "label": "Residual methyl proton(s)",
+            "ppm": 3.31,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 3.31
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "methyl_c",
+            "label": "Methanol carbon",
+            "ppm": 49.0,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 49.15
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "dichloromethane-d2": {
+      "display_name": "Dichloromethane-d2",
+      "aliases": [
+        "dichloromethane-d2",
+        "methylene chloride-d2",
+        "dcm-d2",
+        "cd2cl2",
+        "dichloromethane"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "ch2_h",
+            "label": "Residual CH2 proton(s)",
+            "ppm": 5.32,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 5.32
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "ch2_c",
+            "label": "CD2Cl2 carbon",
+            "ppm": 53.84,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 54.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "dmf-d7": {
+      "display_name": "DMF-d7",
+      "aliases": [
+        "dmf-d7",
+        "n,n-dimethylformamide-d7",
+        "dimethylformamide-d7",
+        "dmf"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "formyl_h",
+            "label": "Residual formyl proton",
+            "ppm": 8.03,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "nch3_a_h",
+            "label": "Residual N-methyl signal A",
+            "ppm": 2.92,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "quintet"
+          },
+          {
+            "id": "nch3_b_h",
+            "label": "Residual N-methyl signal B",
+            "ppm": 2.75,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "quintet"
+          }
+        ],
+        "13C": [
+          {
+            "id": "formyl_c",
+            "label": "Formyl carbon",
+            "ppm": 163.15,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "nch3_a_c",
+            "label": "N-methyl carbon A",
+            "ppm": 34.89,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "nch3_b_c",
+            "label": "N-methyl carbon B",
+            "ppm": 29.76,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          }
+        ]
+      }
+    },
+    "pyridine-d5": {
+      "display_name": "Pyridine-d5",
+      "aliases": [
+        "pyridine-d5",
+        "c5d5n",
+        "pyridine"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "h2_h6",
+            "label": "Residual H-2/H-6",
+            "ppm": 8.74,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "h4",
+            "label": "Residual H-4",
+            "ppm": 7.58,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "h3_h5",
+            "label": "Residual H-3/H-5",
+            "ppm": 7.22,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          }
+        ],
+        "13C": [
+          {
+            "id": "c2_c6",
+            "label": "C-2/C-6",
+            "ppm": 150.35,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "c4",
+            "label": "C-4",
+            "ppm": 135.91,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "c3_c5",
+            "label": "C-3/C-5",
+            "ppm": 123.87,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          }
+        ]
+      }
+    },
+    "thf-d8": {
+      "display_name": "THF-d8",
+      "aliases": [
+        "thf-d8",
+        "tetrahydrofuran-d8",
+        "tetrahydrofuran",
+        "thf"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "o_ch2_h",
+            "label": "Residual O-CH2 proton(s)",
+            "ppm": 3.58,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 3.58
+              }
+            ]
+          },
+          {
+            "id": "beta_ch2_h",
+            "label": "Residual beta-CH2 proton(s)",
+            "ppm": 1.72,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 1.73
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "o_ch2_c",
+            "label": "O-CH2 carbon",
+            "ppm": 67.21,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 67.57
+              }
+            ]
+          },
+          {
+            "id": "beta_ch2_c",
+            "label": "beta-CH2 carbon",
+            "ppm": 25.31,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 25.37
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "toluene-d8": {
+      "display_name": "Toluene-d8",
+      "aliases": [
+        "toluene-d8",
+        "c7d8",
+        "methylbenzene-d8",
+        "toluene"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "ar_h3_h5",
+            "label": "Residual aromatic H-3/H-5",
+            "ppm": 7.09,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "multiplicity": "m",
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 7.09
+              }
+            ]
+          },
+          {
+            "id": "ar_h2_h6",
+            "label": "Residual aromatic H-2/H-6",
+            "ppm": 7.01,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 7.0
+              }
+            ]
+          },
+          {
+            "id": "ar_h4",
+            "label": "Residual aromatic H-4",
+            "ppm": 6.97,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 6.98
+              }
+            ]
+          },
+          {
+            "id": "methyl_h",
+            "label": "Residual methyl proton(s)",
+            "ppm": 2.08,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 2.09
+              }
+            ]
+          }
+        ],
+        "13C": [
+          {
+            "id": "ipso_c",
+            "label": "Ipso carbon C-1",
+            "ppm": 137.48,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 137.86
+              }
+            ]
+          },
+          {
+            "id": "c2_c6",
+            "label": "C-2/C-6",
+            "ppm": 128.87,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 129.24
+              }
+            ]
+          },
+          {
+            "id": "c3_c5",
+            "label": "C-3/C-5",
+            "ppm": 127.96,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 128.33
+              }
+            ]
+          },
+          {
+            "id": "c4",
+            "label": "C-4",
+            "ppm": 125.13,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 125.49
+              }
+            ]
+          },
+          {
+            "id": "methyl_c",
+            "label": "Methyl carbon",
+            "ppm": 20.43,
+            "source_id": "fulmer2010",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true,
+            "verification": [
+              {
+                "source_id": "cil_solvent_chart_295k",
+                "ppm": 20.4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "trifluoroacetic-acid-d": {
+      "display_name": "Trifluoroacetic acid-d",
+      "aliases": [
+        "trifluoroacetic acid-d",
+        "tfa-d",
+        "cf3cood",
+        "trifluoroacetic acid"
+      ],
+      "category": "residual_solvent",
+      "resonances": {
+        "1H": [
+          {
+            "id": "acid_h",
+            "label": "Exchangeable acid proton",
+            "ppm": 11.5,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": true,
+            "recommended_for_direct_referencing": false,
+            "notes": "Exchangeable acid proton; strongly condition-dependent. Included for completeness, not preferred for precise referencing."
+          }
+        ],
+        "13C": [
+          {
+            "id": "carbonyl_c",
+            "label": "Carbonyl carbon",
+            "ppm": 164.2,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          },
+          {
+            "id": "cf3_c",
+            "label": "CF3 carbon",
+            "ppm": 116.6,
+            "source_id": "cil_solvent_chart_295k",
+            "conditions": {
+              "temperature_K": 295.0
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          }
+        ]
+      }
+    }
+  },
+  "reference_standards": {
+    "tms": {
+      "display_name": "TMS",
+      "aliases": [
+        "tms",
+        "tetramethylsilane"
+      ],
+      "category": "reference_standard",
+      "resonances": {
+        "1H": [
+          {
+            "id": "tms_1h",
+            "label": "TMS",
+            "ppm": 0.0,
+            "source_id": "iupac_harris2001",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          }
+        ],
+        "13C": [
+          {
+            "id": "tms_13c",
+            "label": "TMS",
+            "ppm": 0.0,
+            "source_id": "iupac_harris2001",
+            "conditions": {
+              "temperature_K": null
+            },
+            "exchangeable": false,
+            "recommended_for_direct_referencing": true
+          }
+        ]
+      }
+    }
+  }
+}

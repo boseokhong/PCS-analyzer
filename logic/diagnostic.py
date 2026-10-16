@@ -343,7 +343,7 @@ def plot_residual_vs_phi_and_grh(state, result, fig=None):
     plot_title = fonts.get("plot_title", 10)
     plot_label = fonts.get("plot_label", 9)
     plot_tick = fonts.get("plot_tick", 8)
-    plot_annotation = fonts.get("plot_annotation", 9)
+    plot_legend = fonts.get("plot_legend", 8)
 
     ax1 = fig.add_subplot(1, 2, 1)
     ax2 = fig.add_subplot(1, 2, 2)
@@ -354,18 +354,18 @@ def plot_residual_vs_phi_and_grh(state, result, fig=None):
 
     # (1) resid vs phi
     ax1.scatter(phi_deg, resid)
-    ax1.set_xlabel("φ (deg)", fontsize=plot_label)
-    ax1.set_ylabel("Residual (ppm)", fontsize=plot_label)
-    ax1.set_title("Residual vs φ", fontsize=plot_title)
+    ax1.set_xlabel(r"Azimuthal angle, $\varphi$ (°)", fontsize=plot_label)
+    ax1.set_ylabel(r"Residual, $\delta_{Exp}-\delta_{Pred}$ (ppm)", fontsize=plot_label)
+    ax1.set_title(r"Residual vs $\varphi$", fontsize=plot_title)
     ax1.set_xlim(0, 360)
     ax1.tick_params(axis="both", labelsize=plot_tick)
     ax1.axhline(0, linewidth=1)
 
     # (2) resid vs Grh
-    ax2.scatter(Grh, resid)
-    ax2.set_xlabel("G_rh", fontsize=plot_label)
-    ax2.set_ylabel("Residual (ppm)", fontsize=plot_label)
-    ax2.set_title("Residual vs G_rh", fontsize=plot_title)
+    ax2.scatter(Grh, resid, label="Residuals")
+    ax2.set_xlabel(r"Rhombic geometrical factor ($G_{rh}$)", fontsize=plot_label)
+    ax2.set_ylabel(r"Residual, $\delta_{Exp}-\delta_{Pred}$ (ppm)", fontsize=plot_label)
+    ax2.set_title(r"Residual vs $G_{rh}$", fontsize=plot_title)
     ax2.tick_params(axis="both", labelsize=plot_tick)
     ax2.axhline(0, linewidth=1)
 
@@ -374,21 +374,9 @@ def plot_residual_vs_phi_and_grh(state, result, fig=None):
     c = result.get("resid_grh_intercept", np.nan)
     if len(Grh) >= 2 and np.isfinite(m) and np.isfinite(c):
         xs = np.linspace(np.min(Grh), np.max(Grh), 100)
-        ax2.plot(xs, m * xs + c)
+        ax2.plot(xs, m * xs + c, label="Linear fit")
 
-        # show tiny stats box (no fixed colors)
-        r = result.get("resid_grh_r", np.nan)
-        r2 = result.get("resid_grh_r2", np.nan)
-        txt = f"r={r:+.3f}\nR²={r2:.3f}\nΔχ_rh≈{result.get('dchi_rh_est', np.nan):.2e}"
-        ax2.text(
-            0.02, 0.98, txt,
-            transform=ax2.transAxes,
-            va="top", ha="left",
-            fontsize=plot_annotation,
-            bbox=dict(boxstyle="round", facecolor="white", alpha=0.7, edgecolor="none"),
-        )
-
-    fig.tight_layout()
+    ax2.legend(loc="best", fontsize=plot_legend, framealpha=0.95)
 
     cv = state.get("diag_canvas_resphi")
     if cv is not None:
@@ -423,50 +411,68 @@ def update_diagnostic_panel(state):
 
     box = state.get("diag_result_box")
     if box is not None:
+        report = _format_diagnostic_report(res)
         box.delete("1.0", "end")
-        box.insert("end", "[Diagnostic] Axial-only fit → residual analysis\n")
-        box.insert("end", f"N = {res['n']}, RMSD(resid) = {res['rmsd']:.3f} ppm\n")
-        box.insert(
-            "end",
-            ("Model: δ = k·Gax + b\n" if res["fit_intercept"]
-             else "Model: δ = k·Gax  (b = 0 forced)\n")
-        )
-        box.insert("end", f"k = {res['k_slope']:.6g} ; b = {res['intercept']:.6g}\n")
-        box.insert("end", f"Δχ_ax (from slope) ≈ {res['dchi_ax_est']:.3e} (E-32 m³)\n")
-
-        # interpretation aids
-        box.insert("end", "\n[Rhombic diagnostic: resid vs G_rh]\n")
-        box.insert("end", f"Pearson r = {res['resid_grh_r']:+.3f} ; R² = {res['resid_grh_r2']:.3f}\n")
-        box.insert(
-            "end",
-            f"resid ≈ m·G_rh + c   with  m={res['resid_grh_slope']:+.6g}, c={res['resid_grh_intercept']:+.6g}\n"
-        )
-        box.insert("end", f"Δχ_rh (from slope) ≈ {res['dchi_rh_est']:.3e} (E-32 m³)\n")
-
-        r_abs = abs(res["resid_grh_r"]) if np.isfinite(res["resid_grh_r"]) else 0.0
-        if r_abs > 0.7:
-            box.insert("end", "→ Strong correlation: residuals likely dominated by rhombic PCS (finite Δχ_rh).\n")
-        elif r_abs > 0.4:
-            box.insert("end", "→ Moderate correlation: rhombicity possible; check outliers/contact/axis definition.\n")
-        else:
-            box.insert("end", "→ Weak correlation: residuals likely not mainly rhombic PCS (noise/contact/frame mismatch).\n")
-
-        # table
-        box.insert("end", "\nRef\tδ_exp\tδ_pred\tresid\tphi(deg)\tG_rh\n")
-        for rid, de, dp, rr, ph, grh in zip(
-            res["obs_ids"],
-            res["delta_exp"],
-            res["delta_pred"],
-            res["resid"],
-            np.degrees(res["phi"]),
-            res["Grh"],
-        ):
-            box.insert("end", f"{rid}\t{de:.3f}\t{dp:.3f}\t{rr:+.3f}\t{ph:6.1f}\t{grh:+.3e}\n")
-
-        # outliers
-        box.insert("end", "\n[Top |resid| outliers]\n")
-        box.insert("end", "Ref\tresid(ppm)\tG_rh\tphi(deg)\tδ_exp\tδ_pred\n")
-        for rid, rr, grh, ph, de, dp in res.get("outliers", []):
-            box.insert("end", f"{rid}\t{rr:+.3f}\t{grh:+.3e}\t{ph:6.1f}\t{de:+.3f}\t{dp:+.3f}\n")
+        box.insert("1.0", report)
+        for number, line in enumerate(report.splitlines(), 1):
+            if number == 1 or line in ("Regression coefficients", "Point details", "[Top |resid| outliers]"):
+                box.tag_add("section", f"{number}.0", f"{number}.end")
+            if line == "Point details":
+                box.tag_add("details", f"{number + 1}.0", "end")
 
     return res
+
+
+def _format_diagnostic_report(res):
+    """Format existing diagnostic values; no recalculation or new criteria."""
+    model = "δ = k·G_ax + b" if res["fit_intercept"] else "δ = k·G_ax (b = 0)"
+    left = [
+        ("Points used", str(res["n"])),
+        ("Residual RMSD", f"{res['rmsd']:.3f} ppm"),
+        ("Estimated Δχ_ax", f"{res['dchi_ax_est']:.4g} E-32 m³"),
+        ("Model", model),
+    ]
+    right = [
+        ("Pearson r", f"{res['resid_grh_r']:+.3f}"),
+        ("R²", f"{res['resid_grh_r2']:.3f}"),
+        ("Estimated Δχ_rh", f"{res['dchi_rh_est']:.4g} E-32 m³"),
+        ("Model", "residual = m·G_rh + c"),
+    ]
+    lines = ["Axial fit\t\tRhombic diagnostic"]
+    lines.extend("\t".join((*a, *b)) for a, b in zip(left, right))
+    lines.append("")
+    r_abs = abs(res["resid_grh_r"]) if np.isfinite(res["resid_grh_r"]) else 0.0
+    if r_abs > 0.7:
+        lines.append("Interpretation: Strong correlation: residuals likely dominated by rhombic PCS (finite Δχ_rh).")
+    elif r_abs > 0.4:
+        lines.append("Interpretation: Moderate correlation: rhombicity possible; check outliers/contact/axis definition.")
+    else:
+        lines.append("Interpretation: Weak correlation: residuals likely not mainly rhombic PCS (noise/contact/frame mismatch).")
+
+    lines.extend([
+        "",
+        "Regression coefficients",
+        f"k = {res['k_slope']:.6g} ; b = {res['intercept']:.6g}",
+        f"resid ≈ m·G_rh + c   with  m={res['resid_grh_slope']:+.6g}, c={res['resid_grh_intercept']:+.6g}",
+        "",
+        "Point details",
+    ])
+    # table
+    lines.append("\nRef\tδ_exp\tδ_pred\tresid\tphi(deg)\tG_rh")
+    for rid, de, dp, rr, ph, grh in zip(
+        res["obs_ids"],
+        res["delta_exp"],
+        res["delta_pred"],
+        res["resid"],
+        np.degrees(res["phi"]),
+        res["Grh"],
+    ):
+        lines.append(f"{rid}\t{de:.3f}\t{dp:.3f}\t{rr:+.3f}\t{ph:6.1f}\t{grh:+.3e}")
+
+    # outliers
+    lines.append("\n[Top |resid| outliers]")
+    lines.append("Ref\tresid(ppm)\tG_rh\tphi(deg)\tδ_exp\tδ_pred")
+    for rid, rr, grh, ph, de, dp in res.get("outliers", []):
+        lines.append(f"{rid}\t{rr:+.3f}\t{grh:+.3e}\t{ph:6.1f}\t{de:+.3f}\t{dp:+.3f}")
+
+    return "\n".join(lines)

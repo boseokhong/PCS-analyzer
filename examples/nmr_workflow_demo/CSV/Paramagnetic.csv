@@ -1,0 +1,5 @@
+assignment,shift_ppm,experiment,role,nucleus,temperature_k,quantity,included,provenance
+H1,2.00,Paramagnetic,paramagnetic,1H,298.15,observed_shift,true,"{""origin"": ""synthetic_demo"", ""synthetic"": true, ""generator"": ""nmr_workflow_demo/generate_demo.py""}"
+H2,5.00,Paramagnetic,paramagnetic,1H,298.15,observed_shift,true,"{""origin"": ""synthetic_demo"", ""synthetic"": true, ""generator"": ""nmr_workflow_demo/generate_demo.py""}"
+H3,8.00,Paramagnetic,paramagnetic,1H,298.15,observed_shift,true,"{""origin"": ""synthetic_demo"", ""synthetic"": true, ""generator"": ""nmr_workflow_demo/generate_demo.py""}"
+H4,11.00,Paramagnetic,paramagnetic,1H,298.15,observed_shift,true,"{""origin"": ""synthetic_demo"", ""synthetic"": true, ""generator"": ""nmr_workflow_demo/generate_demo.py""}"

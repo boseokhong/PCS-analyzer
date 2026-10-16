@@ -1,0 +1,9 @@
+parameter,value
+dchi_ax,12.0
+dchi_rh,3.0
+fixed_refs,"1,9"
+rotatable_refs,"3,4"
+rotation_from_start_deg,45
+constraint_mode,position
+orientation_degrees,"0,0,0"
+synthetic,True

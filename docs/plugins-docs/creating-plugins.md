@@ -1,16 +1,20 @@
 # Creating Plugins
 
-PCS Analyzer plugins can be distributed either as a single Python file or as a folder-based package.
+This is **plugin-author reference**. For installing and running existing tools,
+see [Module Manager](overview.md).
+
+The installer accepts a single Python file or a folder/ZIP package. In each case the installed entry module must define:
+
+```python
+def register(app):
+    ...
+```
+
+`register(app)` is called while external plugins are loaded for the **Modules** menu. It should register commands and return promptly; launch the actual tool only from a deferred callback.
 
 ## Single-file plugins
 
-A small plugin may be distributed as:
-
-```text
-evans_calculator.py
-```
-
-It should contain at least:
+A `.py` plugin must define both `PLUGIN_INFO` as a dictionary and `register(app)`:
 
 ```python
 PLUGIN_INFO = {
@@ -24,21 +28,23 @@ PLUGIN_INFO = {
     "dependencies": [],
 }
 
-def register(app):
-    app.add_menu_item(
-        label="Evans Method Calculator...",
-        command=lambda: open_plugin(app),
-    )
 
 def open_plugin(app):
     ...
+
+
+def register(app):
+    app.register_tool(
+        tool_id="evans_calculator.open",
+        label="Evans Method Calculator...",
+        command=lambda: open_plugin(app),
+        category="Plugins",
+    )
 ```
 
-When installed through the Module Manager, PCS Analyzer converts it to the standard installed-folder layout.
+During installation PCS Analyzer imports the selected file to inspect `PLUGIN_INFO`. Import-time code therefore runs before the user can use the plugin. The installer validates the ID, version and declared compatibility, copies the file to `plugins/installed/<plugin_id>/plugin.py`, and generates a manifest from selected `PLUGIN_INFO` fields. New installations are enabled; replacements retain the existing enabled state.
 
 ## Folder-based plugins
-
-Recommended structure:
 
 ```text
 bleaney_vt/
@@ -50,30 +56,27 @@ bleaney_vt/
 └─ examples/
 ```
 
-A folder-based plugin must contain a valid `manifest.json`, the configured entry file, and a `register(app)` function.
-
-Package-style relative imports are preferred:
+The selected folder may contain `manifest.json` directly, or it may contain one immediate child folder that does. The `entry` named by the manifest must exist. Package-style relative imports are supported:
 
 ```python
 from .plugin_ui.main_window import MyWindow
 from .plugin_logic.fitting import run_fit
 ```
 
-## Entry file
+The ZIP installer accepts the same layout after extraction. See [Distribution and installation](distribution.md) before sharing a ZIP, especially its current security limitations.
 
-The entry file is usually `plugin.py` and must define:
+## Registering a deferred command
 
-```python
-def register(app):
-    ...
-```
-
-Recommended pattern:
+Use **register_tool()** for a launcher that can be pinned in Quick tools; add a
+Modules command separately with **add_menu_item()** when desired. Give each launcher a unique stable ID to avoid replacing
+another tool. The legacy **add_menu_item()** pattern below remains supported but
+does not itself create a pinnable tool. See [PluginApp](plugin-api.md#registering-a-tool-launcher).
 
 ```python
 def open_plugin(app):
     from .plugin_ui.main_window import BleaneyWindow
     return BleaneyWindow(app.root, app=app)
+
 
 def register(app):
     app.add_menu_item(
@@ -82,44 +85,28 @@ def register(app):
     )
 ```
 
+Do not write `command=open_plugin(app)`: that calls the function during registration instead of when the user selects the menu item.
+
 ## Import-time safety
 
-A plugin must not open windows, call `main()`, call `mainloop()`, start calculations, launch subprocesses, load large files unnecessarily, or modify PCS Analyzer state at import time.
+A plugin should not open windows, call `main()` or `mainloop()`, start calculations, launch subprocesses, load large data, or modify application state merely because it was imported. PCS Analyzer cannot enforce this rule or reverse import-time side effects.
 
-### Correct
-
-```python
-def open_plugin(app):
-    from my_tool.standalone import main
-    return main()
-
-def register(app):
-    app.add_menu_item(
-        label="My Tool...",
-        command=lambda: open_plugin(app),
-    )
-```
-
-Execution should occur only after the user launches the plugin.
-
-## GUI integration
-
-When running inside PCS Analyzer:
-
-- use `tk.Toplevel(app.root)` where possible
-- do not create a second `tk.Tk()` root
-- do not call `mainloop()`
-
-Standalone execution may use its own root, protected by:
+Move optional or expensive imports into the launch function where practical, and keep standalone execution guarded:
 
 ```python
 if __name__ == "__main__":
     run_standalone()
 ```
 
-## Resource paths
+## GUI integration
 
-Resolve resources relative to the plugin file:
+For a Tkinter plugin launched inside PCS Analyzer, use `tk.Toplevel(app.root)` when practical. Do not create a second `tk.Tk()` root or start another event loop. A genuinely standalone path may create its own root only inside the guarded standalone entry point.
+
+## Dependencies and resources
+
+Manifest dependency fields are metadata only in the current host. The manager neither installs nor checks them, so plugin code must detect required and optional packages and report missing ones clearly.
+
+Resolve resources relative to the plugin file rather than the process working directory:
 
 ```python
 from pathlib import Path
@@ -128,17 +115,14 @@ PLUGIN_DIR = Path(__file__).resolve().parent
 RESOURCE_DIR = PLUGIN_DIR / "resources"
 ```
 
-Avoid relying on the current working directory.
+## Development checklist
 
-## Recommended development workflow
-
-1. develop the tool independently where practical
-2. add `PLUGIN_INFO`
-3. add `open_plugin(app)`
-4. add `register(app)`
-5. ensure no tool code runs during import
-6. install through the Module Manager
-7. test loading from the **Modules** menu
-8. test disable/enable
-9. test reinstall/update
-10. package as `.py`, folder, or `.zip`
+1. Give the plugin a stable ID and define `register(app)`.
+2. Keep import and registration lightweight.
+3. Use deferred menu callbacks.
+4. Prefer the documented [PluginApp helpers](plugin-api.md) to raw state access.
+5. Handle unavailable dependencies in plugin code.
+6. Install through Module Manager; restart after every update or replacement.
+7. Verify that the plugin is both listed and successfully loaded.
+8. Exercise enable, disable, removal, and reinstall behavior with disposable test data.
+9. Test standalone mode separately if the plugin claims to support it.

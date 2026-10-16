@@ -105,7 +105,17 @@ from tkinter import ttk, Toplevel
 
 from logic.chem_constants import AVOGADRO_CONSTANT
 from logic.nmr_delta_data_manager import push_layers_to_nmr_if_open
+from logic.document_edit_history import PCS_KEYS, begin_edit, finish_edit
+from logic.pcs_forward_api import PCSAtom, PCSPredictionRequest
+from logic.pcs_forward_model import PCSForwardEngine
+from logic.pcs_prediction_model import (
+    get_prediction_model,
+    prediction_tensor_from_components,
+)
 from logic.symmetry_geometry import effective_geometry_factors
+
+
+_PCS_FORWARD_ENGINE = PCSForwardEngine()
 
 def _delta_kind_config(kind: str):
     kind = (kind or "").lower().strip()
@@ -150,7 +160,7 @@ def export_delta_exp_template(state):
     rows = []
     for item in tree.get_children():
         vals = tree.item(item, "values")
-        # columns = ('Ref','Atom','X','Y','Z','G_i','δ_PCS','δ_Exp')
+        # columns = ('Ref','Atom','X','Y','Z','G_ax','δ_PCS','δ_Exp')
         ref = vals[0]
         atom = vals[1]
         dex  = vals[7] if len(vals) >= 8 else ""
@@ -303,15 +313,19 @@ def undo_last_delta_import(state, plot_cartesian_graph_fn=None):
     if prev is None:
         state['messagebox'].showwarning("Undo", "No undo buffer available.")
         return
-    state['delta_exp_values'] = prev
+    edit_token = begin_edit(state, PCS_KEYS)
+    state['delta_exp_values'] = dict(prev)
     state['update_graph']()
     if plot_cartesian_graph_fn:
         plot_cartesian_graph_fn(state)
+    from logic.pcs_document import mark_document_mutated
+    finish_edit(state, edit_token, "Restore previous δ_Exp import")
+    mark_document_mutated(state, "pcs_data")
     state['messagebox'].showinfo("Undo", "Restored to the previous δ_Exp state.")
 
 #=======================================
 
-def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesian_graph_fn, kind: str):
+def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesian_graph_fn, kind: str, *, before_apply=None):
     """
     mapped_rows: 리스트[ dict( file_id, file_atom, file_delta_raw, mapped_id, parsed_delta, action ) ]
       - action: 'set' | 'clear' | 'skip'
@@ -321,6 +335,13 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
     if not kind:
         raise ValueError("kind is required")
     target_key, undo_key, _ = _delta_kind_config(kind)
+    from logic.pcs_document import active_document_id
+    preview_document_id = active_document_id(state)
+    def check_document():
+        if active_document_id(state) != preview_document_id:
+            state["messagebox"].showwarning("Import", "The active document changed. Reopen the import preview.", parent=top)
+            return False
+        return True
     state.setdefault(target_key, {})
 
     top = Toplevel(state['root'])
@@ -404,6 +425,15 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
     ttk.Button(btns, text="Invert", command=lambda: _toggle_all(None)).pack(side="left")
 
     def _apply():
+        if not check_document():
+            return
+        if before_apply is not None:
+            try:
+                before_apply()
+            except RuntimeError as exc:
+                state['messagebox'].showerror(f"Import {kind}", str(exc), parent=top)
+                return
+        edit_token = begin_edit(state, PCS_KEYS)
         # undo buffer per kind
         state[undo_key] = state.get(target_key, {}).copy()
 
@@ -435,15 +465,28 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
         if callable(plot_cartesian_graph_fn):
             plot_cartesian_graph_fn(state)
 
+        from logic.pcs_document import mark_document_mutated
+        finish_edit(state, edit_token, f"Import δ_{kind} · {source_label}")
+        mark_document_mutated(state, "pcs_data")
+
         state['messagebox'].showinfo(f"{kind} import", f"Applied set: {applied_set}, clear: {applied_clear}")
         top.destroy()
 
     def _undo_last():
+        if not check_document():
+            return
+        if before_apply is not None:
+            try:
+                before_apply()
+            except RuntimeError as exc:
+                state['messagebox'].showerror(f"Undo {kind}", str(exc), parent=top)
+                return
         prev = state.get(undo_key)
         if prev is None:
             state['messagebox'].showwarning("Undo", "No undo buffer available.")
             return
-        state[target_key] = prev
+        edit_token = begin_edit(state, PCS_KEYS)
+        state[target_key] = dict(prev)
 
         try:
             from logic.nmr_delta_data_manager import recompute_delta_para, push_layers_to_nmr_if_open
@@ -455,6 +498,9 @@ def _show_delta_preview_and_apply(state, mapped_rows, source_label, plot_cartesi
         state['update_graph']()
         if callable(plot_cartesian_graph_fn):
             plot_cartesian_graph_fn(state)
+        from logic.pcs_document import mark_document_mutated
+        finish_edit(state, edit_token, f"Restore previous δ_{kind} import")
+        mark_document_mutated(state, "pcs_data")
         state['messagebox'].showinfo("Undo", f"Restored previous {kind} state.")
 
     ttk.Button(btns, text="Apply", command=_apply).pack(side="right")
@@ -553,7 +599,7 @@ def _build_preview_rows_from_df(state, df, kind: str = "obs"):
     return mapped_rows
 
 #========NMR spectrum delta data manager=========
-def import_delta_file(state, kind: str, plot_cartesian_graph_fn):
+def import_delta_file(state, kind: str, plot_cartesian_graph_fn, *, before_apply=None):
     """
     Generic importer for δ_obs / δ_dia.
     Reuses existing preview/apply workflow.
@@ -594,10 +640,10 @@ def import_delta_file(state, kind: str, plot_cartesian_graph_fn):
 
     _show_delta_preview_and_apply(
         state, rows, os.path.basename(fd), plot_cartesian_graph_fn,
-        kind=kind
+        kind=kind, before_apply=before_apply
     )
 
-def import_delta_from_clipboard(state, kind: str, plot_cartesian_graph_fn):
+def import_delta_from_clipboard(state, kind: str, plot_cartesian_graph_fn, *, before_apply=None):
     """
     Paste δ_obs / δ_dia from clipboard-like text box, with preview/apply.
     """
@@ -667,7 +713,7 @@ def import_delta_from_clipboard(state, kind: str, plot_cartesian_graph_fn):
 
         _show_delta_preview_and_apply(
             state, rows, "clipboard", plot_cartesian_graph_fn,
-            kind=kind
+            kind=kind, before_apply=before_apply
         )
         top.destroy()
 
@@ -678,6 +724,7 @@ def import_delta_from_clipboard(state, kind: str, plot_cartesian_graph_fn):
 def clear_delta_kind(state, kind: str, plot_cartesian_graph_fn):
     """Clear δ_obs or δ_dia."""
     target_key, _, _ = _delta_kind_config(kind)
+    edit_token = begin_edit(state, PCS_KEYS)
     state.setdefault(target_key, {}).clear()
 
     # Rebuild dependent values and refresh
@@ -690,16 +737,23 @@ def clear_delta_kind(state, kind: str, plot_cartesian_graph_fn):
 
     state['update_graph']()
     plot_cartesian_graph_fn(state)
+    from logic.pcs_document import mark_document_mutated
+    finish_edit(state, edit_token, f"Clear δ_{kind}")
+    mark_document_mutated(state, "pcs_data")
     state['messagebox'].showinfo(f"Clear {kind}", f"{kind} data initialized.")
 
 #================================================
 
 def clear_delta_exp(state, plot_cartesian_graph_fn):
     """모든 δ_Exp를 초기화(비우기)하고 테이블/플롯을 갱신."""
+    edit_token = begin_edit(state, PCS_KEYS)
     state.get('delta_exp_values', {}).clear()
     # 테이블의 δ_Exp 컬럼을 비우려면 update_graph로 재빌드하는 게 가장 안전
     state['update_graph']()
     plot_cartesian_graph_fn(state)
+    from logic.pcs_document import mark_document_mutated
+    finish_edit(state, edit_token, "Clear δ_Exp")
+    mark_document_mutated(state, "pcs_data")
     state['messagebox'].showinfo("δ_Exp", "δ_Exp data initialized.")
 
 def update_molar_value(state, tensor):
@@ -709,9 +763,8 @@ def update_molar_value(state, tensor):
 #================================================
 # residual thresholds related helper
 def get_residual_color_thresholds(state):
-    ok_thr = float(state.get("residual_thr_ok", 0.10))
-    warn_thr = float(state.get("residual_thr_warn", 0.30))
-    return ok_thr, warn_thr
+    from logic.residual_display import load_thresholds
+    return load_thresholds(state.get("residual_thr_ok", 0.10), state.get("residual_thr_warn", 0.30))
 
 
 def classify_residual_tag(state, residual):
@@ -742,6 +795,7 @@ def classify_residual_tag(state, residual):
 #================================================
 
 def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
+    """Update Main ``pcs_by_id`` with the active prediction-model policy."""
     tree = state['tree']
     # 모든 행 비우기
     for r in tree.get_children():
@@ -750,6 +804,7 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
     # 현재 표시 중인 행의 Ref(ID) 목록
     ids = state.get('current_selected_ids', [])
     state['row_by_id'] = {}  # 클릭/하이라이트 용 역방향 매핑
+    state['_main_row_residuals'] = {}
 
     pcs_by_id = state.setdefault('pcs_by_id', {})
     pcs_by_id.clear()
@@ -774,23 +829,60 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
             if bool(group.get("enabled", True)):
                 torsion_avg_ref_ids.update(int(r) for r in group.get("rotating_atoms", ()))
     pseudo_ref_ids = set(state.get("symavg_pseudo_ref_ids", set()) or set())
+    torsion_groups = (state.get("torsion_avg_groups", []) or []) if torsion_enabled else []
 
-    # r/theta remain the representative pseudo-coordinate geometry shown in
-    # the table.  Gax is replaced by the member-averaged value for pseudo atoms.
-    _, _, _, gax_eff, _ = effective_geometry_factors(
+    # r/theta remain representative display geometry. Effective factors retain
+    # the existing pseudo-atom and torsional-ensemble calculation semantics.
+    _, _, _, gax_eff, grh_eff = effective_geometry_factors(
         ids,
         rotated_coords,
         np.zeros(3, dtype=float),
         pseudo_members=state.get("symavg_members_by_pseudo_id", {}) or {},
-        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},        torsion_groups=(state.get("torsion_avg_groups", []) or [])
-        if bool(getattr(state.get("torsion_avg_enabled_var"), "get", lambda: False)()) else [],
+        raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},
+        torsion_groups=torsion_groups,
     )
 
-    for i, ((atom, r, theta), (dx, dy, dz)) in enumerate(zip(polar_data, rotated_coords)):
-        ref_id = ids[i] if i < len(ids) else (i + 1)  # for safety
-        geom_param = float(gax_eff[i]) if i < len(gax_eff) else ((3 * (np.cos(theta))**2 - 1) / (r**3) if r != 0 else 0.0)
-        geom_value = geom_param
-        delta_pcs = (tensor * (geom_value * 1e4)) / (12 * np.pi)
+    row_count = min(len(polar_data), len(rotated_coords))
+    row_ref_ids = tuple(
+        int(ids[i]) if i < len(ids) else i + 1
+        for i in range(row_count)
+    )
+    atoms = tuple(
+        PCSAtom(
+            ref_id=row_ref_ids[i],
+            position=tuple(float(value) for value in rotated_coords[i]),
+            label=str(polar_data[i][0]),
+        )
+        for i in range(row_count)
+    )
+    request = PCSPredictionRequest(
+        tensor=prediction_tensor_from_components(
+            dchi_ax=float(tensor),
+            dchi_rh=float(state.get("rh_dchi_rh", 0.0) or 0.0),
+            rhombic_enabled=bool(state.get("rh_calc_enabled", False)),
+            model=get_prediction_model(state),
+        ),
+        atoms=atoms,
+        request_id="main-table",
+    )
+    effective_geometry = {
+        ref_id: (float(gax_eff[i]), float(grh_eff[i]))
+        for i, ref_id in enumerate(row_ref_ids)
+        if i < len(gax_eff) and i < len(grh_eff)
+    }
+    prediction = _PCS_FORWARD_ENGINE.predict_with_effective_geometry(
+        request,
+        effective_geometry,
+    )
+    prediction_by_ref = {
+        item.ref_id: item for item in prediction.atom_predictions
+    }
+
+    for i, ((atom, _, _), (dx, dy, dz)) in enumerate(zip(polar_data, rotated_coords)):
+        ref_id = row_ref_ids[i]
+        atom_prediction = prediction_by_ref[ref_id]
+        geom_param = float(atom_prediction.g_ax)
+        delta_pcs = float(atom_prediction.pcs_ppm)
 
         atom_by_id[ref_id] = str(atom)
         pcs_by_id[ref_id] = float(delta_pcs)
@@ -825,6 +917,7 @@ def update_table(state, polar_data, rotated_coords, tensor, delta_exp_values):
             tags=tags
         )
         state['row_by_id'][ref_id] = item
+        state['_main_row_residuals'][item] = residual
 
     # push delta_pcs to NMR spectrum window if it exists
     push_layers_to_nmr_if_open(state)
@@ -850,18 +943,51 @@ def on_delta_entry_change(state, event, delta_exp_values, plot_cartesian_graph_f
     except Exception:
         return
 
+    delta_exp_values = state.setdefault("delta_exp_values", delta_exp_values)
     new_str = new.strip()
     if new_str == "":
+        edit_token = begin_edit(state, PCS_KEYS)
         tree.set(item, col, "")
         delta_exp_values.pop(ref_id, None)
         plot_cartesian_graph_fn(state)
+        refresh_commands = state.get("refresh_pcs_data_commands")
+        if callable(refresh_commands):
+            refresh_commands()
+        refresh_analysis = state.get("refresh_gax_rhombicity_commands")
+        if callable(refresh_analysis):
+            refresh_analysis()
+        refresh_fitting = state.get("refresh_fitting_commands")
+        if callable(refresh_fitting):
+            refresh_fitting()
+        refresh_conformer = state.get("refresh_conformer_commands")
+        if callable(refresh_conformer):
+            refresh_conformer()
+        from logic.pcs_document import mark_document_mutated
+        finish_edit(state, edit_token, f"Clear δ_Exp · Ref {ref_id}")
+        mark_document_mutated(state, "pcs_data")
         return
 
     try:
         val = float(new_str)
+        edit_token = begin_edit(state, PCS_KEYS)
         tree.set(item, col, new_str)
         delta_exp_values[ref_id] = val
         plot_cartesian_graph_fn(state)
+        refresh_commands = state.get("refresh_pcs_data_commands")
+        if callable(refresh_commands):
+            refresh_commands()
+        refresh_analysis = state.get("refresh_gax_rhombicity_commands")
+        if callable(refresh_analysis):
+            refresh_analysis()
+        refresh_fitting = state.get("refresh_fitting_commands")
+        if callable(refresh_fitting):
+            refresh_fitting()
+        refresh_conformer = state.get("refresh_conformer_commands")
+        if callable(refresh_conformer):
+            refresh_conformer()
+        from logic.pcs_document import mark_document_mutated
+        finish_edit(state, edit_token, f"Edit δ_Exp · Ref {ref_id}")
+        mark_document_mutated(state, "pcs_data")
     except ValueError:
         state['messagebox'].showerror(
             "Invalid input",

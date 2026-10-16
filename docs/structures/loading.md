@@ -10,6 +10,32 @@ where the Cartesian coordinates are stored in Å.
 
 This page describes the file syntax accepted by the structure loader and the internal processing performed before PCS analysis.
 
+## Replacing a working structure
+
+Main-window **Load XYZ** also accepts ORCA `.out`/`.log`. The file is parsed before
+any working data are replaced; the centre is the first atom matching the entered
+element. Cancel, a missing centre or an unusable file leaves the document unchanged.
+
+An accepted load is one [Undo/Redo](../projects.md#undo-and-redo) action. New Ref IDs
+start at 1. Old PCS, observed/diamagnetic shifts, structured observations and their
+transfer/import metadata are cleared to prevent old mappings from being applied
+to the new atom numbering. Structure-specific rotational groups and temporary
+geometry are also reset. Undo restores the prior structure, centre, coupled data,
+visibility and rotational enablement. The tensor/orientation and recorded fit or
+search reports remain; check their Current/Stale state before applying a result.
+Redo restores the accepted data without rereading the file or asking for a centre.
+Opening a project/workspace or replacing inputs inside a standalone tool is outside
+this structure-load history scope.
+
+## Changing the assigned centre
+
+After loading, right-click an existing raw atom row in the main table and choose
+**Set Ref … as metal center (clear preview)**. This explicitly assigns the Ref's
+absolute raw coordinates as the centre without moving atoms or renumbering Refs.
+The action clears a temporary geometry preview and participates in document
+[Undo/Redo](../projects.md#undo-and-redo); recorded fit/search results remain.
+Pseudo-atoms without a raw Ref cannot be assigned through this command.
+
 ## Supported structure formats
 
 The structure loader accepts:
@@ -259,3 +285,7 @@ Bond connectivity required by features such as symmetry averaging is inferred se
 !!! note "Project files"
 
     PCS Analyzer project files (`.pcsp`) are application project containers rather than structure-file formats. They are handled separately from the XYZ/ORCA structure parser described on this page.
+
+    See [Projects and Persistence](../projects.md) for the embedded structure,
+    restored analysis state, schema behavior, and recalculation performed when
+    a project is opened.

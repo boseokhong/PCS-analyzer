@@ -2,7 +2,13 @@
 # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import numpy as np
+from logic.pcs_forward_api import PCSAtom, PCSPredictionRequest, PCSTensor
+from logic.pcs_forward_model import PCSForwardEngine
 from logic.symmetry_geometry import effective_geometry_factors
+
+
+_PCS_FORWARD_ENGINE = PCSForwardEngine()
+
 
 def geom_factors_ax_rh(coords, metal):
     """
@@ -30,13 +36,57 @@ def geom_factors_ax_rh(coords, metal):
 
     return r, theta, phi, Gax, Grh
 
+def _pcs_from_effective_geometry(Gax, Grh, tensor):
+    """Evaluate compatibility-array geometry through the canonical engine."""
+    gax_values, grh_values = np.broadcast_arrays(
+        np.asarray(Gax, dtype=float),
+        np.asarray(Grh, dtype=float),
+    )
+    shape = gax_values.shape
+    flat_gax = gax_values.reshape(-1)
+    flat_grh = grh_values.reshape(-1)
+    atoms = tuple(
+        PCSAtom(ref_id=index, position=(0.0, 0.0, 0.0))
+        for index in range(len(flat_gax))
+    )
+    request = PCSPredictionRequest(
+        tensor=tensor,
+        atoms=atoms,
+        request_id="rhombicity-compatibility",
+    )
+    prediction = _PCS_FORWARD_ENGINE.predict_with_effective_geometry(
+        request,
+        {
+            index: (float(flat_gax[index]), float(flat_grh[index]))
+            for index in range(len(flat_gax))
+        },
+    )
+    values = np.asarray(
+        [item.pcs_ppm for item in prediction.atom_predictions],
+        dtype=float,
+    ).reshape(shape)
+    return float(values) if values.ndim == 0 else values
+
+
 def pcs_ax_only(Gax, dchi_ax):
-    """axial-only PCS"""
-    return (dchi_ax * Gax * 1e4) / (12.0 * np.pi)
+    """Axial-only PCS compatibility interface backed by the forward engine."""
+    return _pcs_from_effective_geometry(
+        Gax,
+        np.zeros_like(np.asarray(Gax, dtype=float)),
+        PCSTensor(dchi_ax=float(dchi_ax)),
+    )
 
 def pcs_ax_rh(Gax, Grh, dchi_ax, dchi_rh):
-    """axial + rhombic PCS"""
-    return ((dchi_ax * Gax + dchi_rh * Grh) * 1e4) / (12.0 * np.pi)
+    """Axial+rhombic PCS compatibility interface backed by the forward engine."""
+    return _pcs_from_effective_geometry(
+        Gax,
+        Grh,
+        PCSTensor(
+            dchi_ax=float(dchi_ax),
+            dchi_rh=float(dchi_rh),
+            rhombic_enabled=True,
+        ),
+    )
 
 def build_rh_table_rows(state, filter_atoms_fn):
     """
@@ -87,6 +137,8 @@ def build_rh_table_rows(state, filter_atoms_fn):
         raw_coords_by_id=state.get("last_rotated_raw_by_id", {}) or {},        torsion_groups=(state.get("torsion_avg_groups", []) or [])
         if bool(getattr(state.get("torsion_avg_enabled_var"), "get", lambda: False)()) else [],
     )
+    d_ax_arr = pcs_ax_only(Gax_arr, tensor)
+    d_axrh_arr = pcs_ax_rh(Gax_arr, Grh_arr, tensor, dchi_rh)
 
     rows = []
     for i, (atom, _, _) in enumerate(polar_data):
@@ -103,8 +155,8 @@ def build_rh_table_rows(state, filter_atoms_fn):
         gax = float(Gax_arr[i])
         grh = float(Grh_arr[i])
 
-        d_ax   = float(pcs_ax_only(gax, tensor))
-        d_axrh = float(pcs_ax_rh(gax, grh, tensor, dchi_rh))
+        d_ax = float(d_ax_arr[i])
+        d_axrh = float(d_axrh_arr[i])
 
         dexp = dv.get(ref_id, None)
         if dexp is None:

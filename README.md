@@ -2,7 +2,7 @@
   <img
     width="300"
     alt="PCS Analyzer banner"
-    src="https://github.com/user-attachments/assets/6384af63-6ae5-420e-bfcd-d5c0dfb575bf"
+    src="docs/images/pcs_banner.png"
   />
 </p>
 
@@ -11,14 +11,14 @@
 ![python](https://img.shields.io/badge/Python-3.12-D97706?logo=python&logoColor=white)
 ![Tested Platforms](https://img.shields.io/badge/tested-Windows%2010%2F11%20%7C%20macOS-5F6B73)
 ![license](https://img.shields.io/badge/license-BSD%203--Clause-668B6A)
-[![Documentation](https://img.shields.io/badge/docs-online%20(WIP)-C44536?logo=githubpages&logoColor=white)](https://boseokhong.github.io/PCS-analyzer/)
+[![Documentation](https://img.shields.io/badge/docs-online-C44536?logo=githubpages&logoColor=white)](https://boseokhong.github.io/PCS-analyzer/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
 
 <p align="center">
   <img
     width="90%"
     alt="PCS Analyzer main interface"
-    src="https://github.com/user-attachments/assets/a8e061cf-ff79-472d-a641-15d46da357df"
+    src="docs/images/main-workspace.png"
   />
 </p>
 
@@ -26,22 +26,27 @@
   <img
     height="200"
     alt="2D polar plot"
-    src="https://github.com/user-attachments/assets/1d373b19-968a-47b7-86a7-e68e309c659b"
+    src="docs/images/2d-polar-plot.png"
   />
   <img
     height="200"
     alt="3D viewer"
-    src="https://github.com/user-attachments/assets/bc3b2a79-b044-42ba-99d4-3786451e3556"
+    src="docs/images/3d-viewer.png"
   />
   <img
     height="200"
     alt="PCS Workbench PCS isosurface"
-    src="https://github.com/user-attachments/assets/efbab2c4-1675-4868-abe9-a988b2793e1c"
+    src="docs/images/pcs-workbench-pcs-isosurface.png"
   />
   <img
     height="200"
     alt="PCS Workbench PDE PD"
-    src="https://github.com/user-attachments/assets/8ad0d9dd-0f85-49db-8713-afc4a523b7e8"
+    src="docs/images/pcs-workbench-pde-pd.png"
+  />
+  <img
+    height="200"
+    alt="NMR Workbench"
+    src="docs/images/nmr-workbench.png"
   />
 </p>
 
@@ -50,12 +55,10 @@
 The software integrates molecular structure import, 2D and 3D PCS visualization, tensor utilities, regression-based diagnostics, rhombicity analysis, fitting workflows, NMR-oriented data inspection, and conformer-based refinement in a unified graphical interface.
 
 > [!NOTE]
-> Required Python packages: `numpy`, `scipy`, `matplotlib`, `pandas`, and `openpyxl`  
-> Optional / additional packages: `ttkbootstrap`, `pyvista`, `pyvistaqt`, `vtk`, `qtpy`, `PySide6`, `pyfftw`, `tkinterdnd2`, and `imageio`
-> - `pyvista` for 3D PCS field / molecular visualization, and `ttkbootstrap` for enhanced GUI styling
-> - `pyvistaqt`, `qtpy`, and `PySide6` are required for the interactive Qt-based 3D structure viewer.
-> - `pyfftw` is optional. The code falls back to `numpy.fft` if it is not installed.
-> - `imageio` is required for GIF export [PyVista's `Plotter.open_gif()`].
+> Install the source dependencies with `python -m pip install -r requirements.txt`.
+> See [Installation](https://boseokhong.github.io/PCS-analyzer/installation/)
+> for package requirements and optional features.
+
 ---
 
 ## Documentation
@@ -64,7 +67,9 @@ The documentation is available online:
 
 [PCS Analyzer Documentation](https://boseokhong.github.io/PCS-analyzer/)
 
-> **Work in progress.** The documentation is under active development as of **10 September 2026** and is being updated continuously.
+> The core structure of the manual is now in place. Further revisions
+> and step-by-step tutorials are in progress. Some topics remain incomplete;
+> review the limitations documented for each workflow.
 
 ---
 ## Overview
@@ -80,70 +85,46 @@ Core use cases include:
 
 ## Recent Changes
 
-Release **v1.3.4**
-- Module update: PCS Workbench v0.1.0 updates
-  - **Corrected isotropic susceptibility calculation.**
-  - Reorganized the control panel
-  - Improved interaction between the control panel and PyVista viewer.
-  - Added camera presets, projection modes, view saving/restoration, and improved PNG export.
-- 3d pyvista view updates
-  - Reorganized the control panel into a two-column layout.
-  - Added bond appearance and hydrogen-visibility controls.
-  - Added camera controls, view preservation, and improved PNG export.
-- Symmetry averaging
-  - Corrected PCS calculations to use averaged geometrical factors (G_i) rather than G_i evaluated at averaged coordinates.
-  - Added rotational ensemble averaging for planar ring systems with automatic detection and configurable sampling.
-  - Added visualization of ensemble-averaged coordinates and optional reference-structure overlays.
+### Current source additions
 
-Release **v1.3.3**
-- Interface and workflow
-  - Added a main menu bar and settings menu.
-    - Moved the **Load XYZ Structure** action to the main menu.
-  - Added font options in the Settings window.
-  - Changed the main-window control panel UI.
-  - Refactored parts of the codebase.
-  - Added a Modules/Plugins menu.
-  - Added a Module Manager window for managing available modules and plugins.
-- Project file I/O and loading
-  - Added support for `.pcsp` project file I/O for project reproducibility.
-  - Added drag-and-drop loading support for `.pcsp`, `.xyz`, `.out`, and `.log` files.
-- Conformer Search
-  - Added a new constraint-mode selector with two modes:
-    - **Position mode**: legacy fitting mode introduced in v1.3.0. Fixed atoms are kept close to their original Cartesian coordinates, making this mode suitable for conservative, scaffold-preserving searches.
-    - **Angular mode**: newly introduced mode in v1.3.3. Metal-centered donor directions are preserved while radial relaxation is allowed, making this mode more suitable for flexible coordination-complex searches.
-  - Added false-bond detection and skipped-bond handling.
-  - Added rigid mode for conformer searches.
-- Gᵢ vs δExp plot
-  - Added lasso selection functionality for selecting subsets of data points directly from the plot.
-- 2D polar contour plot
-  - Improved 2D polar contour plot visualization.
+The current checkout also includes document Undo/Redo with cumulative history,
+Help Documentation and a keyboard-shortcut reference, Tools Ribbon module
+launchers with a separate ordering dialog, and shared editable residual-colour
+cutoffs saved with each project. Standard fit previews and the latest Conformer
+Search candidates can be restored from current project files.
 
-Release **v1.3.2**
-- added **PCS Workbench**, a standalone workspace for FFT-based PDE PCS analysis from ORCA magnetic susceptibility tensors and spin-density grids `.3d`
-  - direct import of ORCA `.out` / `.log` files together with ORCA `.3d` spin-density files for PDE workflows
-  - temperature-resolved tensor selection, ORCA tensor conversion, and rank-2 traceless tensor handling
-  - configurable PDE options including zero-padding, density normalization, and contour auto-scaling
-  - PyVista-based PDE field visualization with multi-level PCS isosurfaces, spin-density surfaces, and slice display
-  - quantitative comparison between distributed PDE PCS and point-dipole PCS
-  - export of computed PDE results to `.png`, `.csv`, compressed **NumPy (`.npz`)**, and temperature-dependent `.gif`
-  - **oblique PCS slice plotting** for user-defined planes through the metal centre
-  - a **traceless tensor spheroid viewer**
-  - PDE field calculation follows the distributed PCS formalism of Charnock and Kuprov: *Phys. Chem. Chem. Phys.*, **2014**, DOI: `10.1039/C4CP03106G`
+Advanced Fitting includes structure-based Multi-Conformer fitting with conditional
+reliability diagnostics, Joint PCS+RDC, PRE and Multi-Lanthanide/Reilley workflows.
+See the [worked examples](examples/README.md) and the
+[source changelog](docs/reference/changelog.md#unreleased) for inputs, limitations
+and changes that may not yet be in a published binary.
 
-Release **v1.3.1**
-- added a PyVista-based 3D viewer for PCS fields and molecular structures.
-- fixed coordinate reference used in the Rhombicity analysis table
-- added residual-based text color highlighting for PCS tables
-- added export function to save the current visible structure as an `.xyz` file
+### Version 1.4.0 overview
 
-Release **v1.3.0** introduces several workflow and interface upgrades:
-- separated the **2D PCS polar plot** from the main window into a dedicated viewer
-- improved the **G_i vs δ plot** with better point interaction and an expanded result/report box
-- added **bidirectional table ↔ plot selection/highlighting**
-- updated the **3D molecular viewer** and **projection viewer**
-- added **Mode C** 8-parameter fitting to the main fitting workflow
-- added a dedicated **Advanced Fitting** tab
-- added an integrated **Conformer Search and Fitting** workflow
+Release **v1.4.0**
+
+This is a **BIG** one. The interface, NMR workflows, and analysis tools
+have all received substantial updates.
+
+The interface now uses a Ribbon toolbar to support future expansion.
+Existing buttons and functions from the Analysis panel are now available
+in the Ribbon menus.
+
+The new layout may take a little getting used to. If you prefer the
+familiar interface, [v1.3.4](https://github.com/boseokhong/PCS-analyzer/releases/tag/v1.3.4)
+remains available with the previous core features.
+
+- Added multiple project tabs and a more flexible Control Panel.
+- Added Chemical Map for molecular diagrams and atom/site inspection.
+- Expanded `NMR Shift Viewer` into `NMR Workbench`, with spectrum
+  processing, peak assignments, and PCS preparation.
+- Added variable-temperature NMR workflows, including batch processing,
+  stacked spectra, peak tracking, and shift analysis.
+- Improved fitting with uncertainty weighting and Fit History.
+- Expanded Module Manager with online browsing, installation, and updates.
+- Added workspace and NMR session saving.
+- Expanded the documentation with updated screenshots and tutorials.
+
 ---
 ## Main capabilities
 
@@ -154,6 +135,13 @@ Release **v1.3.0** introduces several workflow and interface upgrades:
 - visualize molecular structures and PCS fields in interactive 3D viewers
 - inspect angular distributions in a projection viewer (`φ / cos(θ)` and Mollweide modes)
 
+The default molecular viewer uses PyVista, with linked atom selection, PCS color
+controls, adjustable appearance and axes, and Figure output at a chosen size/DPI.
+Visualization settings can be saved separately for reuse. The legacy Matplotlib
+viewer remains accessible from its View menu. See the
+[3D Structure Viewer manual](docs/visualization/3d-viewer.md) for controls and
+output formats.
+
 ### 2. PCS visualization
 - display axial PCS contour maps in a dedicated **2D polar plot** window
 - overlay atomic positions directly onto PCS plots
@@ -163,7 +151,7 @@ Release **v1.3.0** introduces several workflow and interface upgrades:
 - export PCS-related data and figures
 
 ### 3. Table-driven analysis and linked interaction
-- interactive main table containing `Ref`, atom labels, rotated coordinates, `G_i`, `δ_PCS`, and `δ_Exp`
+- interactive main table containing `Ref`, atom labels, rotated coordinates, `G_ax`, `δ_PCS`, and `δ_Exp`
 - import, paste, clear, undo, and export workflows for experimental `δ_Exp`
 - linked highlighting between the table and graphical views
 - synchronized inspection across PCS plots, cartesian plots, and structure viewers
@@ -177,14 +165,18 @@ Release **v1.3.0** introduces several workflow and interface upgrades:
 ### 5. Fitting workflows
 - **Mode A**: donor-axis-based fitting
 - **Mode B**: global Euler-angle rigid-body fitting
-- **Mode C**: 8-parameter fitting including tensor, metal position, and orientation terms
+- **Mode C**: full-tensor/metal fitting with 6–8 variables, depending on which tensor components are fitted
 - optional global search for selected fitting modes
 - fit summaries and graphical correlation analysis
+- uncertainty-weighted fitting when experimental uncertainties are provided
+- Fit History for reviewing, comparing, saving, and exporting results
 
 ### 6. Extended analysis modules
 - **Advanced Fitting** tab for extended PCS-related workflows
-- NMR spectrum viewer with layered `PCS`, `OBS`, `DIA`, and `PARA` displays
-- NMR analysis window for non-PCS-oriented inspection
+- `NMR Workbench` for spectrum processing, peak assignments,
+  observed-shift comparison, and reviewed PCS preparation
+- variable-temperature NMR series, batch processing, peak tracking,
+  and temperature-dependent shift analysis
 - integrated **Conformer Search and Fitting** with preview, apply, revert, and discard workflows
 
 ### 7. PCS Workbench (distributed PCS / PDE)
@@ -196,6 +188,16 @@ Release **v1.3.0** introduces several workflow and interface upgrades:
 - export of PDE fields, atom-wise comparison tables
 
 The PDE implementation follows the distributed PCS / Kuprov-equation framework (*PCCP*, 2014, DOI: `10.1039/C4CP03106G`).
+
+### 8. Chemical Map
+- inspect molecular diagrams, ligand groups, atom Ref IDs, and NMR sites
+- link selections with the main table and NMR Workbench
+- edit bonds and 2D diagrams without changing molecular XYZ coordinates
+
+### 9. Projects and sessions
+- work with multiple PCS projects in separate tabs
+- save project collections as `.pcsw` workspaces
+- save committed NMR work as `.nmrsession` sessions
 
 ---
 ## Installation
@@ -234,7 +236,7 @@ A typical analysis sequence is:
 3. inspect rotated coordinates and the main PCS table
 4. open the **2D PCS polar plot** for contour-based visualization
 5. import or paste experimental `δ_Exp` values
-6. inspect the **G_i vs δ** analysis and regression summary
+6. inspect the **G_ax vs PCS** analysis and regression summary
 7. evaluate residual patterns using **Rhombicity Check** and **Rhombicity Table**
 8. apply fitting in the main **Fitting** tab
 9. extend the analysis using **Advanced Fitting** or **Conformer Search** where appropriate
@@ -258,14 +260,17 @@ Available donor-axis definitions include:
 ### Mode B — Euler fit
 This mode performs rigid-body fitting in the global frame using Euler rotations. It is useful when no donor-based axis definition should be imposed a priori.
 
-### Mode C — 8-parameter fit
-This mode provides a more complete fitting model and may include:
-- `Δχ_ax`
-- optional `Δχ_rh`
-- metal position `(x, y, z)`
-- Euler angles `(α, β, γ)`
+### Mode C — Full tensor + metal
+This mode always fits metal position `(x, y, z)` and three Euler orientation
+angles. **Fit Δχ_ax** and **Fit Δχ_rh** each add one variable; an unchecked
+component is held at its current value. The resulting fit has six, seven or
+eight variables.
 
 It is appropriate when simultaneous refinement of tensor magnitude, anisotropy, orientation, and metal position is required.
+
+**Apply to Tensor** retains the assigned metal centre. Use **Preview Geometry**
+to inspect the refined centre; see [Full Tensor Fitting](docs/fitting/full-tensor-fitting.md)
+for application, persistence and interpretation limits.
 
 </details>
 
@@ -398,6 +403,12 @@ PCS Analyzer supports export of:
   - Corrected PCS calculations to use averaged geometrical factors (G_i) rather than G_i evaluated at averaged coordinates.
   - Added rotational ensemble averaging for planar ring systems with automatic detection and configurable sampling.
   - Added visualization of ensemble-averaged coordinates and optional reference-structure overlays.
+
+**v1.4.0**
+- redesigned the interface with a Ribbon toolbar and multiple project tabs
+- added Chemical Map and expanded NMR Workbench with VT workflows
+- improved fitting and added Fit History
+- expanded Module Manager, workspace/session saving, and documentation
 
 </details>
 

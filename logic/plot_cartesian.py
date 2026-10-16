@@ -7,6 +7,14 @@ from scipy import stats
 import numpy as np
 from matplotlib.widgets import LassoSelector, RectangleSelector
 from matplotlib.path import Path
+from matplotlib.lines import Line2D
+
+
+def _refresh_context_commands(state):
+    """Notify M4 presenters after the existing selection owner changes."""
+    refresh = state.get("refresh_gax_rhombicity_commands")
+    if callable(refresh):
+        refresh()
 
 def _safe_float(x):
     try:
@@ -136,7 +144,7 @@ def _format_result_text(rows, selected_ref=None, force_origin=False, fit_scope="
     )
 
     lines = []
-    lines.append("G_i vs δ_Exp analysis")
+    lines.append("G_ax vs δ_Exp analysis (axial diagnostic)")
     lines.append("=" * 30)
     lines.append(f"n points        : {len(rows)}")
     lines.append(f"fit mode        : {'through origin' if force_origin else 'with intercept'}")
@@ -198,7 +206,7 @@ def _format_result_text(rows, selected_ref=None, force_origin=False, fit_scope="
             lines.append("-" * 30)
             lines.append(f"Ref             : {sel['ref_id']}")
             lines.append(f"Atom            : {sel['atom']}")
-            lines.append(f"G_i             : {sel['gi']:.2e}")
+            lines.append(f"G_ax            : {sel['gi']:.2e}")
             lines.append(f"δ_Exp           : {sel['dexp']:.6g}")
             if sel["dpcs"] is not None:
                 lines.append(f"δ_PCS           : {sel['dpcs']:.6g}")
@@ -388,7 +396,7 @@ def _row_tooltip_text(row):
     lines = [
         f"Ref: {row['ref_id']}",
         f"Atom: {row['atom']}",
-        f"G_i: {row['gi']:.2e}",
+        f"G_ax: {row['gi']:.2e}",
         f"δ_Exp: {row['dexp']:.6g}",
     ]
     if row["dpcs"] is not None:
@@ -555,7 +563,7 @@ def _write_plot_points_csv(state, path):
 
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
-        writer.writerow(["Ref", "Atom", "G_i", "δ_Exp", "δ_PCS", "Residual"])
+        writer.writerow(["Ref", "Atom", "G_ax", "δ_Exp", "δ_PCS", "Residual"])
         for r in rows:
             writer.writerow([
                 r.get("ref_id"),
@@ -589,9 +597,9 @@ def plot_cartesian_graph(state):
     ax.set_axisbelow(True)
 
     if not rows:
-        ax.set_xlabel("Gᵢ")
-        ax.set_ylabel("δ (ppm)")
-        ax.set_title("Geometrical factor (Gᵢ) vs Chemical shift (δ_Exp)")
+        ax.set_xlabel(r"Axial geometrical factor ($G_{ax}$)", fontsize=plot_label)
+        ax.set_ylabel(r"Chemical shift, $\delta_{Exp}$ (ppm)", fontsize=plot_label)
+        ax.set_title(r"$G_{ax}$ vs $\delta_{Exp}$", fontsize=plot_title, pad=10)
         ax.grid(True)
         ax.axhline(0, color="#444444", linewidth=1.0, alpha=0.9, zorder=1)
         ax.axvline(0, color="#444444", linewidth=1.0, alpha=0.9, zorder=1)
@@ -606,6 +614,7 @@ def plot_cartesian_graph(state):
         )
         _disconnect_plot_callbacks(state)
         canvas.draw()
+        _refresh_context_commands(state)
         return
 
     selected_ref = _get_selected_ref_id(state)
@@ -707,9 +716,9 @@ def plot_cartesian_graph(state):
                 zorder=15,
             )
 
-    ax.set_xlabel("Gᵢ", fontsize=plot_label)
-    ax.set_ylabel("δ (ppm)", fontsize=plot_label)
-    ax.set_title("Geometrical factor (Gᵢ) vs Chemical shift (δ_Exp)", fontsize=plot_title)
+    ax.set_xlabel(r"Axial geometrical factor ($G_{ax}$)", fontsize=plot_label)
+    ax.set_ylabel(r"Chemical shift, $\delta_{Exp}$ (ppm)", fontsize=plot_label)
+    ax.set_title(r"$G_{ax}$ vs $\delta_{Exp}$", fontsize=plot_title, pad=10)
     ax.tick_params(axis="both", labelsize=plot_tick)
     ax.grid(True, alpha=0.25, linewidth=0.6)
     # origin axes
@@ -718,14 +727,16 @@ def plot_cartesian_graph(state):
 
 
     if len(rows) >= 2:
-        ax.legend(fontsize=plot_legend)
-        ax.text(
-            0.98, 0.02,
-            "red: δ_PCS > 0\nblue: δ_PCS < 0",
-            transform=ax.transAxes,
-            ha="right", va="bottom",
-            fontsize=plot_annotation,
-            color="#555555",
+        handles, labels = ax.get_legend_handles_labels()
+        handles.extend([
+            Line2D([], [], color=_point_color_from_dpcs(1), marker="o",
+                   linestyle="None", markersize=5),
+            Line2D([], [], color=_point_color_from_dpcs(-1), marker="o",
+                   linestyle="None", markersize=5),
+        ])
+        labels.extend([r"$\delta_{PCS} > 0$", r"$\delta_{PCS} < 0$"])
+        ax.legend(
+            handles, labels, loc="best", fontsize=plot_legend, framealpha=0.95,
         )
 
     if not state.get("cartesian_selector_active", False):
@@ -741,8 +752,8 @@ def plot_cartesian_graph(state):
             fit_scope=fit_scope,
         )
     )
-    fig.tight_layout()
     canvas.draw()
+    _refresh_context_commands(state)
 
 # Lasso/Rectangle functions
 def _clear_existing_selector(state):
@@ -757,6 +768,7 @@ def _clear_existing_selector(state):
     state["cartesian_selector_kind"] = None
     state["cartesian_selector_active"] = False
     _update_selection_status(state)
+    _refresh_context_commands(state)
 
 def _select_rows_by_indices(state, rows, indices):
     selected_ids = {rows[i]["ref_id"] for i in indices if 0 <= i < len(rows)}
@@ -793,11 +805,13 @@ def start_lasso_selection(state):
     ax = fig.axes[0] if fig.axes else None
     if ax is None:
         state["cartesian_selector_active"] = False
+        _refresh_context_commands(state)
         return
 
     state["cartesian_selector_kind"] = "lasso"
     state["cartesian_selector_active"] = True
     _update_selection_status(state, rows)
+    _refresh_context_commands(state)
 
     points = np.asarray([[r["gi"], r["dexp"]] for r in rows], dtype=float)
 
@@ -837,11 +851,13 @@ def start_rectangle_selection(state):
     ax = fig.axes[0] if fig.axes else None
     if ax is None:
         state["cartesian_selector_active"] = False
+        _refresh_context_commands(state)
         return
 
     state["cartesian_selector_kind"] = "rectangle"
     state["cartesian_selector_active"] = True
     _update_selection_status(state, rows)
+    _refresh_context_commands(state)
 
     points = np.asarray([[r["gi"], r["dexp"]] for r in rows], dtype=float)
 

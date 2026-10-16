@@ -5,6 +5,7 @@ Control panel GUI for the PCS-PDE viewer (FFT).
 
 from __future__ import annotations
 
+from ui.widget_style import ui_text_color, ui_label_style, ui_native_colors
 import json
 from pathlib import Path
 import tkinter as tk
@@ -114,7 +115,8 @@ class _ToolTip:
         lbl = tk.Label(
             self._tip,
             text=self._text,
-            background="#fffde7",
+            background=ui_text_color(self._widget, "field"),
+            foreground=ui_text_color(self._widget, "text"),
             relief="solid",
             borderwidth=1,
             font=get_app_fonts(self._widget).get("ui_small", ("TkDefaultFont", 8)),
@@ -382,7 +384,7 @@ class ControlPanel(ttk.Frame):
         self._temp_summary_label = ttk.Label(
             inner,
             textvariable=self._temp_summary_var,
-            foreground="gray",
+            style=ui_label_style(inner, "muted"),
             font=get_app_fonts(self).get("ui_small", ("TkDefaultFont", 8)),
             wraplength=220,
             justify="left",
@@ -606,7 +608,7 @@ class ControlPanel(ttk.Frame):
                 "Use Run computation to recalculate the PDE field.\n"
                 "Use Open / Refresh Viewer to redraw only the scene with the current display settings."
             ),
-            foreground="gray",
+            style=ui_label_style(inner, "muted"),
             font=get_app_fonts(self).get("ui_small", ("TkDefaultFont", 8)),
             wraplength=240,
             justify="left",
@@ -631,7 +633,7 @@ class ControlPanel(ttk.Frame):
             tab.columnconfigure(0, weight=1)
             tab.rowconfigure(0, weight=1)
 
-            canvas = tk.Canvas(tab, borderwidth=0, highlightthickness=0)
+            canvas = ui_native_colors(tk.Canvas(tab, borderwidth=0, highlightthickness=0), background="surface")
             sb = ttk.Scrollbar(tab, orient="vertical", command=canvas.yview)
             canvas.configure(yscrollcommand=sb.set)
             canvas.grid(row=0, column=0, sticky="nsew")
@@ -675,7 +677,7 @@ class ControlPanel(ttk.Frame):
         self._temp_combo.grid(row=r, column=1, sticky="ew", pady=2)
         r += 1
         self._temp_summary_label = ttk.Label(
-            calc, textvariable=self._temp_summary_var, foreground="gray",
+            calc, textvariable=self._temp_summary_var, style=ui_label_style(calc, "muted"),
             font=get_app_fonts(self).get("ui_small", ("TkDefaultFont", 8)),
             wraplength=260, justify="left",
         )
@@ -824,7 +826,7 @@ class ControlPanel(ttk.Frame):
         r += 1
         ttk.Label(
             view, text="Camera controls affect the complete 3D scene.",
-            foreground="gray", wraplength=260, justify="left",
+            style=ui_label_style(view, "muted"), wraplength=260, justify="left",
         ).grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 4))
         r += 1
         _section_header(view, r, "Export PNG")
@@ -861,7 +863,7 @@ class ControlPanel(ttk.Frame):
         r = 0
         _section_header(analysis, r, "PCS Slice")
         r += 2
-        ttk.Label(analysis, text="Oblique PCS plane through the metal centre.", foreground="gray",
+        ttk.Label(analysis, text="Oblique PCS plane through the metal centre.", style=ui_label_style(analysis, "muted"),
                   wraplength=260, justify="left").grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 5))
         r += 1
         ttk.Button(analysis, text="Open Oblique PCS Slice…",
@@ -926,7 +928,7 @@ class ControlPanel(ttk.Frame):
         self._atom_element_vars = {}
 
         if not unique:
-            ttk.Label(frame, text="Load an ORCA output to list elements.", foreground="gray").grid(
+            ttk.Label(frame, text="Load an ORCA output to list elements.", style=ui_label_style(frame, "muted")).grid(
                 row=0, column=0, sticky="w")
             return
 

@@ -1,124 +1,62 @@
-# Plugin Manifest
+# Plugin Manifest Reference
 
-Folder-based plugins use `manifest.json` to describe the plugin and its requirements.
+This is **plugin-author reference**. Users should normally manage modules through
+[Module Manager](overview.md), rather than editing installed metadata.
+Folder/ZIP packages provide `manifest.json`; single-file installation generates
+one from `PLUGIN_INFO`.
 
-## Minimal manifest
-
-```json
-{
-  "id": "test_plugin",
-  "name": "Test Plugin",
-  "version": "0.1.0",
-  "author": "Author Name",
-  "description": "Simple plugin loading test.",
-  "entry": "plugin.py",
-  "type": "window",
-  "standalone": true
-}
-```
-
-## Recommended manifest
+## Minimal practical manifest
 
 ```json
 {
-  "id": "bleaney_vt",
-  "name": "Bleaney / VT Shift Fitting",
-  "version": "0.1.0",
-  "author": "Author Name",
-  "description": "Temperature-dependent paramagnetic shift fitting module.",
+  "schema_version": 1,
+  "id": "my_tool",
+  "name": "My Tool",
+  "version": "1.0.0",
   "entry": "plugin.py",
-  "type": "window",
-  "standalone": true,
-  "min_app_version": "1.4.0",
-  "dependencies": ["numpy", "scipy", "pandas", "matplotlib"],
-  "optional_dependencies": ["pyvista", "pyvistaqt", "imageio"],
-  "state_access": "read_only",
-  "category": "Paramagnetic NMR"
+  "min_app_version": "1.3.4"
 }
 ```
 
-## Required fields
+## Current field behavior
 
-| Field | Description |
-|---|---|
-| `id` | Stable and unique plugin identifier. |
-| `name` | Display name shown in the Module Manager. |
-| `version` | Plugin version. |
-| `entry` | Entry Python file, usually `plugin.py`. |
+| Field | New-package requirement or behavior |
+| --- | --- |
+| `id` | Required; matches `^[a-z][a-z0-9_]*$`. It is the installation identity. New installation does not normalize arbitrary names into valid IDs. Reusing the ID replaces that plugin. |
+| `name` | Required nonempty display name. |
+| `version` | Required nonempty PEP 440 version; compared as a parsed version rather than plain text. Semantic-style `MAJOR.MINOR.PATCH` is recommended. |
+| `entry` | Required nonempty relative path to an existing file inside the package; traversal and unsafe paths are rejected. The module must provide `register(app)`. |
+| `schema_version` | Optional; when supplied must be integer `1`. |
+| `min_app_version`, `max_app_version` | Optional valid version strings; inclusive application-version bounds checked at installation. Minimum must not exceed maximum. |
+| `author`, `description`, `type`, `standalone`, `license` | Descriptive metadata; `type`/`standalone` do not select a different host API. |
+| `dependencies`, `optional_dependencies` | Descriptive; no dependency installation or resolution. |
+| `category` | Optional functional category for Ribbon icons. Use `NMR / PCS`, `Structure`, `Visualization`, or `Other / Uncategorized`. Missing/unrecognized values use the generic icon. |
+| `state_access` | Descriptive intent only; no permission enforcement. |
+| `api_version`, `entry_function` | No API negotiation or alternate entry function is implemented. The host calls `register(app)`. |
+| `enabled` | Not the enabled-state control. Enable/Disable is application-managed in Module Manager. |
 
-## Recommended optional fields
+Unknown fields may remain in the supplied manifest without being acted on.
+Legacy aliases such as `requires` and `optional_requires` are not dependency
+resolution mechanisms. Catalog category/source links belong to catalog metadata;
+do not assume every manifest field appears in Browse.
 
-| Field | Description |
-|---|---|
-| `author` | Plugin author. |
-| `description` | Short plugin description. |
-| `type` | Plugin type, e.g. `window`, `analysis`, `viewer`, `export`, or `tool`. |
-| `standalone` | Whether the plugin can run independently. |
-| `min_app_version` | Minimum PCS Analyzer version required. |
-| `dependencies` | Required Python packages. |
-| `optional_dependencies` | Optional Python packages. |
-| `state_access` | `none`, `read_only`, or `read_write`. |
-| `category` | Display/grouping category. |
+## Single-file PLUGIN_INFO
 
-## Plugin ID rules
+Supply a valid `id`, `name`, `version` and a callable `register(app)`.
+The generated manifest uses `entry: plugin.py`. It copies author, description,
+standalone and dependencies, plus supplied schema version, type, optional
+dependencies, application-version bounds, license and category. Other keys are not
+necessarily copied. Single-file inspection executes Python code.
 
-Use:
+## Legacy installed plugins
 
-```text
-lowercase_words_with_underscores
-```
+Loading an already installed legacy manifest is more permissive than installing
+a new package. Its omitted entry can default to `plugin.py`; a manifest/installed
+ID disagreement is reported as a warning. Valid application-version bounds are
+checked, while malformed bounds may be ignored with diagnostics. New installs
+must satisfy the stricter validation above. Inspect **Session status → Details**
+after updating old packages; do not interpret legacy acceptance as API stability.
 
-Examples:
-
-```text
-bleaney_vt
-evans_calculator
-condon_helper
-vt_lineshape
-coordination_geometry_analyzer
-pcs_motion_explorer
-```
-
-Changing the plugin ID should be treated as creating a new plugin.
-
-## Dependency fields
-
-```json
-"dependencies": ["numpy", "scipy", "matplotlib"]
-```
-
-```json
-"optional_dependencies": ["pyvista", "pyvistaqt", "imageio"]
-```
-
-Older aliases such as `requires` and `optional_requires` may be accepted for compatibility, but new plugins should use the current field names.
-
-## State access
-
-| Value | Meaning |
-|---|---|
-| `none` | Plugin does not use PCS Analyzer state. |
-| `read_only` | Plugin reads structures, shifts, PCS values, or settings. |
-| `read_write` | Plugin may modify application state. |
-
-Most plugins should use `none` or `read_only`.
-
-## Versioning
-
-Plugin versions should follow semantic versioning where possible:
-
-```text
-MAJOR.MINOR.PATCH
-```
-
-## Compatibility
-
-A plugin may declare:
-
-```json
-"min_app_version": "1.4.0"
-```
-
-## Reserved fields
-
-`entry_function` is reserved for possible future loader support. Current plugin loading is based on `register(app)`.
+Changing a public ID creates a different installation identity. Keep IDs and
+release metadata consistent, and see [Creating Plugins](creating-plugins.md)
+for a working entry pattern.

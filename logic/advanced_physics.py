@@ -35,6 +35,8 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import least_squares, minimize
 
+from logic.pcs_fitting_adapter import predict_pcs_from_factors
+
 
 # ============================================================================
 # Physical constants
@@ -124,7 +126,7 @@ def pcs_from_G(Gax, Grh, dchi_ax, dchi_rh=0.0) -> np.ndarray:
 
     Returns PCS in ppm.
     """
-    return (dchi_ax * Gax + dchi_rh * Grh) * 1e4 / (12.0 * np.pi)
+    return predict_pcs_from_factors(Gax, Grh, dchi_ax, dchi_rh)
 
 
 def pcs_full(coords, metal, dchi_ax, dchi_rh=0.0):
@@ -428,7 +430,17 @@ def rdc_from_dchi(
     dchi_ax_si = dchi_ax * 1e-32
     dchi_rh_si = dchi_rh * 1e-32
 
-    prefactor = B0 ** 2 / (15.0 * MU0 * NA * KB * T)
+    if not np.all(np.isfinite([theta_b, phi_b, r_bond_ang, dchi_ax, dchi_rh,
+                               B0, T, gamma1, gamma2])):
+        raise ValueError("RDC parameters must be finite.")
+    if r_bond_ang <= 0 or T <= 0 or B0 < 0:
+        raise ValueError("RDC requires positive bond length/temperature and nonnegative field.")
+
+    # Molecular susceptibility [m^3], not molar susceptibility [m^3/mol].
+    # A = B0^2 * delta_chi / (15 * mu0 * k_B * T); no Avogadro conversion.
+    # Orton et al., Magn. Reson. 1, 1-12 (2020), Eq. 9.
+    # Retain this application's existing signed dipolar-coupling convention.
+    prefactor = B0 ** 2 / (15.0 * MU0 * KB * T)
     Aa = dchi_ax_si * prefactor
     Ar = dchi_rh_si * prefactor
 
@@ -452,6 +464,8 @@ def fit_joint_pcs_rdc(
     B0: float = 14.1,
     T: float = 298.0,
     w_rdc: float = 1.0,
+    *,
+    pcs_errors: dict[int, float] | None = None,
 ) -> dict:
     """
     Simultaneous PCS + RDC fitting with fixed geometry.
@@ -475,13 +489,25 @@ def fit_joint_pcs_rdc(
     T : float
         Temperature in Kelvin.
     w_rdc : float
-        Relative weighting factor for RDC residuals.
+        Nonnegative multiplier of RDC residuals (squared in the objective).
+    pcs_errors : dict[int, float] or None
+        Positive PCS uncertainties in ppm. None retains the legacy unit-ppm
+        residual scale; it is not a claim about measurement uncertainty.
 
     Returns
     -------
     dict
         Fitted tensor values and PCS/RDC diagnostics.
     """
+    coords = np.asarray(coords, dtype=float)
+    if coords.ndim != 2 or coords.shape[1] != 3 or not np.all(np.isfinite(coords)):
+        raise ValueError("Coordinates must be a finite N-by-3 array.")
+    if len(ids) != len(coords) or len(labels) != len(coords):
+        raise ValueError("Coordinate, Ref ID and atom-label counts must match.")
+    if len(set(ids)) != len(ids) or len(set(labels)) != len(labels):
+        raise ValueError("Joint fitting requires unique Ref IDs and atom labels.")
+    if not np.all(np.isfinite([B0, T, w_rdc])) or B0 < 0 or T <= 0 or w_rdc < 0:
+        raise ValueError("Field and RDC weight must be nonnegative; temperature must be positive.")
     metal = np.zeros(3, dtype=float)
     id_to_index = {rid: i for i, rid in enumerate(ids)}
 
@@ -489,36 +515,54 @@ def fit_joint_pcs_rdc(
     obs_ids = [p[0] for p in obs_pairs]
     obs_idx = np.array([p[1] for p in obs_pairs], dtype=int)
     obs_val = np.array([p[2] for p in obs_pairs], dtype=float)
+    if not np.all(np.isfinite(obs_val)):
+        raise ValueError("PCS observations must be finite.")
+    if np.any(np.linalg.norm(coords[obs_idx], axis=1) <= 0):
+        raise ValueError("PCS observations cannot coincide with the metal centre.")
+    pcs_scale = np.ones(len(obs_ids))
+    if pcs_errors is not None:
+        try:
+            pcs_scale = np.array([pcs_errors[rid] for rid in obs_ids], dtype=float)
+        except KeyError as exc:
+            raise ValueError("Every matched PCS observation requires an uncertainty.") from exc
+        if np.any(~np.isfinite(pcs_scale)) or np.any(pcs_scale <= 0):
+            raise ValueError("PCS uncertainties must be finite and positive.")
 
     _, _, _, Gax_all, Grh_all = geom_factors(coords, metal)
 
     rdc_geom = []
-    for row in rdc_rows:
+    matched_rows = []
+    skipped_rows = []
+    for row_number, row in enumerate(rdc_rows, start=1):
         geo = bond_geom_in_frame(coords, labels, row["atom1"], row["atom2"])
         if geo is None:
+            skipped_rows.append({"row": row_number, "atom1": row["atom1"],
+                                 "atom2": row["atom2"], "reason": "missing atom or zero-length bond"})
             continue
 
-        gamma1 = GYRO.get(str(row.get("nuc1", "H")).upper(), GAMMA_H)
-        gamma2 = GYRO.get(str(row.get("nuc2", "N")).upper(), GAMMA_N)
+        try:
+            gamma1 = GYRO[str(row.get("nuc1", "H")).upper()]
+            gamma2 = GYRO[str(row.get("nuc2", "N")).upper()]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported RDC nucleus in row {row_number}.") from exc
+        rdc_exp = float(row["rdc_exp"])
+        rdc_err = float(row.get("rdc_err", 0.5))
+        if not np.isfinite(rdc_exp) or not np.isfinite(rdc_err) or rdc_err <= 0:
+            raise ValueError(f"RDC row {row_number} needs a finite value and positive uncertainty.")
+        matched_rows.append((row_number, row))
 
         rdc_geom.append(
             (
                 *geo,
-                float(row["rdc_exp"]),
-                float(row.get("rdc_err", 0.5)),
+                rdc_exp,
+                rdc_err,
                 gamma1,
                 gamma2,
             )
         )
 
-    def residuals(x):
-        dchi_ax = x[0]
-        dchi_rh = x[1]
-
-        pcs_pred = pcs_from_G(Gax_all[obs_idx], Grh_all[obs_idx], dchi_ax, dchi_rh)
-        res_pcs = pcs_pred - obs_val
-
-        res_rdc = []
+    def rdc_column(dchi_ax, dchi_rh):
+        values = []
         for theta_b, phi_b, r_bond, rdc_exp, rdc_err, gamma1, gamma2 in rdc_geom:
             rdc_pred = rdc_from_dchi(
                 theta_b,
@@ -531,21 +575,34 @@ def fit_joint_pcs_rdc(
                 gamma1=gamma1,
                 gamma2=gamma2,
             )
-            res_rdc.append((rdc_pred - rdc_exp) / max(rdc_err, 0.1) * w_rdc)
+            values.append(rdc_pred / max(rdc_err, 0.1) * w_rdc)
+        return values
 
-        return np.concatenate([res_pcs, np.array(res_rdc, dtype=float)])
-
-    res = least_squares(residuals, [dchi_ax0, dchi_rh0])
-
-    dchi_ax = float(res.x[0])
-    dchi_rh = float(res.x[1])
+    # In a fixed tensor frame both forward models are exactly linear in the
+    # two scalar tensor components. Solve directly and expose identifiability.
+    # Reuse the forward owners rather than duplicating physical prefactors.
+    pcs_design = np.column_stack([
+        pcs_from_G(Gax_all[obs_idx], Grh_all[obs_idx], 1.0, 0.0),
+        pcs_from_G(Gax_all[obs_idx], Grh_all[obs_idx], 0.0, 1.0),
+    ]) / pcs_scale[:, None]
+    rdc_design = np.column_stack([rdc_column(1.0, 0.0), rdc_column(0.0, 1.0)])
+    design = np.vstack([pcs_design, rdc_design])
+    target = np.r_[obs_val / pcs_scale,
+                   [row[3] / max(row[4], 0.1) * w_rdc for row in rdc_geom]]
+    if not len(target):
+        raise ValueError("No matched PCS or RDC observations are available.")
+    solution, _, rank, singular_values = np.linalg.lstsq(design, target, rcond=None)
+    if rank < 2:
+        raise ValueError("Matched data cannot independently determine axial and rhombic tensor values.")
+    dchi_ax, dchi_rh = map(float, solution)
+    weighted_residuals = design @ solution - target
 
     pcs_pred_all = pcs_from_G(Gax_all, Grh_all, dchi_ax, dchi_rh)
     pcs_resid = pcs_pred_all[obs_idx] - obs_val
     rmsd_pcs = float(np.sqrt(np.mean(pcs_resid ** 2))) if len(pcs_resid) else np.nan
 
     rdc_results = []
-    for theta_b, phi_b, r_bond, rdc_exp, _, gamma1, gamma2 in rdc_geom:
+    for (theta_b, phi_b, r_bond, rdc_exp, rdc_err, gamma1, gamma2), (row_number, row) in zip(rdc_geom, matched_rows):
         rdc_pred = rdc_from_dchi(
             theta_b,
             phi_b,
@@ -562,6 +619,11 @@ def fit_joint_pcs_rdc(
                 "rdc_pred": float(rdc_pred),
                 "rdc_exp": float(rdc_exp),
                 "residual": float(rdc_pred - rdc_exp),
+                "row": row_number,
+                "atom1": row["atom1"],
+                "atom2": row["atom2"],
+                "rdc_err": rdc_err,
+                "effective_error": max(rdc_err, 0.1),
             }
         )
 
@@ -578,6 +640,18 @@ def fit_joint_pcs_rdc(
         "per_point_pcs": per_point_pcs,
         "B0": B0,
         "T": T,
+        "success": True,
+        "rank": int(rank),
+        "singular_values": singular_values.tolist(),
+        "condition_number": float(singular_values[0] / singular_values[-1]),
+        "weighted_sum_squares": float(weighted_residuals @ weighted_residuals),
+        "pcs_weighting": "supplied_uncertainties" if pcs_errors is not None else "legacy_unit_ppm",
+        "w_rdc": w_rdc,
+        "rdc_error_floor": 0.1,
+        "rmsd_rdc": float(np.sqrt(np.mean([r["residual"] ** 2 for r in rdc_results]))) if rdc_results else None,
+        "unmatched_pcs_ids": [rid for rid in obs_pcs if rid not in id_to_index],
+        "skipped_rdc_rows": skipped_rows,
+        "model": "fixed_frame_molecular_susceptibility_v2",
     }
 
 

@@ -1,7 +1,9 @@
 # PCS Analyzer
 
-!!! warning "Work in progress"
-    This documentation is under active development as of **10 September 2026**. Content may be incomplete or revised as documentation work continues.
+!!! info "Documentation status"
+    The core structure of this manual is now in place. Further revisions and
+    step-by-step tutorials are in progress. Some topics remain incomplete;
+    review the limitations documented for each workflow.
 
 **PCS Analyzer** is a Python-based application for the analysis, fitting, and visualization of **pseudocontact shifts (PCS)** in paramagnetic molecular systems.
 
@@ -27,14 +29,22 @@ It provides an integrated workflow that connects molecular structure, magnetic s
 ## Main interface
 
 <figure>
-  <a href="images/main-interface.png"
-     class="glightbox"
-     data-gallery="main-interface">
-    <img src="images/main-interface.png"
-         alt="PCS Analyzer main interface">
+  <a href="images/main-workspace.png" class="glightbox" data-gallery="main-workspace">
+    <img src="images/main-workspace.png" alt="PCS Analyzer workspace with Ribbon, document tabs, data table, analysis area, and Control Panel">
   </a>
-  <figcaption>PCS Analyzer main interface.</figcaption>
+  <figcaption>PCS Analyzer main workspace.</figcaption>
 </figure>
+
+The main workspace combines a **Ribbon**, **document tabs**, a molecular
+and PCS data table, analysis tabs, and a sectioned **Control Panel**. Use
+**Home** for project actions, **Data** for experimental PCS and viewers, and
+**Tools** for workbenches and modules. A contextual Ribbon page provides
+commands for the selected analysis.
+
+Each document holds a separate PCS analysis; the table and Control Panel
+show the active document. See [Interface Overview](interface.md) for the
+layout and [Projects and Persistence](projects.md) for saving projects and
+workspace references.
 
 
 ## Typical workflow
@@ -48,7 +58,7 @@ A PCS analysis generally follows four steps:
    Specify the axial susceptibility anisotropy and, when required, the rhombic component and tensor orientation.
 
 3. **Add experimental NMR data**  
-   Assign experimental paramagnetic or PCS shift values to the corresponding nuclei.
+   Assign experimental PCS values to the corresponding nuclei. Observed and diamagnetic chemical-shift layers are managed separately.
 
 4. **Analyze, fit, and visualize**  
    Compare calculated and experimental shifts, perform fitting or diagnostic analysis, and inspect the resulting PCS distribution.
@@ -78,12 +88,12 @@ A PCS analysis generally follows four steps:
        class="glightbox"
        data-gallery="visualization">
       <img src="images/3d-viewer.png"
-           alt="PCS Analyzer 3D viewer">
+           alt="PCS Analyzer Molecular 3D viewer (Qt/PyVista)">
     </a>
 
     **3D Viewer**
 
-    Three-dimensional visualization of molecular geometry, with optional inspection of rhombic contributions when a rhombic susceptibility component is included.
+    Inspect molecular geometry and calculated PCS colors, adjust appearance and axes, and prepare figures at a chosen size and DPI.
 
     [Learn more](visualization/3d-viewer.md)
 
@@ -106,9 +116,24 @@ A PCS analysis generally follows four steps:
 
     **PCS Workbench**
 
-	Integrated workspace for PCS analysis combining molecular structures and ORCA outputs, with PCS-field and spin-density visualization and paramagnetic NMR diagnostics.
+    Separate ORCA and spin-density workflow for comparing point-dipole and distributed PCS fields, with molecular and field visualization.
 
-    [Learn more](visualization/pcs-workbench.md)
+    [Learn more](pcs-workbench/overview.md)
+
+-   <a href="images/nmr-workbench.png"
+       class="glightbox"
+       data-gallery="nmr-workbench">
+      <img src="images/nmr-workbench.png"
+           alt="Current NMR Workbench with a processed spectrum and the NMR Data table">
+    </a>
+
+    **NMR Workbench**
+
+    Process raw 1D NMR data, reference spectra, pick and assign peaks, and prepare chemical-shift observables for PCS analysis.
+
+    `NMR Workbench` incorporates the `NMR Shift Viewer` functionality available through v1.3.4.
+
+    [Learn more](nmr/spectrum-viewer.md)
 
 </div>
 
@@ -125,6 +150,17 @@ PCS Analyzer includes tools for:
 - 2D and 3D PCS visualization
 - NMR-oriented analysis tools
 - conformational analysis and PCS-guided conformer search
+
+For worked fitting examples, start with [Standard fitting and rhombicity](fitting/standard-fitting-tutorial.md),
+then see [Multi-Conformer and reliability](fitting/multi-conformer-tutorial.md),
+[Joint PCS+RDC](fitting/joint-pcs-rdc-tutorial.md), [PRE](fitting/pre-tutorial.md),
+and [Multi-Lanthanide/Reilley](fitting/multi-lanthanide-tutorial.md).
+Review [Current Limitations](reference/limitations.md) when choosing a workflow.
+
+[Conformer Search](conformer-search/tutorial.md), [NMR to PCS fitting](nmr/tutorial-pcs-fitting.md)
+and [averaging/visualization practice](visualization/averaging-demo.md) have separate
+worked examples. The [repository examples index](https://github.com/boseokhong/PCS-analyzer/tree/main/examples)
+identifies starting files, synthetic versus measured data and related tutorials.
 
 
 ## PCS model
@@ -175,7 +211,10 @@ $$
 
 and \(\phi\) is the azimuthal angle in the \(xy\)-plane.
 
-Thus, the axial model is used as the default representation, while the rhombic term can be included when deviations from effective rotational symmetry are significant.
+The default **Prediction model** is **Axial**. **Full tensor (Axial + Rhombic)**
+adds the rhombic term only when **Enable Δχ_rh** is on. Polar contours and
+**G_ax vs PCS** remain axial diagnostics under either selection. See
+[Active prediction model](pcs/axial-rhombic.md#active-prediction-model).
 
 !!! note "Tensor conventions"
 
@@ -222,7 +261,7 @@ For the theoretical and numerical definitions used by the program:
 
 PCS Analyzer supports external plugins for adding custom analysis tools, viewers, fitting utilities, and research-specific workflows.
 
-[Plugin Documentation](plugins/overview.md){ .md-button }
+[Plugin Documentation](plugins-docs/overview.md){ .md-button }
 
 ## Citation
 

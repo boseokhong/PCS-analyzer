@@ -5,7 +5,11 @@ from pathlib import Path
 from tkinter import messagebox
 
 SUPPORTED_PROJECT_EXTS = {".pcsp"}
+SUPPORTED_WORKSPACE_EXTS = {".pcsw"}
 SUPPORTED_STRUCTURE_EXTS = {".xyz", ".out", ".log"}
+SUPPORTED_DROP_EXTS = (
+    SUPPORTED_PROJECT_EXTS | SUPPORTED_WORKSPACE_EXTS | SUPPORTED_STRUCTURE_EXTS
+)
 
 
 def _split_drop_files(raw: str) -> list[str]:
@@ -41,12 +45,29 @@ def handle_dropped_file(state: dict, path: str) -> None:
         messagebox.showerror("Drag and Drop", f"File does not exist:\n{path}")
         return
 
+    # The main window exposes one authoritative extension dispatcher so drag and
+    # drop, Recent Files, and future shell/file-association entry points follow
+    # exactly the same open semantics.  Keep the direct fallbacks below for
+    # isolated tests and older integrations that have not installed it yet.
+    dispatcher = state.get("open_file_by_type")
+    if callable(dispatcher):
+        dispatcher(str(p))
+        return
+
     if ext in SUPPORTED_PROJECT_EXTS:
         fn = state.get("open_project_file")
         if callable(fn):
             fn(str(p))
         else:
             messagebox.showerror("Drag and Drop", "Project loader is not available.")
+        return
+
+    if ext in SUPPORTED_WORKSPACE_EXTS:
+        fn = state.get("open_workspace_file")
+        if callable(fn):
+            fn(str(p))
+        else:
+            messagebox.showerror("Drag and Drop", "Workspace loader is not available.")
         return
 
     if ext in SUPPORTED_STRUCTURE_EXTS:
@@ -60,7 +81,7 @@ def handle_dropped_file(state: dict, path: str) -> None:
     messagebox.showwarning(
         "Unsupported file",
         "Supported drag-and-drop files are:\n"
-        "*.pcsp\n"
+        "*.pcsp, *.pcsw\n"
         "*.xyz, *.out, *.log",
     )
 
@@ -119,3 +140,13 @@ def enable_main_window_dnd(state: dict) -> bool:
             pass
 
     return ok
+
+
+__all__ = [
+    "SUPPORTED_DROP_EXTS",
+    "SUPPORTED_PROJECT_EXTS",
+    "SUPPORTED_STRUCTURE_EXTS",
+    "SUPPORTED_WORKSPACE_EXTS",
+    "enable_main_window_dnd",
+    "handle_dropped_file",
+]

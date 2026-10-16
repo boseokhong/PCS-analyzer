@@ -5,6 +5,7 @@ from tkinter import ttk
 import webbrowser
 from app_version import APP_NAME, APP_VERSION, GITHUB_RELEASES_URL, ZENODO_DOI, ZENODO_URL
 from ui.style import get_app_fonts
+from ui.theme_palette import theme_mode, presentation_palette
 
 def open_about_window(state: dict):
     root = state["root"]
@@ -31,7 +32,9 @@ def open_about_window(state: dict):
     app_bg = getattr(state["root"], "_app_bg", "#F5F6FA")
     fonts = get_app_fonts(state)
     variant = state.get("app_settings", {}).get("theme_variant", "light")
-    link_fg = "#1a73e8" if variant == "light" else "#7fb2ff"
+    link_fg = ("#1a73e8" if theme_mode(variant) == "light" else "#7fb2ff")
+    if variant not in ("light", "dark"):
+        link_fg = presentation_palette(variant)["accent"]
 
     def make_link(parent, text, url, pady=(0, 2)):
         lbl = tk.Label(

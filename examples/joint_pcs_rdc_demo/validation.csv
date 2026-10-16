@@ -1,0 +1,4 @@
+scenario,expected_ax,expected_rh,fitted_ax,fitted_rh,pcs_rmsd,rdc_rmsd,status
+noiseless,-18,5,-18.000000000000007,5.000000000000002,3.2838494095516943e-15,6.279061288031714e-15,Current
+noisy,-18,5,-18.01224588531929,4.990464692873938,0.01598967417998107,0.36564830445436314,Current
+ambiguous,-18,5,,,,,Not fitted (rank deficient)

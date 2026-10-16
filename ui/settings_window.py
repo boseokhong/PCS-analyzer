@@ -5,6 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 from logic.app_settings import save_app_state, build_default_settings
+from ui.theme_palette import THEME_LABELS, normalize_theme
 
 def open_settings_window(state: dict):
     root = state["root"]
@@ -53,10 +54,9 @@ def open_settings_window(state: dict):
         "default_pcs_max": tk.StringVar(value=str(app_settings.get("default_pcs_max", 10.0))),
         "default_pcs_interval": tk.StringVar(value=str(app_settings.get("default_pcs_interval", 0.5))),
         "export_default_dpi": tk.StringVar(value=str(app_settings.get("export_default_dpi", 600))),
-        "theme_variant": tk.StringVar(value=str(app_settings.get("theme_variant", "light"))),
-        "theme_accent": tk.StringVar(value=str(app_settings.get("theme_accent", "green"))),
+        "theme_variant": tk.StringVar(value=THEME_LABELS[normalize_theme(app_settings.get("theme_variant", "light"))]),
         "font_family_ui": tk.StringVar(value=str(app_settings.get("font_family_ui", "Segoe UI"))),
-        "font_size_ui": tk.StringVar(value=str(app_settings.get("font_size_ui", 10))),
+        "font_size_ui": tk.StringVar(value=str(app_settings.get("font_size_ui", 9))),
         "font_family_table": tk.StringVar(value=str(app_settings.get("font_family_table", "Segoe UI"))),
         "font_size_table": tk.StringVar(value=str(app_settings.get("font_size_table", 10))),
         "font_family_report": tk.StringVar(value=str(app_settings.get("font_family_report", "Consolas"))),
@@ -148,19 +148,10 @@ def open_settings_window(state: dict):
     ttk.Combobox(
         appearance_box,
         textvariable=vars_["theme_variant"],
-        values=["light", "dark"],
+        values=list(THEME_LABELS.values()),
         state="readonly",
         width=14,
     ).grid(row=0, column=1, sticky="w", padx=(10, 0), pady=2)
-
-    ttk.Label(appearance_box, text="Accent color:").grid(row=1, column=0, sticky="w", pady=(10, 2))
-    ttk.Combobox(
-        appearance_box,
-        textvariable=vars_["theme_accent"],
-        values=["blue", "green", "orange", "purple"],
-        state="readonly",
-        width=14,
-    ).grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(10, 2))
 
     fonts_box = ttk.LabelFrame(tab_appearance, text="Fonts", padding=10)
     fonts_box.pack(fill="x", padx=10, pady=6)
@@ -205,15 +196,15 @@ def open_settings_window(state: dict):
             "UI/Table/Report fonts affect Tk widgets. Plot font size is used as the "
             "base size for Matplotlib/PyVista labels."
         ),
-        foreground="#666666",
-        wraplength=600,
+        style="Muted.TLabel",
+        wraplength=480,
         justify="left",
     ).grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
     ttk.Label(
         tab_appearance,
         text="Changes to appearance are applied when you click Apply or OK.",
-        foreground="#666666",
+        style="Muted.TLabel",
     ).pack(anchor="w", padx=14, pady=(4, 0))
 
     # ----------------------------
@@ -262,8 +253,7 @@ def open_settings_window(state: dict):
             return value or fallback
 
         return {
-            "theme_variant": vars_["theme_variant"].get().strip(),
-            "theme_accent": vars_["theme_accent"].get().strip(),
+            "theme_variant": normalize_theme(vars_["theme_variant"].get()),
             "open_2d_plot_on_start": bool(vars_["open_2d_plot_on_start"].get()),
             "auto_open_3d_on_load": bool(vars_["auto_open_3d_on_load"].get()),
             "remember_window_geometry": bool(vars_["remember_window_geometry"].get()),
@@ -305,6 +295,19 @@ def open_settings_window(state: dict):
             )
             state["style"] = style
             state["fonts"] = getattr(state["root"], "_app_fonts", {})
+            history_bar = state.get("edit_history_bar")
+            if history_bar is not None:
+                history_bar.refresh_styles()
+            ribbon = state.get("ribbon")
+            if ribbon is not None:
+                ribbon.refresh_styles()
+            refresh_control_panel_theme = state.get("refresh_control_panel_theme")
+            if callable(refresh_control_panel_theme):
+                refresh_control_panel_theme()
+            nmr_window = state.get("nmr_workbench_window")
+            if nmr_window is not None and nmr_window.winfo_exists():
+                # Existing canvas draw refreshes NMR presentation only; no reprocessing.
+                nmr_window._canvas.draw_idle()
         except Exception:
             pass
 

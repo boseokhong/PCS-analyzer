@@ -1,0 +1,6 @@
+SYNTHETIC VT TEACHING DATA — 02_Paramagnetic_278K
+1H at 278 K. Four sample signals plus small TMS; not measured data.
+True sample shifts=(2.0575539568345325, 5.115107913669065, 8.172661870503596, 11.23021582733813) ppm. Apparent TMS=-0.14 ppm.
+Phase once with P0=-25 degrees, P1=0; baseline arPLS lambda=1e5.
+Reference each dataset to its own TMS at 0 ppm before picking/tracking.
+Sample law: delta=offset+C/T; no PCS/contact or structural interpretation.

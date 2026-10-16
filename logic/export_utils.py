@@ -2,15 +2,10 @@
 
 import numpy as np
 import pandas as pd
+from logic.pcs_inverse import axial_pcs_radius
 
 def _safe_r(pcs_value, theta, tensor):
-    denom = 1e4 * tensor * (3 * (np.cos(theta))**2 - 1)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        frac = denom / (12 * np.pi * pcs_value)
-    frac = np.where(frac > 0, frac, np.nan)  # 양수만 유효
-    r = np.cbrt(frac)
-    r[~np.isfinite(r)] = np.nan
-    return r
+    return axial_pcs_radius(pcs_value, theta, tensor)
 
 def build_pcs_frames(pcs_values, theta_values, tensor, polar_data, geom_values=None):
     """공통 계산 → (pcs_df, polar_df) 반환. 엑셀/CSV가 이걸 재사용."""
@@ -44,7 +39,7 @@ def build_pcs_frames(pcs_values, theta_values, tensor, polar_data, geom_values=N
         'Atom': atoms,
         'R': r_arr,
         'Theta': th_arr,
-        'Geom Param': Gi
+        'G_ax': Gi
     })
     return pcs_df, polar_df
 
@@ -70,12 +65,12 @@ def save_to_csv(pcs_values, theta_values, tensor, base_path, polar_data, geom_va
     return pcs_path, atoms_path
 
 def export_table_to_excel(tree, file_path):
-    cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_i', 'δ_PCS', 'δ_Exp')
+    cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_ax', 'δ_PCS', 'δ_Exp')
     data = [tree.item(i)["values"] for i in tree.get_children()]
     pd.DataFrame(data, columns=cols).to_excel(file_path, index=False)
 
 def export_table_to_csv(tree, file_path):
-    cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_i', 'δ_PCS', 'δ_Exp')
+    cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_ax', 'δ_PCS', 'δ_Exp')
     data = [tree.item(i)["values"] for i in tree.get_children()]
     pd.DataFrame(data, columns=cols).to_csv(file_path, index=False, encoding="utf-8-sig")
 
@@ -94,7 +89,7 @@ def export_tables_to_excel(main_tree, file_path, rh_tree=None):
     - 메인 테이블은 항상 저장 (sheet: 'Table')
     - rh_tree가 있고 데이터가 있으면 Rhombicity 시트를 추가 저장
     """
-    main_cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_i', 'δ_PCS', 'δ_Exp')
+    main_cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_ax', 'δ_PCS', 'δ_Exp')
     main_df = _tree_to_df(main_tree, main_cols)
 
     with pd.ExcelWriter(file_path) as writer:
@@ -114,7 +109,7 @@ def export_tables_to_csv(main_tree, file_path, rh_tree=None):
     import os
     base, _ = os.path.splitext(file_path)
 
-    main_cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_i', 'δ_PCS', 'δ_Exp')
+    main_cols = ('Ref', 'Atom', 'X', 'Y', 'Z', 'G_ax', 'δ_PCS', 'δ_Exp')
     main_df = _tree_to_df(main_tree, main_cols)
     table_path = base + "_table.csv"
     main_df.to_csv(table_path, index=False, encoding="utf-8-sig")

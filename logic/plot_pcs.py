@@ -2,6 +2,8 @@
 # PCS_PATCH_TORSIONAL_ENSEMBLE_PHASE3
 
 import numpy as np
+from logic.pcs_inverse import axial_pcs_radius
+from logic.selection_context import ensure_selection_hub, publish_ref_selection
 from matplotlib.lines import Line2D
 from logic.chem_constants import CPK_COLORS, covalent_radii
 
@@ -34,21 +36,7 @@ def calculate_r(pcs_value, theta, tensor):
     - 물리적으로 의미없는 음수 비율 → NaN
     - np.cbrt 사용으로 음수의 3제곱근도 안전 (하지만 r은 거리이므로 양수 비율만 사용)
     """
-    denom = 1e4 * tensor * (3 * (np.cos(theta)) ** 2 - 1)
-
-    # 분자/분모 0 회피
-    with np.errstate(divide="ignore", invalid="ignore"):
-        frac = denom / (12 * np.pi * pcs_value)
-
-    # 물리적으로 의미 있는 양수만 남기고 나머진 NaN
-    frac = np.where(frac > 0, frac, np.nan)
-
-    # 3제곱근 (양수에 대해 안전)
-    r = np.cbrt(frac)
-
-    # 비정상 값 정리
-    r[~np.isfinite(r)] = np.nan
-    return r
+    return axial_pcs_radius(pcs_value, theta, tensor)
 
 
 def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, polar_data=None, rotated_coords=None, store_click_key=None):
@@ -137,7 +125,7 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
     except Exception:
         bond_tol = 0.03
 
-    if rotated_coords is None:
+    if rotated_coords is None and state.get("atom_data"):
         rotated_coords = state.get("_pcs_last_rotated_coords")
 
     # Bond drawing
@@ -260,15 +248,7 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
 
     click_pairs = []
 
-    tree = state.get("tree")
-    selected_ref = None
-    if tree is not None:
-        sel = tree.selection()
-        if sel:
-            try:
-                selected_ref = int(tree.item(sel[0], "values")[0])
-            except Exception:
-                selected_ref = None
+    selected_ref = ensure_selection_hub(state).context.primary_ref_id
 
     ids = state.get("current_selected_ids", []) or []
 
@@ -452,16 +432,14 @@ def _draw_single_pcs_plot(fig, canvas, state, pcs_values, theta_values, tensor, 
     def on_click(event):
         if event.inaxes != ax:
             return
-        row_by_id = state.get("row_by_id", {})
-        tree = state["tree"]
         for artist, ref_id in click_pairs:
             contains, _ = artist.contains(event)
             if contains:
-                item = row_by_id.get(ref_id)
-                if item:
-                    tree.selection_set(item)
-                    tree.focus(item)
-                    tree.see(item)
+                publish_ref_selection(
+                    state,
+                    [ref_id],
+                    source="pcs_polar",
+                )
                 break
 
     if store_click_key:
@@ -481,8 +459,10 @@ def plot_graph(state, pcs_values, theta_values, tensor, polar_data=None, rotated
     """
     if rotated_coords is not None:
         state["_pcs_last_rotated_coords"] = rotated_coords
-    else:
+    elif state.get("atom_data"):
         rotated_coords = state.get("_pcs_last_rotated_coords")
+    else:
+        state["_pcs_last_rotated_coords"] = None
 
     # Main embedded PCS plot
     _draw_single_pcs_plot(

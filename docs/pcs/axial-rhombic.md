@@ -90,6 +90,26 @@ Rhombicity may be worth considering when:
 
 ## Axial and full-model comparison
 
+### Active prediction model
+
+The Control Panel's **Prediction model** selects the ordinary calculated PCS:
+
+| Selection | Contribution used |
+| --- | --- |
+| **Axial** | Δχ_ax G_ax only, even if a rhombic value is stored and enabled |
+| **Full tensor (Axial + Rhombic)** | Δχ_ax G_ax plus Δχ_rh G_rh when **Enable Δχ_rh** is on; otherwise axial only |
+
+The stored Δχ_rh value and its enablement are separate from this selection.
+Choosing Full tensor does not itself enable the rhombic term. Changing the
+prediction model retains the tensor parameters and experimental observations.
+
+This policy applies to the main-table calculated PCS, linked NMR predictions,
+Projection Viewer, and 3D PCS field. **G_ax vs PCS**, **Rhombicity Check**, and
+polar contours remain axial diagnostics. The Rhombicity Table separately
+compares axial and axial-plus-rhombic predictions. Standard nonlinear fitting
+uses its configured fitted/fixed tensor components; the prediction selector
+does not replace those fitting choices.
+
 PCS Analyzer can evaluate both the axial-only prediction and the axial–rhombic prediction for the same molecular geometry.
 
 For a nucleus \(i\),

@@ -1,90 +1,72 @@
-# Plugin Distribution
+# Plugin Installation and Distribution
 
-PCS Analyzer supports single-file, folder-based, and ZIP plugin distribution.
+For routine use, follow [Module Manager](overview.md). Browse and Updates use
+the configured catalog; Installed also accepts trusted local packages.
+These workflows validate new manifests and application compatibility. They do
+not resolve Python dependencies or sandbox code.
 
-## Single-file distribution
+## Accepted local packages
 
-Small plugins may be distributed directly as a `.py` file containing `PLUGIN_INFO` and `register(app)`.
+| Action in Installed | Package |
+| --- | --- |
+| **Install .py Plugin** | A Python file defining a `PLUGIN_INFO` dictionary and callable `register(app)`. Inspection imports the file; the installed entry is copied as `plugin.py` with a generated manifest. |
+| **Install Folder** | A folder containing `manifest.json` and its declared entry. A wrapper containing only one immediate package folder is also accepted. |
+| **Install ZIP** | The same package layout archived as a ZIP, at the root or inside one wrapper folder. Ambiguous multi-package layouts are rejected. |
 
-## Folder-based distribution
+A practical package is:
 
 ```text
-bleaney_vt/
+my_tool/
 ├─ manifest.json
 ├─ plugin.py
-├─ plugin_ui/
-├─ plugin_logic/
 ├─ resources/
 └─ examples/
 ```
 
-## ZIP distribution
+Entries must stay within the package. Unsafe archive paths, symlinks and
+unsupported archive entries are rejected; extraction is staged before
+installation. Keep IDs stable and use versions understood by PCS Analyzer
+(see [Manifest](manifest.md)). New installs are enabled, while replacement
+preserves an existing plugin's enabled state.
 
-Recommended structure:
+## Catalog installation
 
-```text
-bleaney_vt.zip
-└─ bleaney_vt/
-   ├─ manifest.json
-   ├─ plugin.py
-   ├─ plugin_ui/
-   ├─ plugin_logic/
-   ├─ resources/
-   └─ examples/
-```
+**Refresh Catalog** reads available releases and their compatibility/lifecycle
+metadata. **Install** or **Update** downloads the selected package, verifies
+SHA-256 and checks that its manifest ID/version matches the catalog release
+before installation. A hash mismatch, download error or invalid package is
+reported through **Last operation details**. No update is installed automatically.
 
-PCS Analyzer installs validated packages under:
+Local folder/ZIP/file installation does not independently authenticate its
+source or require a catalog hash. Catalog integrity checks are not signatures
+or a security/scientific review of the code.
 
-```text
-plugins/installed/<plugin_id>/
-```
+## Replacement and removal behavior
 
-## Dependency handling
+Installation is prepared before replacing live files. Replacement uses a backup;
+on failure the installer attempts to restore the previous files and registry.
+Removal likewise preserves a recoverable copy until its record change succeeds.
+If rollback or cleanup fails, warnings identify remaining recovery paths.
+Read those details, preserve backups and restart before recovery; do not delete
+reported folders blindly.
 
-Required dependencies belong in:
+An updated version on disk is not necessarily the code running in this session.
+**Restart after updating or replacing a plugin**, including local reinstallations.
+Enable/disable or Refresh is not a substitute for a clean restart. See
+[Troubleshooting](troubleshooting.md).
 
-```json
-"dependencies": ["numpy", "scipy", "matplotlib"]
-```
+## Author distribution checklist
 
-Optional dependencies belong in:
+- Supply the [required manifest](manifest.md), or equivalent `PLUGIN_INFO` for a
+  single-file plugin; define `register(app)` in the declared entry.
+- Use a stable lowercase ID and consistent release/manifest versions.
+- Keep import and registration lightweight; defer tool launch to a callback.
+- State required dependencies and supported PCS Analyzer versions. Dependency
+  declarations are informational; handle missing packages in the plugin.
+- Resolve resources relative to the plugin directory and include their licenses.
+- Test clean startup, successful loading, enable/disable, replacement and removal.
+- For catalog distribution, provide the release ZIP, its SHA-256 and matching
+  metadata. A developer release alone does not change the catalog.
 
-```json
-"optional_dependencies": ["pyvista", "pyvistaqt", "imageio"]
-```
-
-Missing optional packages should be handled gracefully.
-
-## Security
-
-!!! warning
-
-    Only install plugins from trusted sources. Python plugins can execute code on the user's computer.
-
-Plugin authors should avoid unexpected network access, modifying user files without confirmation, hidden subprocess execution, modifying core files, storing credentials, or silently changing application settings.
-
-## Updating and reinstalling
-
-Updating an imported plugin may require restarting PCS Analyzer, especially on Windows.
-
-## Distribution checklist
-
-```text
-[ ] Stable lowercase plugin ID
-[ ] PLUGIN_INFO or manifest.json present
-[ ] Folder plugins include manifest.json
-[ ] Manifest includes id, name, version, entry
-[ ] Entry file defines register(app)
-[ ] No windows open at import time
-[ ] No main() call at import time
-[ ] No mainloop() inside PCS Analyzer
-[ ] Menu callbacks are deferred
-[ ] Required dependencies are declared
-[ ] Optional dependencies fail gracefully
-[ ] Resource paths are plugin-relative
-[ ] Core source files are not modified
-[ ] Plugin can be removed safely
-[ ] Module Manager installation tested
-[ ] Disable/re-enable tested
-[ ] Reinstall/update tested
-```
+The [distribution design notes](../plugin_distribution_guide_v0_1.md) distinguish
+current catalog capabilities from future integrated API and governance proposals.

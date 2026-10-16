@@ -3,8 +3,6 @@
 logic/nmr_spectrum.py -> spectrum logic
 logic/nmr_delta_data_manager.py -> table related logic
 ui/nmr_analysis_window.py
-tools/demo_nmr_spectrum.py -> standalone NMR spectrum demo
-
 '''
 
 from __future__ import annotations

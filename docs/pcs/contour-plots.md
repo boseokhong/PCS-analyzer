@@ -120,13 +120,14 @@ For qualitative interpretation, a contour interval that clearly separates positi
 
 ---
 
-## Half and full angular views
+## Half- and quarter-plane angular views
 
-PCS Analyzer can display restricted or expanded angular ranges depending on the selected visualization mode.
+The **Half/Quarter plot toggle** switches between two polar angular domains:
 
-For approximately symmetric systems, a reduced angular view may provide a more compact representation.
+- **Half-plane view:** \(0^\circ \le \theta \le 180^\circ\)
+- **Quarter-plane view:** \(0^\circ \le \theta \le 90^\circ\)
 
-A broader angular range is useful when comparing nuclei located on both sides of the tensor \(z\)-axis.
+In the quarter-plane view, positions with \(\theta > 90^\circ\) are folded to \(180^\circ-\theta\). This compact representation is useful for the axially symmetric contour because the axial angular factor is symmetric about \(90^\circ\). Use the half-plane view when the two sides of the tensor \(z\)-axis need to remain visually distinct.
 
 ---
 
@@ -145,3 +146,5 @@ Deviations between experimental values and the axial contour expectation can mot
 - evaluation of non-PCS contributions.
 
 See [Axial and Rhombic PCS](axial-rhombic.md) for the full model.
+For the implemented markers, selection, averaging overlays, and exports, see
+[2D Polar PCS Plot](../visualization/polar-plot.md).

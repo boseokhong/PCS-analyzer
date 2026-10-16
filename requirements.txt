@@ -11,6 +11,12 @@ qtpy
 PySide6
 tkinterdnd2
 imageio
+nmrglue
+pybaselines
+packaging
 
 # Optional performance enhancement
 pyfftw
+
+# Optional chemical map representation enhancement
+rdkit

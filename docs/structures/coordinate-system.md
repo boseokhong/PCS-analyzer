@@ -140,6 +140,31 @@ For an angle \(\gamma\) about the \(z\)-axis,
 
 Angles entered through the application are interpreted in degrees and converted internally to radians for the trigonometric operations.
 
+### Structure XYZ and Tensor Euler ZYZ
+
+**Structure** uses the extrinsic XYZ controls described above.
+**Tensor Euler (ZYZ)** expresses the same active molecular-to-tensor rotation
+with intrinsic ZYZ angles:
+
+\[
+\mathbf R=\mathbf R_z(\alpha)\mathbf R_y(\beta)\mathbf R_z(\gamma).
+\]
+
+Both use degrees. Switching representations preserves the physical rotation;
+the displayed angle values may change. The same numeric XYZ and ZYZ triplets
+are generally not equivalent. At an Euler singularity, different triplets can
+represent the same rotation, so compare the orientation rather than angle
+values alone. For an axial tensor, rotation about its principal z-axis is
+unobservable in PCS; the ZYZ α control is disabled while rhombicity is disabled.
+Standard Mode B/C fit angles are XYZ even when the panel shows Tensor Euler ZYZ.
+
+!!! warning "Conformer Search handoff"
+
+    The embedded Conformer Search still passes the Structure XYZ values to a
+    calculator that interprets them as ZYZ without conversion. This remains a
+    known implementation discrepancy for nonzero orientations. See
+    [Conformer Search](../conformer-search/overview.md#inputs-inherited-from-pcs-analyzer).
+
 ## Rotation about an arbitrary centre
 
 The general coordinate-rotation helper can rotate a structure about any specified point \(\mathbf c\).

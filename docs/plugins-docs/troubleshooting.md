@@ -1,90 +1,75 @@
 # Plugin Troubleshooting
 
-## Plugin appears in Module Manager but not in the Modules menu
+## Installed but absent from the Modules menu
 
-Possible causes:
+Open **Module Manager → Installed**. Check **Enabled**, **Session status** and
+**Details**. Installed means files/metadata are present, not that registration
+succeeded. Details can identify missing entry files, dependencies, incompatible
+versions, import failures or `register(app)` errors, with technical context.
+A plugin may register a Quick tools launcher through `register_tool()` rather
+than only adding a direct menu entry.
 
-- plugin is disabled
-- `manifest.json` is missing or invalid
-- entry file is missing
-- `register(app)` is missing
-- import or registration raised an exception
-- relative import failed
-- required dependency is missing
+Enable a disabled plugin, then inspect the new session status. Successful local
+file/folder/ZIP installations now refresh the Modules menu. For a replacement,
+restart first: a menu refresh may reuse old imported code.
 
-Check console or plugin-loading diagnostics.
+## Catalog or download fails
 
-## Plugin opens automatically during startup
+Read **Last operation details** for the network, metadata, compatibility,
+package-ID/version or SHA-256 error. Check the internet connection and retry
+**Refresh Catalog** when appropriate. A failed fetch does not remove local
+modules; a previously loaded catalog may remain visible. Do not bypass a hash
+mismatch by assuming the package is safe. Check the release with its maintainer.
 
-Avoid:
+## Incompatible, blocked or local-only
 
-```python
-main()
-```
+Use **Details** to read the reason. Incompatible bounds prevent new installation
+and valid declared bounds also affect loading. Blocked/unavailable/deprecated
+catalog entries are not offered as normal install/update actions. Local-only
+means the installed ID is absent from that catalog; it is not a load diagnosis.
+Legacy compatibility warnings deserve review even when Session status is Loaded.
 
-and:
+## Refresh does not activate an updated version
 
-```python
-command=open_plugin(app)
-```
+Installed **Refresh** rereads local records/diagnostics; **Refresh Catalog**
+retrieves catalog metadata. Neither unloads Python modules. After an update or
+replacement, close plugin windows and restart PCS Analyzer to execute the new
+files. Disabling/removing also does not reverse arbitrary runtime side effects.
 
-Use:
+## Replacement or removal fails on Windows
 
-```python
-command=lambda: open_plugin(app)
-```
+Close plugin windows and restart before retrying. File locks or permissions can
+prevent replacement, rollback or cleanup. **Last operation details** reports
+restart requirements and recovery paths. Preserve those paths and the message;
+a failed operation is not a guarantee that rollback completed. Avoid deleting
+an installation or backup manually until the application is closed and the
+reported state is understood.
 
-## Relative import fails
+## Registry cannot be read
 
-Typical error:
+Malformed registry JSON or invalid records are reported as errors rather than
+silently treated as an empty installed list. Preserve the registry file before
+repair and provide its error details to the maintainer. Do not reinstall all
+modules merely because a damaged registry cannot be displayed.
 
-```text
-ImportError: attempted relative import with no known parent package
-```
+## Missing dependency
 
-Folder plugins should use package-style loading and relative imports where supported.
+Manifest dependency lists are not installed automatically. Follow the plugin's
+instructions for the Python environment running PCS Analyzer. Frozen builds
+may need a plugin-specific distribution strategy. Report the missing package
+from Installed **Details** to the plugin author.
 
-## Required dependency is missing
+## Author checks
 
-Declare dependencies in `manifest.json`:
+- **Tool opens during startup:** defer launch with `command=lambda: open_plugin(app)`;
+  keep standalone execution behind `if __name__ == "__main__"`.
+- **Relative import fails:** test the installed package layout, including sibling
+  modules, rather than executing the entry file directly.
+- **Resource missing:** resolve resource paths relative to `Path(__file__).resolve().parent`,
+  not the process working directory.
+- **One plugin fails while others load:** load-error isolation is expected, but
+  import-time state changes are not a sandbox or rollback boundary. Restart
+  before diagnosis; later tool errors remain the plugin's responsibility.
 
-```json
-"dependencies": ["numpy", "scipy"]
-```
-
-Optional dependencies should be handled gracefully.
-
-## Windows refuses to update or delete a plugin folder
-
-Typical error:
-
-```text
-PermissionError: [WinError 5] Access is denied
-```
-
-Possible causes include an imported plugin, open plugin window, held file handle, or temporary file locking.
-
-Recommended action:
-
-```text
-Close plugin windows, restart PCS Analyzer, and try again.
-```
-
-## Plugin resource file cannot be found
-
-Avoid:
-
-```python
-open("resources/icon.png")
-```
-
-Prefer:
-
-```python
-from pathlib import Path
-
-PLUGIN_DIR = Path(__file__).resolve().parent
-RESOURCE_DIR = PLUGIN_DIR / "resources"
-
-open(RESOURCE_DIR / "icon.png", "rb")
-```
+See [Creating Plugins](creating-plugins.md), [Manifest](manifest.md) and the
+[API reference](plugin-api.md) for author-specific details.

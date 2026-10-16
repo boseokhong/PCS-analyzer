@@ -1,5 +1,6 @@
 # ui/advanced_fitting_tab.py
 
+from ui.widget_style import ui_text_color, ui_label_style
 import os
 import threading
 import tkinter as tk
@@ -25,14 +26,33 @@ from logic.advanced_physics import (
     fit_multilanthanid,
 )
 from logic.xyz_loader import load_structure
+from logic.pcs_document import (
+    active_document,
+    active_document_view,
+    apply_worker_document_updates,
+    capture_worker_identity,
+    worker_completion_matches,
+    worker_document_state,
+)
 from ui.style import get_app_fonts
+from ui.icons import TAB_ICON_SIZE, TOOLBAR_ICON_SIZE, BUTTON_ICON_SIZE
+
+def _icon(state, name, size=BUTTON_ICON_SIZE):
+    manager = state.get("icons") if isinstance(state, dict) else None
+    if manager is None:
+        return ""
+    try:
+        return manager.get(name, size=size)
+    except Exception:
+        return ""
+
 
 # ============================================================================
 # Public builder
 # ============================================================================
 def build_advanced_fitting_tab(state: dict, parent_notebook: ttk.Notebook):
     advanced_frame = ttk.Frame(parent_notebook)
-    parent_notebook.add(advanced_frame, text="🔍 Advanced Fitting")
+    parent_notebook.add(advanced_frame, text="Advanced Fitting", image=_icon(state, "run_fit", TAB_ICON_SIZE), compound=tk.LEFT)
 
     outer = ttk.Frame(advanced_frame, padding=4)
     outer.pack(fill="both", expand=True)
@@ -45,8 +65,65 @@ def build_advanced_fitting_tab(state: dict, parent_notebook: ttk.Notebook):
     _build_pre_tab(state, sub_nb)
     _build_multilanthanide_tab(state, sub_nb)
 
+    for key in (
+        "advfit_mc_running",
+        "advfit_rdc_running",
+        "advfit_pre_running",
+        "advfit_ml_running",
+    ):
+        state.setdefault(key, False)
     state["advanced_fitting_nb"] = sub_nb
+    state["advanced_fitting_callbacks"] = advanced_fitting_callbacks(state)
     return advanced_frame
+
+
+def advanced_fitting_callbacks(state: dict):
+    """Return thin adapters to the existing Advanced Fitting UI callbacks."""
+    callbacks = {
+        "analysis.advanced.multiconformer.input.use_current": (
+            lambda: _mc_add_current_structure(state)
+        ),
+        "analysis.advanced.multiconformer.input.load_xyz": (
+            lambda: _mc_load_conformer_xyz(state)
+        ),
+        "analysis.advanced.multiconformer.input.clear": (
+            lambda: _mc_clear_conformers(state)
+        ),
+        "analysis.advanced.multiconformer.run": lambda: _mc_run_threaded(state),
+        "analysis.advanced.multiconformer.results.apply": (
+            lambda: _mc_apply_to_main(state)
+        ),
+        "analysis.advanced.rdc.input.load_csv": lambda: _rdc_load_csv(state),
+        "analysis.advanced.rdc.run": lambda: _rdc_run_threaded(state),
+        "analysis.advanced.rdc.results.apply": lambda: _rdc_apply_to_main(state),
+        "analysis.advanced.rdc.output.export_template": _export_rdc_template,
+        "analysis.advanced.pre.input.load_csv": lambda: _pre_load_csv(state),
+        "analysis.advanced.pre.run": lambda: _pre_run_threaded(state),
+        "analysis.advanced.pre.output.export_template": _export_pre_template,
+        "analysis.advanced.multilanthanide.input.use_current": (
+            lambda: _ml_add_current_dataset(state)
+        ),
+        "analysis.advanced.multilanthanide.input.add_csv": (
+            lambda: _ml_add_csv(state)
+        ),
+        "analysis.advanced.multilanthanide.input.clear": (
+            lambda: _ml_clear_datasets(state)
+        ),
+        "analysis.advanced.multilanthanide.run": lambda: _ml_run_threaded(state),
+    }
+    workspace = state.get("mc_workspace")
+    if workspace is not None:
+        callbacks.update(workspace.callbacks())
+    joint_workspace = state.get("rdc_workspace")
+    if joint_workspace is not None:
+        callbacks.update(joint_workspace.callbacks())
+    pre_workspace = state.get("pre_workspace")
+    if pre_workspace is not None:
+        callbacks.update(pre_workspace.callbacks())
+    ml_workspace = state.get("ml_workspace")
+    if ml_workspace is not None:
+        callbacks.update(ml_workspace.callbacks())
+    return callbacks
 
 # ============================================================================
 # Common helpers
@@ -77,13 +154,72 @@ def _export_pre_template():
         return
 
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
-        f.write("ref,r2_para\n")
-        f.write("12,145.3\n")
+        f.write("ref_id,gamma2,gamma2_err,nucleus\n")
+        f.write("12,145.3,7.3,1H\n")
 
     messagebox.showinfo("PRE Template", f"Template saved:\n{path}")
 
-def _run_in_thread(fn, state: dict):
-    threading.Thread(target=fn, args=(state,), daemon=True).start()
+def _refresh_fitting_commands(state: dict):
+    refresh = state.get("refresh_fitting_commands")
+    if callable(refresh):
+        refresh()
+
+
+def _set_running(state: dict, key: str, running: bool):
+    state[key] = bool(running)
+    _refresh_fitting_commands(state)
+
+
+def _run_in_thread(fn, state: dict, busy_key: str):
+    if state.get(busy_key, False):
+        return
+    state[f"{busy_key}_worker_identity"] = capture_worker_identity(state)
+    worker_state = worker_document_state(state)
+    worker_state[f"{busy_key}_worker_identity"] = state[
+        f"{busy_key}_worker_identity"
+    ]
+    _set_running(state, busy_key, True)
+
+    def _target():
+        try:
+            fn(worker_state)
+        finally:
+            state["root"].after(0, lambda: _set_running(state, busy_key, False))
+
+    try:
+        threading.Thread(target=_target, daemon=True).start()
+    except Exception:
+        _set_running(state, busy_key, False)
+        raise
+
+
+def _worker_result_is_current(state: dict, busy_key: str) -> bool:
+    identity = state.get(f"{busy_key}_worker_identity")
+    # Preserve isolated embedding behavior without weakening the integrated
+    # app, where every launched worker has an explicit document identity.
+    return identity is None or worker_completion_matches(state, identity)
+
+
+def _set_document_result(state: dict, busy_key: str, key: str, result: dict) -> bool:
+    identity = state.get(f"{busy_key}_worker_identity")
+    manager = state.get("document_manager")
+    origin = manager.document_by_id(identity.document_id) if manager is not None and identity is not None else None
+    if origin is not None and origin is not active_document(state):
+        apply_worker_document_updates(
+            state, identity, {key: result}, domain=f"{busy_key}_result"
+        )
+        return False
+    try:
+        active_document_view(state)[key] = result
+    except RuntimeError:
+        state[key] = result
+    else:
+        if origin is not None:
+            origin.mark_mutated()
+            refresh_tabs = state.get("refresh_document_tabs")
+            if callable(refresh_tabs):
+                refresh_tabs()
+    return True
 
 def _show_traceback_error(state: dict, title: str):
     import traceback
@@ -234,357 +370,41 @@ def _apply_tensor_to_main(state: dict, dchi_ax: float, dchi_rh: float | None = N
 # Multi-Conformer tab
 # ============================================================================
 def _build_multiconformer_tab(state: dict, nb: ttk.Notebook):
-    tab = ttk.Frame(nb)
-    nb.add(tab, text="Multi-Conformer")
+    from ui.multiconformer_workspace import MultiConformerWorkspace
+    return MultiConformerWorkspace(state, nb)
 
-    state["advfit_conformers"] = []
 
-    top = ttk.Frame(tab, padding=(6, 6, 6, 2))
-    top.pack(fill="x")
+def _mc_add_current_structure(state):
+    return state["mc_workspace"].use_current()
 
-    btn_row = ttk.Frame(top)
-    btn_row.pack(fill="x")
 
-    ttk.Button(
-        btn_row,
-        text="Use Current Structure",
-        command=lambda: _mc_add_current_structure(state),
-        width=18,
-    ).pack(side="left", padx=4)
+def _mc_load_conformer_xyz(state):
+    return state["mc_workspace"].load_xyz()
 
-    ttk.Button(
-        btn_row,
-        text="📂 Load XYZ",
-        command=lambda: _mc_load_conformer_xyz(state),
-        width=12,
-    ).pack(side="left", padx=4)
 
-    ttk.Button(
-        btn_row,
-        text="❌ Clear",
-        command=lambda: _mc_clear_conformers(state),
-        width=10,
-    ).pack(side="left", padx=4)
+def _mc_clear_conformers(state):
+    return state["mc_workspace"].clear()
 
-    ttk.Button(
-        btn_row,
-        text="▶▶ Run Fit",
-        command=lambda: _mc_run_threaded(state),
-        width=10,
-    ).pack(side="right")
 
-    # Keep this inside btn_row as requested
-    ttk.Label(
-        btn_row,
-        text="Same atom order is required across conformers.",
-    ).pack(anchor="w", pady=(0, 3))
+def _mc_run_threaded(state):
+    return state["mc_workspace"].run()
 
-    opt_row = ttk.Frame(top)
-    opt_row.pack(fill="x", pady=(4, 2))
 
-    state["advfit_mc_fit_weights_var"] = tk.BooleanVar(value=True)
-    ttk.Checkbutton(
-        opt_row,
-        text="Fit weights",
-        variable=state["advfit_mc_fit_weights_var"],
-    ).pack(side="left")
+def _mc_apply_to_main(state):
+    return state["mc_workspace"].apply()
 
-    state["advfit_mc_fit_rh_var"] = tk.BooleanVar(value=False)
-    ttk.Checkbutton(
-        opt_row,
-        text="Fit Δχ_rh",
-        variable=state["advfit_mc_fit_rh_var"],
-    ).pack(side="left", padx=8)
 
-    ttk.Button(
-        opt_row,
-        text="✅ Apply to Main",
-        command=lambda: _mc_apply_to_main(state),
-        width=14,
-    ).pack(side="right")
+def _mc_refresh_conformer_list(state):
+    return state["mc_workspace"].refresh()
 
-    list_box = ttk.LabelFrame(top, text="Conformers", padding=4)
-    list_box.pack(fill="x", pady=(2, 2))
-
-    state["advfit_mc_listbox"] = tk.Listbox(
-        list_box,
-        height=3,
-        exportselection=False,
-    )
-    state["advfit_mc_listbox"].pack(side="left", fill="x", expand=True)
-
-    list_scroll = ttk.Scrollbar(
-        list_box,
-        orient="vertical",
-        command=state["advfit_mc_listbox"].yview,
-    )
-    list_scroll.pack(side="left", fill="y")
-    state["advfit_mc_listbox"].configure(yscrollcommand=list_scroll.set)
-
-    _build_result_panel(tab, state, "advfit_mc", text_height=5, fig_size=(4.0, 2.0))
-
-def _mc_add_current_structure(state: dict):
-    try:
-        coords, labels, metal, polar = get_current_coords_and_metal(state)
-        if len(coords) == 0:
-            messagebox.showwarning("Multi-Conformer", "No structure is currently loaded.")
-            return
-
-        conf = Conformer(
-            name=f"Current structure ({len(coords)} atoms)",
-            coords=coords.copy(),
-            labels=labels,
-        )
-        state["advfit_conformers"].append(conf)
-        _mc_refresh_conformer_list(state)
-
-    except Exception as e:
-        messagebox.showerror("Multi-Conformer", str(e))
-
-def _mc_load_conformer_xyz(state: dict):
-    path = filedialog.askopenfilename(
-        title="Load conformer structure",
-        filetypes=[("Structure files", "*.xyz *.out *.log"), ("All files", "*.*")],
-    )
-    if not path:
-        return
-
-    try:
-        atoms = load_structure(path)
-
-        if not state.get("atom_data"):
-            messagebox.showwarning("Multi-Conformer", "Please load the main structure first.")
-            return
-
-        metal_abs = np.array([state["x0"], state["y0"], state["z0"]], float)
-        raw_coords = np.array([[x, y, z] for _, x, y, z in atoms], dtype=float)
-        centered = raw_coords - metal_abs
-        labels = [f"{el}{i+1}" for i, (el, *_) in enumerate(atoms)]
-
-        conf = Conformer(
-            name=os.path.splitext(os.path.basename(path))[0],
-            coords=centered,
-            labels=labels,
-        )
-        state["advfit_conformers"].append(conf)
-        _mc_refresh_conformer_list(state)
-
-    except Exception as e:
-        messagebox.showerror("Multi-Conformer", str(e))
-
-def _mc_clear_conformers(state: dict):
-    state["advfit_conformers"].clear()
-    _mc_refresh_conformer_list(state)
-
-def _mc_refresh_conformer_list(state: dict):
-    lb = state.get("advfit_mc_listbox")
-    lines = []
-
-    for i, conf in enumerate(state["advfit_conformers"]):
-        name = conf.name
-        if len(name) > 28:
-            name = name[:25] + "..."
-        lines.append(f"{i+1}. {name}  ({conf.weight:.3f})")
-
-    _fill_listbox(lb, lines)
-
-def _mc_run_threaded(state: dict):
-    _run_in_thread(_mc_run, state)
-
-def _mc_run(state: dict):
-    try:
-        conformers = state["advfit_conformers"]
-        if len(conformers) < 2:
-            state["root"].after(
-                0,
-                lambda: messagebox.showwarning(
-                    "Multi-Conformer",
-                    "At least 2 conformers are required."
-                )
-            )
-            return
-
-        dchi_ax, dchi_rh = get_tensor_values(state)
-        obs_pcs = get_exp_pcs(state)
-        ids = get_selected_ids(state)
-
-        if not obs_pcs:
-            state["root"].after(
-                0,
-                lambda: messagebox.showwarning(
-                    "Multi-Conformer",
-                    "No experimental δ_Exp values are available."
-                )
-            )
-            return
-
-        fit_rh = state["advfit_mc_fit_rh_var"].get()
-
-        result = fit_multiconf(
-            conformers,
-            obs_pcs,
-            ids,
-            dchi_ax,
-            dchi_rh if fit_rh else 0.0,
-            fit_weights=state["advfit_mc_fit_weights_var"].get(),
-        )
-
-        state["root"].after(0, lambda r=result: _mc_show_result(state, r))
-
-    except Exception:
-        _show_traceback_error(state, "Multi-Conformer")
-
-def _mc_show_result(state: dict, result: dict):
-    state["advfit_mc_last_result"] = result
-
-    lines = []
-    lines.append("Multi-Conformer Fit")
-    lines.append("-" * 46)
-    lines.append(f"Δχ_ax = {result['dchi_ax']:+.4f} × 10^-32 m^3")
-    lines.append(f"Δχ_rh = {result['dchi_rh']:+.4f} × 10^-32 m^3")
-    lines.append(f"RMSD  = {result['rmsd']:.4f} ppm   (N={result['n']})")
-    lines.append("")
-    lines.append("Conformer weights:")
-    for i, (conf, w) in enumerate(zip(state["advfit_conformers"], result["weights"])):
-        lines.append(f"  {i+1}. {conf.name}: w={w:.4f}")
-
-    lines.append("")
-    lines.append("Ref\tδ_exp\tδ_pred\tResidual")
-    for rid, exp, pred, res in result["per_point"]:
-        lines.append(f"{rid}\t{exp:+.3f}\t{pred:+.3f}\t{res:+.3f}")
-
-    _set_textbox_content(state["advfit_mc_result_text"], "\n".join(lines))
-
-    _mc_refresh_conformer_list(state)
-    _mc_draw_result_plot(state, result)
-
-def _mc_apply_to_main(state: dict):
-    result = state.get("advfit_mc_last_result")
-    if not result:
-        messagebox.showwarning(
-            "Multi-Conformer",
-            "No fit result is available to apply.",
-        )
-        return
-
-    try:
-        _apply_tensor_to_main(
-            state,
-            dchi_ax=result["dchi_ax"],
-            dchi_rh=result["dchi_rh"],
-        )
-        messagebox.showinfo(
-            "Multi-Conformer",
-            "Applied fitted tensor values to the main app.",
-        )
-    except Exception as e:
-        messagebox.showerror("Multi-Conformer", str(e))
-
-def _mc_draw_result_plot(state: dict, result: dict):
-    fig = state["advfit_mc_fig"]
-    fig.clear()
-
-    if not result["per_point"]:
-        state["advfit_mc_canvas"].draw_idle()
-        return
-
-    exp_v = np.array([p[1] for p in result["per_point"]], dtype=float)
-    pred_v = np.array([p[2] for p in result["per_point"]], dtype=float)
-    res_v = np.array([p[3] for p in result["per_point"]], dtype=float)
-
-    gs = gridspec.GridSpec(1, 3, figure=fig, wspace=0.38)
-    ax1 = fig.add_subplot(gs[0, 0])
-    ax2 = fig.add_subplot(gs[0, 1])
-    ax3 = fig.add_subplot(gs[0, 2])
-
-    _draw_identity_scatter(ax1, exp_v, pred_v, "Correlation", state=state)
-
-    ax2.bar(range(len(res_v)), res_v, alpha=0.8)
-    ax2.axhline(0, color="gray", lw=0.8)
-    ax2.set_title("Residuals", fontsize=_plot_font_sizes(state)["title"])
-    ax2.set_ylabel("pred - exp", fontsize=_plot_font_sizes(state)["label"])
-    ax2.tick_params(labelsize=_plot_font_sizes(state)["tick"])
-
-    labels = [f"C{i+1}" for i in range(len(result["weights"]))]
-    ax3.bar(labels, result["weights"], alpha=0.85)
-    ax3.set_title("Weights", fontsize=_plot_font_sizes(state)["title"])
-    ax3.set_ylabel("Weight", fontsize=_plot_font_sizes(state)["label"])
-    ax3.tick_params(labelsize=_plot_font_sizes(state)["tick"])
-
-    fig.tight_layout()
-    state["advfit_mc_canvas"].draw_idle()
 
 # ============================================================================
 # Joint PCS + RDC tab
 # ============================================================================
 def _build_joint_pcs_rdc_tab(state: dict, nb: ttk.Notebook):
-    tab = ttk.Frame(nb)
-    nb.add(tab, text="Joint PCS+RDC")
+    from ui.joint_pcs_rdc_workspace import JointPCSRDCWorkspace
+    return JointPCSRDCWorkspace(state, nb)
 
-    state["advfit_rdc_rows"] = []
-
-    top = ttk.Frame(tab, padding=(6, 6, 6, 2))
-    top.pack(fill="x")
-
-    file_row = ttk.Frame(top)
-    file_row.pack(fill="x")
-
-    ttk.Button(
-        file_row,
-        text="📂 Load RDC CSV",
-        command=lambda: _rdc_load_csv(state),
-        width=14,
-    ).pack(side="left")
-
-    ttk.Button(
-        file_row,
-        text="💾 Export Template",
-        command=_export_rdc_template,
-        width=16,
-    ).pack(side="left", padx=(6, 0))
-
-    state["advfit_rdc_file_label"] = ttk.Label(
-        file_row,
-        text="No file loaded",
-        foreground="gray",
-    )
-    state["advfit_rdc_file_label"].pack(side="left", padx=8)
-
-    ttk.Label(
-        top,
-        text="RDC atom labels must match the current structure labels.",
-    ).pack(anchor="w", pady=(3, 3))
-
-    param_row = ttk.Frame(top)
-    param_row.pack(fill="x", pady=(2, 2))
-
-    ttk.Label(param_row, text="B0 [T]").pack(side="left")
-    state["advfit_rdc_B0_var"] = tk.StringVar(value="14.1")
-    ttk.Entry(param_row, textvariable=state["advfit_rdc_B0_var"], width=6).pack(side="left", padx=(2, 8))
-
-    ttk.Label(param_row, text="T [K]").pack(side="left")
-    state["advfit_rdc_T_var"] = tk.StringVar(value="298")
-    ttk.Entry(param_row, textvariable=state["advfit_rdc_T_var"], width=6).pack(side="left", padx=(2, 8))
-
-    ttk.Label(param_row, text="RDC weight").pack(side="left")
-    state["advfit_rdc_weight_var"] = tk.StringVar(value="1.0")
-    ttk.Entry(param_row, textvariable=state["advfit_rdc_weight_var"], width=6).pack(side="left", padx=(2, 8))
-
-    ttk.Button(
-        param_row,
-        text="✅ Apply to Main",
-        command=lambda: _rdc_apply_to_main(state),
-        width=14,
-    ).pack(side="right", padx=(4, 0))
-
-    ttk.Button(
-        param_row,
-        text="▶▶ Run Fit",
-        command=lambda: _rdc_run_threaded(state),
-        width=10,
-    ).pack(side="right")
-
-    _build_result_panel(tab, state, "advfit_rdc", text_height=6, fig_size=(4.0, 2.0))
 
 def _rdc_load_csv(state: dict):
     path = filedialog.askopenfilename(
@@ -618,12 +438,13 @@ def _rdc_load_csv(state: dict):
             text=f"{os.path.basename(path)} ({len(rows)} bonds)",
             foreground="green",
         )
+        _refresh_fitting_commands(state)
 
     except Exception as e:
         messagebox.showerror("Joint PCS+RDC", str(e))
 
 def _rdc_run_threaded(state: dict):
-    _run_in_thread(_rdc_run, state)
+    _run_in_thread(_rdc_run, state, "advfit_rdc_running")
 
 def _rdc_run(state: dict):
     try:
@@ -676,7 +497,11 @@ def _rdc_run(state: dict):
         _show_traceback_error(state, "Joint PCS+RDC")
 
 def _rdc_show_result(state: dict, result: dict):
-    state["advfit_rdc_last_result"] = result
+    if not _worker_result_is_current(state, "advfit_rdc_running"):
+        return
+    if not _set_document_result(state, "advfit_rdc_running", "advfit_rdc_last_result", result):
+        return
+    _refresh_fitting_commands(state)
 
     lines = []
     lines.append("Joint PCS+RDC Fit")
@@ -765,79 +590,9 @@ def _rdc_draw_result_plot(state: dict, result: dict):
 # PRE tab
 # ============================================================================
 def _build_pre_tab(state: dict, nb: ttk.Notebook):
-    tab = ttk.Frame(nb)
-    nb.add(tab, text="PRE")
+    from ui.pre_workspace import PREWorkspace
+    return PREWorkspace(state, nb)
 
-    state["advfit_pre_obs"] = {}
-
-    top = ttk.Frame(tab, padding=(6, 6, 6, 2))
-    top.pack(fill="x")
-
-    file_row = ttk.Frame(top)
-    file_row.pack(fill="x")
-
-    ttk.Button(
-        file_row,
-        text="📂 Load PRE CSV",
-        command=lambda: _pre_load_csv(state),
-        width=14,
-    ).pack(side="left")
-
-    ttk.Button(
-        file_row,
-        text="💾 Export Template",
-        command=_export_pre_template,
-        width=16,
-    ).pack(side="left", padx=(6, 0))
-
-    state["advfit_pre_file_label"] = ttk.Label(
-        file_row,
-        text="No file loaded",
-        foreground="gray",
-    )
-    state["advfit_pre_file_label"].pack(side="left", padx=8)
-
-    ttk.Label(
-        top,
-        text="PRE input should contain Ref ID and Gamma2 (R2_para).",
-    ).pack(anchor="w", pady=(3, 3))
-
-    param_row = ttk.Frame(top)
-    param_row.pack(fill="x", pady=(2, 2))
-
-    ttk.Label(param_row, text="B0 [T]").pack(side="left")
-    state["advfit_pre_B0_var"] = tk.StringVar(value="14.1")
-    ttk.Entry(param_row, textvariable=state["advfit_pre_B0_var"], width=6).pack(side="left", padx=(2, 8))
-
-    ttk.Label(param_row, text="μeff [μB]").pack(side="left")
-    state["advfit_pre_mu_var"] = tk.StringVar(value="3.68")
-    ttk.Entry(param_row, textvariable=state["advfit_pre_mu_var"], width=6).pack(side="left", padx=(2, 8))
-
-    ttk.Label(param_row, text="Ln").pack(side="left")
-    state["advfit_pre_ln_var"] = tk.StringVar(value="Nd")
-    ln_box = ttk.Combobox(
-        param_row,
-        textvariable=state["advfit_pre_ln_var"],
-        values=list(LANTHANIDE_DB.keys()),
-        width=5,
-        state="readonly",
-    )
-    ln_box.pack(side="left", padx=(2, 8))
-    ln_box.bind(
-        "<<ComboboxSelected>>",
-        lambda e: state["advfit_pre_mu_var"].set(
-            str(LANTHANIDE_DB[state["advfit_pre_ln_var"].get()]["mu_eff"])
-        ),
-    )
-
-    ttk.Button(
-        param_row,
-        text="▶▶ Run Fit",
-        command=lambda: _pre_run_threaded(state),
-        width=10,
-    ).pack(side="right")
-
-    _build_result_panel(tab, state, "advfit_pre", text_height=5, fig_size=(4.0, 2.0))
 
 def _pre_load_csv(state: dict):
     path = filedialog.askopenfilename(
@@ -873,12 +628,13 @@ def _pre_load_csv(state: dict):
             text=f"{os.path.basename(path)} ({len(obs)} values)",
             foreground="green",
         )
+        _refresh_fitting_commands(state)
 
     except Exception as e:
         messagebox.showerror("PRE", str(e))
 
 def _pre_run_threaded(state: dict):
-    _run_in_thread(_pre_run, state)
+    _run_in_thread(_pre_run, state, "advfit_pre_running")
 
 def _pre_run(state: dict):
     try:
@@ -915,6 +671,10 @@ def _pre_run(state: dict):
         _show_traceback_error(state, "PRE")
 
 def _pre_show_result(state: dict, result: dict):
+    if not _worker_result_is_current(state, "advfit_pre_running"):
+        return
+    if not _set_document_result(state, "advfit_pre_running", "advfit_pre_last_result", result):
+        return
     lines = []
     lines.append("PRE Fit (Solomon-Bloembergen)")
     lines.append("-" * 46)
@@ -976,79 +736,9 @@ def _pre_draw_result_plot(state: dict, result: dict):
 # Multi-Lanthanide tab
 # ============================================================================
 def _build_multilanthanide_tab(state: dict, nb: ttk.Notebook):
-    tab = ttk.Frame(nb)
-    nb.add(tab, text="Multi-Lanthanide")
+    from ui.lanthanide_workspace import LanthanideWorkspace
+    return LanthanideWorkspace(state, nb)
 
-    state["advfit_ml_datasets"] = []
-
-    top = ttk.Frame(tab, padding=(6, 6, 6, 2))
-    top.pack(fill="x")
-
-    row1 = ttk.Frame(top)
-    row1.pack(fill="x")
-
-    ttk.Label(row1, text="Ln").pack(side="left")
-    state["advfit_ml_ln_var"] = tk.StringVar(value="Nd")
-    ttk.Combobox(
-        row1,
-        textvariable=state["advfit_ml_ln_var"],
-        values=list(LANTHANIDE_DB.keys()),
-        width=5,
-        state="readonly",
-    ).pack(side="left", padx=(2, 8))
-
-    ttk.Button(
-        row1,
-        text="Use Current δ_Exp",
-        command=lambda: _ml_add_current_dataset(state),
-        width=16,
-    ).pack(side="left", padx=4)
-
-    ttk.Button(
-        row1,
-        text="📂 Add CSV",
-        command=lambda: _ml_add_csv(state),
-        width=10,
-    ).pack(side="left")
-
-    ttk.Button(
-        row1,
-        text="❌ Clear",
-        command=lambda: _ml_clear_datasets(state),
-        width=10,
-    ).pack(side="left", padx=4)
-
-    ttk.Button(
-        row1,
-        text="▶▶ Run Fit",
-        command=lambda: _ml_run_threaded(state),
-        width=10,
-    ).pack(side="right")
-
-    ttk.Label(
-        top,
-        text="Each dataset should contain Ref ID and experimental PCS values.",
-    ).pack(anchor="w", pady=(3, 3))
-
-    list_box = ttk.LabelFrame(top, text="Datasets", padding=4)
-    list_box.pack(fill="x", pady=(2, 2))
-
-    state["advfit_ml_listbox"] = tk.Listbox(
-        list_box,
-        height=3,
-        exportselection=False,
-    )
-    state["advfit_ml_listbox"].pack(side="left", fill="x", expand=True)
-
-    list_scroll = ttk.Scrollbar(
-        list_box,
-        orient="vertical",
-        command=state["advfit_ml_listbox"].yview,
-    )
-    list_scroll.pack(side="left", fill="y")
-    state["advfit_ml_listbox"].configure(yscrollcommand=list_scroll.set)
-
-    _build_result_panel(tab, state, "advfit_ml", text_height=5, fig_size=(4.0, 2.0))
 
 def _ml_add_csv(state: dict):
     path = filedialog.askopenfilename(
@@ -1084,6 +774,7 @@ def _ml_add_csv(state: dict):
             }
         )
         _ml_refresh_dataset_list(state)
+        _refresh_fitting_commands(state)
 
     except Exception as e:
         messagebox.showerror("Multi-Lanthanide", str(e))
@@ -1106,10 +797,12 @@ def _ml_add_current_dataset(state: dict):
         }
     )
     _ml_refresh_dataset_list(state)
+    _refresh_fitting_commands(state)
 
 def _ml_clear_datasets(state: dict):
     state["advfit_ml_datasets"].clear()
     _ml_refresh_dataset_list(state)
+    _refresh_fitting_commands(state)
 
 def _ml_refresh_dataset_list(state: dict):
     lb = state.get("advfit_ml_listbox")
@@ -1124,7 +817,7 @@ def _ml_refresh_dataset_list(state: dict):
     _fill_listbox(lb, lines)
 
 def _ml_run_threaded(state: dict):
-    _run_in_thread(_ml_run, state)
+    _run_in_thread(_ml_run, state, "advfit_ml_running")
 
 def _ml_run(state: dict):
     try:
@@ -1158,6 +851,10 @@ def _ml_run(state: dict):
         _show_traceback_error(state, "Multi-Lanthanide")
 
 def _ml_show_result(state: dict, result: dict):
+    if not _worker_result_is_current(state, "advfit_ml_running"):
+        return
+    if not _set_document_result(state, "advfit_ml_running", "advfit_ml_last_result", result):
+        return
     lines = []
     lines.append("Multi-Lanthanide Fit")
     lines.append("-" * 46)

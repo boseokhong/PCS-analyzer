@@ -1,0 +1,123 @@
+# =========================
+# PCS Analyzer
+# =========================
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Runtime settings
+app_settings.json
+
+# Runtime plugin data
+plugins/
+
+# IDE / editor
+.idea/
+.vscode/
+
+# Build / packaging
+build/
+dist/
+*.spec
+# Keep the maintained portable release recipe; generated/older specs stay local.
+!PCS_Analyzer_Portable_v1.4.0.spec
+*.exe
+*.dll
+*.pyd
+
+# Development / local artifacts
+dev_docs/
+# Local developer checks are not part of the public source or portable bundle.
+/tools/check_examples.py
+/tools/docs_capture/
+/tools/demo_func_group_collapse.py
+/tools/demo_nmr_spectrum.py
+/tools/generate_history_icons.py
+/tools/generate_nmr_control_icons.py
+/tools/molecule_viewer_probe.py
+/tools/molecule_viewer_sidebar_review.py
+/tools/plot_pcs_origin.py
+/tools/patches/
+/examples/multi_conformer_demo/check_coverage.py
+/development/
+/site/
+/nmr_workbench/MILESTONE_VALIDATION.md
+/nmr_workbench/UI_POLISH.md
+/nmr_workbench/VALIDATION.md
+/tests/test_motion_explorer_wheel.py
+/tests/test_motion_module_lifecycle_ui.py
+/examples/documentation_demo/Yb_iPr2BA3_demo/PROTON_01.fid/log
+/examples/documentation_demo/Yb_iPr2BA3_demo/PROTON_01.fid/text
+backup/
+backups/
+*_backup/
+old_versions/
+build_version_info.py
+version_info.txt
+
+# Internal modules not tracked
+engine/
+
+# Python tooling caches
+/tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / temporary files
+*.log
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+*.backup
+
+# JSON files
+*.json
+# Required public scientific presets and dependency-policy records.
+!nmr_workbench/resources/reference_presets.json
+!licenses/structure_graph_dependency_policy.json
+# Distributable Multi-Conformer demo inputs and finite validation summary
+!examples/multi_conformer_demo/informative/inputs.json
+!examples/multi_conformer_demo/ambiguous/inputs.json
+!examples/multi_conformer_demo/validation_summary.json
+
+# Local AI / agent instructions
+**/AGENTS.md
+**/CLAUDE.md
+**/GEMINI.md
+.agents/
+.codex/
+
+# Local credentials and environment configuration (review templates separately).
+.env
+.env.*
+!.env.example
+.secrets/
+credentials/
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Local documentation / implementation notes
+**/KNOWN_IMPLEMENTATION_ISSUES.md

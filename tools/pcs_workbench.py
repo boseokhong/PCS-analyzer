@@ -7,6 +7,8 @@ from the main PCS Analyzer interface.
 
 from __future__ import annotations
 
+from ui.widget_style import ui_text_color, ui_label_style, ui_font_name
+from ui.style import get_app_fonts
 import csv
 import threading
 import traceback
@@ -83,10 +85,10 @@ class InfoPanel(ttk.Frame):
             frame,
             state="disabled",
             wrap="word",
-            font=("Consolas", 8),
+            font=ui_font_name(frame, "report"),
             relief="flat",
-            background="#f8f8f8",
-            foreground="#222222",
+            background=ui_text_color(frame, "field"),
+            foreground=ui_text_color(frame, "text"),
             borderwidth=0,
             padx=8,
             pady=6,
@@ -1296,7 +1298,7 @@ class AppWindow(tk.Toplevel):
         self.config(menu=menubar)
 
     def _build_body(self):
-        paned = ttk.PanedWindow(self, orient="horizontal")
+        paned = ttk.PanedWindow(self, orient="horizontal", style="PCS.TPanedwindow")
         paned.pack(fill="both", expand=True, padx=6, pady=6)
 
         left_frame = ttk.LabelFrame(paned, text="Controls", padding=0)
@@ -1968,7 +1970,7 @@ class AppWindow(tk.Toplevel):
         ttk.Label(
             win,
             text=title_txt,
-            font=("TkDefaultFont", 10, "bold"),
+            font=ui_font_name(win, "ui_bold"),
         ).pack(anchor="w", padx=12, pady=(12, 8))
 
         body = ttk.Frame(win, padding=(12, 4, 12, 12))
@@ -2055,7 +2057,7 @@ class AppWindow(tk.Toplevel):
                 "Set Top N |Δ| only to 0 to show all atoms\n"
                 "Set Label top N to 0 to hide all labels"
             ),
-            foreground="gray",
+            style=ui_label_style(body, "muted"),
             justify="left",
             wraplength=300,
         )
@@ -2207,7 +2209,7 @@ class AppWindow(tk.Toplevel):
 
         row = 0
 
-        ttk.Label(frm, text="Display", font=("TkDefaultFont", 9, "bold")).grid(
+        ttk.Label(frm, text="Display", font=ui_font_name(frm, "ui_bold")).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(0, 6)
         )
         row += 1
@@ -2276,7 +2278,7 @@ class AppWindow(tk.Toplevel):
                 "absolute: true tensor-size comparison\n"
                 "Use 'Fit absolute factor to molecule' to set a structure-based display factor."
             ),
-            foreground="gray",
+            style=ui_label_style(frm, "muted"),
             justify="left",
             wraplength=320,
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 4))
@@ -2302,7 +2304,7 @@ class AppWindow(tk.Toplevel):
         ttk.Label(
             frm,
             text="Opacity: 0.05–1.0   |   Tensor scale: e.g. 1.0–6.0",
-            foreground="gray",
+            style=ui_label_style(frm, "muted"),
             justify="left",
             wraplength=320,
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 2))
@@ -2314,7 +2316,7 @@ class AppWindow(tk.Toplevel):
                 "Tensor scale is used for per_frame/global modes.\n"
                 "Absolute factor is used only for absolute mode."
             ),
-            foreground="gray",
+            style=ui_label_style(frm, "muted"),
             justify="left",
             wraplength=320,
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 4))
@@ -2343,7 +2345,7 @@ class AppWindow(tk.Toplevel):
         ttk.Separator(frm, orient="horizontal").grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 8))
         row += 1
 
-        ttk.Label(frm, text="Camera", font=("TkDefaultFont", 9, "bold")).grid(
+        ttk.Label(frm, text="Camera", font=ui_font_name(frm, "ui_bold")).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(0, 6)
         )
         row += 1
@@ -2360,7 +2362,7 @@ class AppWindow(tk.Toplevel):
         ttk.Separator(frm, orient="horizontal").grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 8))
         row += 1
 
-        ttk.Label(frm, text="PNG export", font=("TkDefaultFont", 9, "bold")).grid(
+        ttk.Label(frm, text="PNG export", font=ui_font_name(frm, "ui_bold")).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(0, 6)
         )
         row += 1
@@ -2381,7 +2383,7 @@ class AppWindow(tk.Toplevel):
         ttk.Separator(frm, orient="horizontal").grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 8))
         row += 1
 
-        ttk.Label(frm, text="GIF export", font=("TkDefaultFont", 9, "bold")).grid(
+        ttk.Label(frm, text="GIF export", font=ui_font_name(frm, "ui_bold")).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(0, 6)
         )
         row += 1
@@ -2392,7 +2394,7 @@ class AppWindow(tk.Toplevel):
                 "Creates a temperature sweep GIF using the selected temperature range.\n"
                 "Camera stays fixed; tensor shape/size changes with temperature."
             ),
-            foreground="gray",
+            style=ui_label_style(frm, "muted"),
             justify="left",
             wraplength=320,
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 2))
@@ -2413,7 +2415,7 @@ class AppWindow(tk.Toplevel):
         ttk.Label(
             frm,
             text="Leave start/end blank to use all available temperatures. Step selects every n-th temperature.",
-            foreground="gray",
+            style=ui_label_style(frm, "muted"),
             justify="left",
             wraplength=320,
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 2))
@@ -3058,7 +3060,7 @@ class AppWindow(tk.Toplevel):
         ttk.Label(
             outer,
             text=info,
-            foreground="gray",
+            style=ui_label_style(outer, "muted"),
             justify="left",
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 10))
         row += 1
