@@ -1,10 +1,11 @@
 # Tutorial: One-bond Conformer Search
 
-Use `examples/conformer_search_demo/` from the source checkout. See the
-[example README](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/conformer_search_demo)
-for files and the complete recipe. This nine-atom synthetic teaching fragment
+Use `examples/conformer_search_demo/` from the source checkout or portable release.
+This nine-atom synthetic teaching fragment
 demonstrates structural search, not chemically optimized conformers or population
 fitting. Read the [search overview](overview.md) first.
+Short paths below are relative to `examples/conformer_search_demo/`; see
+[finding the example files](../examples.md#find-and-open-the-files).
 
 ## Inputs and fixed conditions
 
@@ -15,7 +16,8 @@ and **Sync Main** preserves the same rotation in the search's ZYZ representation
 
 ## Run the search
 
-1. Open `demo.pcsp`, select **Conformer Search → Run & Options**, and choose
+1. Use **File → Open PCS Project...** to open `demo.pcsp`, select
+   **Conformer Search → Run & Options**, and choose
    **Sync Main** in the contextual Ribbon. Confirm three observations, zero
    orientation and tensor 12 / 3.
 2. In **Fixed atoms**, fix **Refs 1 and 9**, then apply the locks. Use dihedral
@@ -68,12 +70,3 @@ Then run deliberately for new inputs.
 Only the latest search set is retained. Save separate project copies or exports
 to retain multiple searches. Older files with only RMSD/Q/clash summaries lack
 the coordinates needed to reconstruct candidates.
-
-## Regenerating the synthetic inputs
-
-```shell
-python examples/conformer_search_demo/generate_demo.py --output dev_docs/search-review
-```
-
-The generator creates a separate set of synthetic teaching inputs. Use the
-workflow above to run the search and inspect its candidate results.

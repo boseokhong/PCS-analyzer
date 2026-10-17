@@ -7,14 +7,30 @@ analysis; **Validate inputs** checks it without installing a result.
 
 ## 1. Open the synthetic example
 
-Open `examples/multi_lanthanide_demo/noisy/demo.pcsp`. It contains eight synthetic
+Use **File → Open PCS Project...** to open
+`examples/multi_lanthanide_demo/noisy/demo.pcsp`. It contains eight synthetic
 probes, PCS and total paramagnetic-shift datasets for six Ln ions, supplied
 errors and a recorded result for each of the six analysis modes. Reopening
 restores them as Current. The coordinates are not a chemically optimized molecule.
+The inputs are supplied with the release; see [finding the example files](../examples.md#find-and-open-the-files).
+Short paths below are relative to `examples/multi_lanthanide_demo/`.
 
 `noiseless/demo.pcsp` verifies exact recovery. The noisy example perturbs total
 shifts with a fixed-seed 0.015 ppm Gaussian noise; recorded errors are 0.03 ppm.
 Its independently generated tensor PCS data remains noiseless.
+
+For a first pass:
+
+1. Select **Advanced Fitting → Multi-Lanthanide** and choose **Reilley separation**
+   in the contextual Ribbon's **Analysis** selector.
+2. Expand **Input data**. Keep **Temperature = 300 K**, **Normalization = No normalization**
+   and **Use supplied errors** checked, with all six Ln datasets included.
+3. Choose **Validate inputs**, then **Run Analysis**. Inspect the Result for
+   eight nuclei across Nd, Eu, Tb, Dy, Er and Yb. The total-shift observations
+   and structural G values are already in the project; do not add the neighbouring
+   `paramagnetic.csv` again, which would create duplicate Ln datasets.
+4. Continue with the sections below. For **Nuclei diagnostics**, choose H1 and H2
+   as the first two nuclei and leave the optional third nucleus empty initially.
 
 ## 2. Prepare and review input data
 
@@ -55,7 +71,7 @@ Duplicate included Ln datasets are rejected for Reilley/series analysis; choose
 one per Ln. Independent tensor fits can retain multiple datasets for the same ion.
 
 For Reilley, a compact **Coefficients** table inside **Fit conditions** shows C_D
-and S(T) for included Ln ions, with 2 px cell padding and short references.
+and S(T) for included Ln ions, with short references to the coefficient sources.
 Settings use compact, font-aware control widths; coefficients take the remaining
 width. Settings and coefficients sit side by side when space permits and stack in
 narrow windows. Cell borders distinguish headings and numeric values.
@@ -137,6 +153,8 @@ trend. See the [published Reilley application and assumptions](https://pubs.rsc.
 and [Pinkerton's spin-polarization paper](https://doi.org/10.1016/0022-2364(85)90104-0).
 Coefficient uncertainties and temperature uncertainty are not propagated; supplied
 measurement errors are treated as known for coefficient covariance calculations.
+For the distinction between original-method, coefficient and application sources,
+see [Method References](../reference/method-references.md#lanthanide-series-and-reilley-separation).
 
 ## 4. Retain independent Tensor fitting
 

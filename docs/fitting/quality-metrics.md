@@ -91,8 +91,11 @@ ID. The residual bars use fixed display thresholds:
 - orange: 0.05 < |residual| ≤ 0.15 ppm;
 - red: |residual| > 0.15 ppm.
 
-These plot thresholds are distinct from the main/Rhombicity table thresholds
-of 0.10 and 0.30 ppm.
+These fixed plot thresholds are distinct from the editable cutoffs shared by
+the main and Rhombicity tables. Those tables default to 0.10 and 0.30 ppm;
+changing their cutoffs does not change the Fitting plot. See
+[Residual Analysis](../diagnostics/residual-analysis.md#main-and-rhombicity-table-colouring)
+for table controls and persistence.
 
 ## Metrics in other workflows
 

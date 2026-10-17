@@ -2,7 +2,7 @@
 
 The experimental-data controls accept CSV and Excel tables and provide a
 preview before modifying the current assignments. δ_Exp is managed on
-**Ribbon → Data → Experimental PCS**. For observed/reference shifts, the
+**Ribbon → Data → Experimental PCS**. For observed/reference shifts,
 use assigned vendor spectra or prepared observed values in
 [NMR Workbench](../nmr/spectrum-viewer.md). **NMR Data → Import** accepts
 observed-shift CSV/TSV or pasted tables without a spectrum. Existing project

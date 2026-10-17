@@ -95,8 +95,8 @@ Search candidates can be restored from current project files.
 
 Advanced Fitting includes structure-based Multi-Conformer fitting with conditional
 reliability diagnostics, Joint PCS+RDC, PRE and Multi-Lanthanide/Reilley workflows.
-See the [worked examples](examples/README.md) and the
-[source changelog](docs/reference/changelog.md#unreleased) for inputs, limitations
+See the [worked examples](docs/examples.md) and the
+[source changelog](docs/reference/changelog.md#140) for inputs, limitations
 and changes that may not yet be in a published binary.
 
 ### Version 1.4.0 overview

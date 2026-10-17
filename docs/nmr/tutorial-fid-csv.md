@@ -6,20 +6,21 @@ structure mapping. It is not measured data or a validated model of PCS.
 
 ## Get the example files
 
-Use the repository folder `examples/nmr_workflow_demo/`:
+Use `examples/nmr_workflow_demo/` from the portable release or source archive.
+All short paths below are relative to this directory. See
+[finding the example files](../examples.md#find-and-open-the-files).
 
-- [Example directory and complete README](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/nmr_workflow_demo)
+- [Example input directory](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/nmr_workflow_demo)
 - [Paramagnetic CSV](https://github.com/boseokhong/PCS-analyzer/blob/main/examples/nmr_workflow_demo/CSV/Paramagnetic.csv)
 - [Diamagnetic CSV](https://github.com/boseokhong/PCS-analyzer/blob/main/examples/nmr_workflow_demo/CSV/Diamagnetic.csv)
 - [Toy structure](https://github.com/boseokhong/PCS-analyzer/blob/main/examples/nmr_workflow_demo/structure.xyz)
 
-For FID practice, obtain the repository source and retain the complete
+For FID practice, retain the complete
 `FID/Paramagnetic.fid/` and `FID/Diamagnetic.fid/` directories, including
-`fid`, `procpar` and `text`. For CSV-only practice, download the raw CSV files
+`fid` and `procpar`. For CSV-only practice, download the raw CSV files
 from their GitHub file pages. Do not save an HTML preview as a CSV.
 
-Open Workbench from PCS Analyzer, or run `python tools/nmr_workbench.py` from
-the repository root with the application's runtime dependencies installed.
+Open **NMR Workbench** from PCS Analyzer's **Tools** Ribbon.
 **Start each input route in a fresh Workbench.** Using both routes together
 creates separate datasets for the same teaching observations.
 
@@ -132,10 +133,7 @@ committed data and assignments. **NMR Data → Export → All observations CSV�
 exports observations/provenance, not the unassigned TMS peak or a full session.
 See [Sessions and Data Exchange](sessions.md).
 
-The committed files are ready to use. Optional regeneration with NumPy and
-nmrglue installed is `python examples/nmr_workflow_demo/generate_demo.py --overwrite`.
-This explicitly replaces the example FID/CSV/XYZ files. Existing saved sessions
-retain their embedded data; use a fresh import after regeneration.
+The supplied files are ready to import; no Python scripts are needed.
 
 For measured-spectrum processing see [Raw Data and Processing](raw-processing.md).
 For the scientific derivation and reviewed handoff see

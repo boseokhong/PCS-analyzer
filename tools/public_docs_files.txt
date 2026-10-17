@@ -9,6 +9,7 @@ docs/diagnostics/rhombicity.md
 docs/experimental-data/delta-exp.md
 docs/experimental-data/delta-obs-dia.md
 docs/experimental-data/import-export.md
+docs/examples.md
 docs/fitting/fit-history.md
 docs/fitting/full-tensor-fitting.md
 docs/fitting/joint-pcs-rdc-tutorial.md
@@ -109,13 +110,16 @@ docs/projects.md
 docs/quick-start.md
 docs/reference/changelog.md
 docs/reference/file-formats.md
+docs/reference/glossary.md
 docs/reference/limitations.md
 docs/reference/mathematical-conventions.md
+docs/reference/method-references.md
 docs/reference/units.md
 docs/structures/coordinate-system.md
 docs/structures/loading.md
 docs/structures/symmetry-averaging.md
 docs/stylesheets/extra.css
+docs/troubleshooting.md
 docs/visualization/3d-pcs-isosurface.md
 docs/visualization/3d-viewer.md
 docs/visualization/averaging-demo.md

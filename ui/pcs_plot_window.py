@@ -2,7 +2,7 @@
 
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 from ui.document_integrations import active_document_title
 
@@ -32,8 +32,9 @@ def open_pcs_plot_popup(state):
     frame = tk.Frame(win)
     frame.pack(fill=tk.BOTH, expand=True)
 
-    # Match the original main PCS plot exactly
-    fig = plt.figure(figsize=(4, 4), dpi=150)
+    # Embed directly: pyplot.figure() also creates an independent hidden Tk root
+    # whose lifetime outlasts this popup and keeps the mainloop alive on exit.
+    fig = Figure(figsize=(4, 4), dpi=150)
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 

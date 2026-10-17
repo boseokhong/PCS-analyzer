@@ -1,0 +1,5 @@
+# Documentation build/deployment only; not application runtime dependencies.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocs-glightbox==0.5.2
+mike==2.2.0

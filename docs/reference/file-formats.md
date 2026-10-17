@@ -138,8 +138,15 @@ experimental-shift preview.
 | PRE | Integer `ref_id`, `ref` or `id`; `gamma2`/`g2`, or paired `r2_para,r2_dia` | Proton Γ₂ increments in s⁻¹. `gamma2_err`/`sigma` optional; paired rate errors combine by RSS. Single `r2_para`/`r2` are legacy increment aliases with a warning. Optional `nucleus` supports H/1H only. |
 | Multi-Lanthanide | Wide `Nucleus,Ln...` matrix for total paramagnetic shifts, or single-dataset `ref_id`/`ref`/`id` with `pcs_exp` (Tensor fitting) or `delta_para` (series tools) | `Ln_err`/`error` uncertainties, `G_common`/`Ln_G_i` geometry, nucleus/Ref mapping. Legacy `delta_exp`/`d_exp`/`ppm` aliases use the selected input type. Missing cells remain missing; invalid numbers and duplicate labels are rejected. |
 
-The Advanced Fitting tab can export UTF-8-with-BOM CSV templates for RDC and
-PRE. PRE rejects malformed/duplicate observations; it does not silently skip them.
+The Advanced Fitting tab can export UTF-8-with-BOM CSV templates for RDC and PRE.
+The optional versioned `[joint_pcs_rdc]` project section retains RDC inputs,
+selected PCS observation IDs, conditions and the last recorded joint result.
+The main structure/PCS observations remain in their normal sections. Loading
+checks recorded predictions against recorded inputs without refitting or
+applying the tensor. Corrupt joint sections reject project loading; older files
+without the section use empty joint inputs and defaults.
+
+PRE rejects malformed/duplicate observations; it does not silently skip them.
 Its optional versioned `[pre_fitting]` section retains observations, fit conditions
 and a verified recorded result without rerunning. See the [PRE tutorial](../fitting/pre-tutorial.md).
 Multi-Lanthanide adds an optional versioned `[multi_lanthanide]` JSON section for typed

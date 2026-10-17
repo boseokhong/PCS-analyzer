@@ -82,13 +82,11 @@ matching ligand instances before applying grouped observations.
 ## Existing shift lists and limitations
 
 Existing PCS-project δ_obs/δ_dia layers appear as read-only shift-list datasets
-and can be paired without a measured trace. The documentation example supplies
-Nd and La observed-shift CSVs separately from the canonical Nd `.pcsp`; the
-capture recipe loads these lists transiently through the existing project-layer
-bridge. General observed-shift CSV/TSV input is available through **NMR Data →
-Import → Observed shifts CSV / TSV…**; the capture illustrates the project
-bridge, not that import dialog. See the [FID/CSV tutorial](tutorial-fid-csv.md)
-for spectrum-based and prepared-data workflows.
+and can be paired without a measured trace. To bring in your own prepared
+absolute shifts, use **NMR Data → Import → Observed shifts CSV / TSV…**.
+The Nd/La documentation example also supplies observed-shift lists separately
+from its PCS project. See the [FID/CSV tutorial](tutorial-fid-csv.md) for
+spectrum-based and prepared-data workflows.
 
 Prepared values and read-only project projections are not measured intensity
 traces. A broadened stick display does not recover experimental line shapes.

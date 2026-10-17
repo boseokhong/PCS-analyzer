@@ -173,8 +173,10 @@ def configure_ribbon_styles(widget) -> None:
     # Primary commands no longer render as persistent blue tiles. Their larger
     # icon/geometry establishes hierarchy; the surface appears only on hover.
     button_style(
-        "Ribbon.Primary.TButton", page_bg, small_font, (4, 1),
-        anchor="center", justify="center", wraplength=primary_text_wrap,
+        "Ribbon.Primary.TButton", page_bg, small_font, (4, round(4 * scale), 4, 1),
+        # Anchor the native icon/text block to a common top inset. Wrapping
+        # consumes the existing space below, without shifting the icon upward.
+        anchor="n", justify="center", wraplength=primary_text_wrap,
     )
     style.map(
         "Ribbon.Primary.TButton",

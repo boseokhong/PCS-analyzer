@@ -287,3 +287,6 @@ $$
     \(\mathrm{cm^3}\rightarrow\mathrm{m^3}\) factor.
 
 See [PCS Theory](theory.md) for the corresponding PCS equations.
+
+For scientific background and the distinction between general methods and the
+implemented workflows, see [Method References](../reference/method-references.md).

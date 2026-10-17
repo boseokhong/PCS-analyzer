@@ -26,8 +26,6 @@ plugins/
 build/
 dist/
 *.spec
-# Keep the maintained portable release recipe; generated/older specs stay local.
-!PCS_Analyzer_Portable_v1.4.0.spec
 *.exe
 *.dll
 *.pyd
@@ -92,13 +90,8 @@ desktop.ini
 
 # JSON files
 *.json
-# Required public scientific presets and dependency-policy records.
+# Required public scientific presets.
 !nmr_workbench/resources/reference_presets.json
-!licenses/structure_graph_dependency_policy.json
-# Distributable Multi-Conformer demo inputs and finite validation summary
-!examples/multi_conformer_demo/informative/inputs.json
-!examples/multi_conformer_demo/ambiguous/inputs.json
-!examples/multi_conformer_demo/validation_summary.json
 
 # Local AI / agent instructions
 **/AGENTS.md
@@ -121,3 +114,113 @@ id_ed25519
 
 # Local documentation / implementation notes
 **/KNOWN_IMPLEMENTATION_ISSUES.md
+
+# Publish only release license texts and source/replacement information.
+# Provenance checks and dependency-policy records remain local.
+/licenses/*
+!/licenses/GPL-3.0.txt
+!/licenses/LGPL-3.0.txt
+!/licenses/SOURCE_AND_REPLACEMENT.txt
+
+# Public example inputs only; keep local generators, notes and reports on disk.
+/examples/**
+!/examples/**/
+# Keep synchronized with tools/public_examples_files.txt.
+!/examples/averaging_visualization_demo/groups.xyz
+!/examples/conformer_search_demo/demo.pcsp
+!/examples/conformer_search_demo/pcs.csv
+!/examples/conformer_search_demo/start.xyz
+!/examples/conformer_search_demo/truth.xyz
+!/examples/documentation_demo/Nd_iPr2BA3_demo/La_iPr2BA3_observed_shifts.csv
+!/examples/documentation_demo/Nd_iPr2BA3_demo/Nd_iPr2BA3.xyz
+!/examples/documentation_demo/Nd_iPr2BA3_demo/Nd_iPr2BA3_axial.pcsp
+!/examples/documentation_demo/Nd_iPr2BA3_demo/Nd_iPr2BA3_observed_shifts.csv
+!/examples/documentation_demo/Nd_iPr2BA3_demo/Nd_iPr2BA3_paramagnetic_shifts.csv
+!/examples/documentation_demo/Yb_iPr2BA3_demo/PROTON_01.fid/fid
+!/examples/documentation_demo/Yb_iPr2BA3_demo/PROTON_01.fid/procpar
+!/examples/joint_pcs_rdc_demo/ambiguous/demo.pcsp
+!/examples/joint_pcs_rdc_demo/ambiguous/pcs.csv
+!/examples/joint_pcs_rdc_demo/ambiguous/rdc.csv
+!/examples/joint_pcs_rdc_demo/ambiguous/structure.xyz
+!/examples/joint_pcs_rdc_demo/invalid-rdc.csv
+!/examples/joint_pcs_rdc_demo/noiseless/demo.pcsp
+!/examples/joint_pcs_rdc_demo/noiseless/pcs.csv
+!/examples/joint_pcs_rdc_demo/noiseless/rdc.csv
+!/examples/joint_pcs_rdc_demo/noiseless/structure.xyz
+!/examples/joint_pcs_rdc_demo/noisy/demo.pcsp
+!/examples/joint_pcs_rdc_demo/noisy/pcs.csv
+!/examples/joint_pcs_rdc_demo/noisy/rdc.csv
+!/examples/joint_pcs_rdc_demo/noisy/structure.xyz
+!/examples/multi_conformer_demo/ambiguous/conformer_01.xyz
+!/examples/multi_conformer_demo/ambiguous/conformer_02.xyz
+!/examples/multi_conformer_demo/ambiguous/conformer_03.xyz
+!/examples/multi_conformer_demo/ambiguous/demo.pcsp
+!/examples/multi_conformer_demo/ambiguous/pcs.csv
+!/examples/multi_conformer_demo/informative/conformer_01.xyz
+!/examples/multi_conformer_demo/informative/conformer_02.xyz
+!/examples/multi_conformer_demo/informative/conformer_03.xyz
+!/examples/multi_conformer_demo/informative/demo.pcsp
+!/examples/multi_conformer_demo/informative/pcs.csv
+!/examples/multi_lanthanide_demo/invalid.csv
+!/examples/multi_lanthanide_demo/noiseless/demo.pcsp
+!/examples/multi_lanthanide_demo/noiseless/paramagnetic.csv
+!/examples/multi_lanthanide_demo/noisy/demo.pcsp
+!/examples/multi_lanthanide_demo/noisy/paramagnetic.csv
+!/examples/nmr_pcs_fitting_demo/contact_corrected/diamagnetic.csv
+!/examples/nmr_pcs_fitting_demo/contact_corrected/mapping_and_truth.csv
+!/examples/nmr_pcs_fitting_demo/contact_corrected/paramagnetic.csv
+!/examples/nmr_pcs_fitting_demo/contact_corrected/prepared.pcsp
+!/examples/nmr_pcs_fitting_demo/contact_corrected/start.pcsp
+!/examples/nmr_pcs_fitting_demo/contact_corrected/structure.xyz
+!/examples/nmr_pcs_fitting_demo/direct/diamagnetic.csv
+!/examples/nmr_pcs_fitting_demo/direct/mapping_and_truth.csv
+!/examples/nmr_pcs_fitting_demo/direct/paramagnetic.csv
+!/examples/nmr_pcs_fitting_demo/direct/prepared.pcsp
+!/examples/nmr_pcs_fitting_demo/direct/start.pcsp
+!/examples/nmr_pcs_fitting_demo/direct/structure.xyz
+!/examples/nmr_vt_demo/CSV/Expected_shifts.csv
+!/examples/nmr_vt_demo/FID/Paramagnetic/01_Paramagnetic_298K.fid/fid
+!/examples/nmr_vt_demo/FID/Paramagnetic/01_Paramagnetic_298K.fid/procpar
+!/examples/nmr_vt_demo/FID/Paramagnetic/02_Paramagnetic_278K.fid/fid
+!/examples/nmr_vt_demo/FID/Paramagnetic/02_Paramagnetic_278K.fid/procpar
+!/examples/nmr_vt_demo/FID/Paramagnetic/03_Paramagnetic_318K.fid/fid
+!/examples/nmr_vt_demo/FID/Paramagnetic/03_Paramagnetic_318K.fid/procpar
+!/examples/nmr_vt_demo/FID/Paramagnetic/04_Paramagnetic_288K.fid/fid
+!/examples/nmr_vt_demo/FID/Paramagnetic/04_Paramagnetic_288K.fid/procpar
+!/examples/nmr_vt_demo/FID/Paramagnetic/05_Paramagnetic_308K.fid/fid
+!/examples/nmr_vt_demo/FID/Paramagnetic/05_Paramagnetic_308K.fid/procpar
+!/examples/nmr_vt_demo/FID/Reference/Diamagnetic_298K.fid/fid
+!/examples/nmr_vt_demo/FID/Reference/Diamagnetic_298K.fid/procpar
+!/examples/nmr_vt_demo/structure.xyz
+!/examples/nmr_workflow_demo/CSV/Diamagnetic.csv
+!/examples/nmr_workflow_demo/CSV/Paramagnetic.csv
+!/examples/nmr_workflow_demo/FID/Diamagnetic.fid/fid
+!/examples/nmr_workflow_demo/FID/Diamagnetic.fid/procpar
+!/examples/nmr_workflow_demo/FID/Paramagnetic.fid/fid
+!/examples/nmr_workflow_demo/FID/Paramagnetic.fid/procpar
+!/examples/nmr_workflow_demo/structure.xyz
+!/examples/pre_demo/boundary/demo.pcsp
+!/examples/pre_demo/boundary/pre.csv
+!/examples/pre_demo/boundary/structure.xyz
+!/examples/pre_demo/invalid-pre.csv
+!/examples/pre_demo/noiseless/demo.pcsp
+!/examples/pre_demo/noiseless/pre.csv
+!/examples/pre_demo/noiseless/structure.xyz
+!/examples/pre_demo/noisy/demo.pcsp
+!/examples/pre_demo/noisy/pre.csv
+!/examples/pre_demo/noisy/structure.xyz
+!/examples/standard_fitting_demo/axial/demo.pcsp
+!/examples/standard_fitting_demo/axial/pcs.csv
+!/examples/standard_fitting_demo/axial/structure.xyz
+!/examples/standard_fitting_demo/mode_a/demo.pcsp
+!/examples/standard_fitting_demo/mode_a/pcs.csv
+!/examples/standard_fitting_demo/mode_a/structure.xyz
+!/examples/standard_fitting_demo/mode_b/demo.pcsp
+!/examples/standard_fitting_demo/mode_b/pcs.csv
+!/examples/standard_fitting_demo/mode_b/structure.xyz
+!/examples/standard_fitting_demo/mode_c/demo.pcsp
+!/examples/standard_fitting_demo/mode_c/pcs.csv
+!/examples/standard_fitting_demo/mode_c/structure.xyz
+!/examples/standard_fitting_demo/rhombic/demo.pcsp
+!/examples/standard_fitting_demo/rhombic/pcs.csv
+!/examples/standard_fitting_demo/rhombic/structure.xyz

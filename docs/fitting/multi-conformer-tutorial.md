@@ -17,15 +17,16 @@ different workflow; this tutorial does not optimize orientation or metal positio
 
 ## 1. Get the demo projects
 
-Use `examples/multi_conformer_demo/` from the source checkout containing this feature:
+Use `examples/multi_conformer_demo/` from the source checkout or portable release:
+short paths below are relative to this directory. See [finding the example files](../examples.md#find-and-open-the-files).
 
 | Project | Purpose |
 | --- | --- |
 | `informative/demo.pcsp` | Recover tensor magnitudes and two fitted populations from different PCS signatures. |
 | `ambiguous/demo.pcsp` | See why a good PCS fit does not determine populations of identical conformers separately. |
 
-Each scenario also contains three XYZ files, `pcs.csv`, and `inputs.json` with the
-generation seeds and known truth. The project embeds the structures, explicit Ref
+Each scenario also contains three XYZ files and `pcs.csv` for inspecting the inputs.
+The project embeds the structures, explicit Ref
 mapping, fit options and structured PCS observations including uncertainties.
 **No CSV reimport or manual mapping is needed for these prepared projects.**
 
@@ -190,8 +191,7 @@ not receive a zero-width estimated interval.
 
 In this particular noise realization, C1's known truth 0.25 is outside its displayed
 interval. A nominal 95% interval need not cover the truth in every realization;
-one plot cannot establish coverage. The example's coverage runner assesses repeated
-noise realizations, and its small joint pilot is not a general calibration guarantee.
+one plot cannot establish coverage or calibrate intervals for other datasets.
 
 Important report states:
 
@@ -217,8 +217,10 @@ the same settings. The fixture intentionally gives C1 and C2 identical PCS signa
 ![Ambiguous conformers with individual intervals withheld and combined population reported](../images/multi-conformer-ambiguous.png)
 
 The fit still predicts PCS well; the held-out RMSD is approximately **0.03772 ppm**.
-However, the displayed individual weights, about 0.0239 and 0.7761, are one solver
-choice among indistinguishable splits. They do not recover the true 0.25/0.55 split.
+The individual weights are not determined uniquely: a run can retain the initial
+0.40/0.40 split or return another pair summing to 0.80. The screenshot's
+0.0239/0.7761 is one such solver choice, not a numerical checkpoint to reproduce.
+None of these splits establishes recovery of the true 0.25/0.55 populations.
 
 The report withholds individual parameter intervals when the joint diagnostics are
 rank deficient or ambiguous. It suggests **C1, C2: combined population 0.8000** with
@@ -244,20 +246,6 @@ Multi-Conformer results are separate from standard Fit History. See
 [Projects and Persistence](../projects.md#what-the-current-project-restores) and
 [Quality Metrics](quality-metrics.md) for the corresponding storage and metric scope.
 
-## Reproduce outside the desktop UI
-
-From the source checkout with the application's Python environment:
-
-```bash
-python examples/multi_conformer_demo/run_demo.py --scenario informative --replicates 100 --output informative_result.json
-python examples/multi_conformer_demo/run_demo.py --scenario ambiguous --replicates 100 --output ambiguous_result.json
-```
-
-The example's English `README.md` explains file generation and case resampling.
-`validation_summary.json` records finite synthetic development
-runs; it is not a guarantee of experimental coverage. Frozen-build verification and
-real experimental acceptance remain separate from this source demonstration.
-
-Screenshots use the current source UI with the standard Light theme and validated
-100-refit synthetic results. List/report splitter positions and report scroll offset
-were adjusted in a disposable session for legibility; the plotted data were not edited.
+The screenshots show the Light theme and 100-refit results described above.
+For statistical background and the limits of these estimates, see
+[Method References](../reference/method-references.md#reliability-evaluation).

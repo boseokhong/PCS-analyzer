@@ -217,9 +217,8 @@ nor changes the original fit. JSON exports/projects retain its assumptions and r
 Evaluation uses recorded uncertainties; after editing σ, refit before evaluating
 again, including when an unweighted fit's objective still remains Current.
 
-The repository's `examples/multi_conformer_demo/README.md` documents a ready-to-open
-informative project and an ambiguous-conformer project, a command-line runner, and
-finite synthetic coverage checks. The coordinates are synthetic labelled probes,
+The [Multi-Conformer tutorial](multi-conformer-tutorial.md) provides ready-to-open
+informative and ambiguous-conformer projects. Their coordinates are synthetic labelled probes,
 not a chemically optimized molecule or experimental validation.
 
 The report uses recorded conditions even after live inputs change. **Apply** is
@@ -276,7 +275,7 @@ RDC prediction uses molecular susceptibility in E-32 m³ with
 \(A=B_0^2\Delta\chi/(15\mu_0 k_B T)\), without a molar Avogadro conversion.
 This corrects an earlier RDC scale error; previously obtained joint-fit results
 should be recomputed. The existing signed RDC convention is retained.
-The numerical example in `examples/joint_pcs_rdc_demo/README.md` checks known
+The numerical example in the [Joint PCS+RDC tutorial](joint-pcs-rdc-tutorial.md) checks known
 parameter recovery against independent Cartesian equations. Its coordinates
 are synthetic probes, not an experimentally validated molecular model.
 

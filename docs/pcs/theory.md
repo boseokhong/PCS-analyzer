@@ -137,3 +137,11 @@ per molecule, while structural coordinates are given in Å.
 The factor \(10^4\) in the program-level PCS equations accounts for these input units and returns the calculated shift in ppm.
 
 For detailed tensor definitions and reconstruction rules, see [Tensor Conventions](tensor-conventions.md).
+
+## Scientific background
+
+For the point-dipole expression and its distributed-density extension, see
+[A partial differential equation for pseudocontact shift](https://doi.org/10.1039/C4CP03106G).
+The [method references](../reference/method-references.md) provide related
+literature and reporting guidance. Use this manual's explicit unit and tensor
+definitions when exchanging numerical values.

@@ -1,11 +1,21 @@
 # Tutorial: Observed shifts to PCS fitting
 
 Use `examples/nmr_pcs_fitting_demo/` for a CSV-only exercise linking NMR Workbench
-to the main PCS fitting workflow. The
-[example README](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/nmr_pcs_fitting_demo)
-contains complete mappings and commands. Unlike the simulated FID/VT teaching
+to the main PCS fitting workflow. The supplied CSV files contain the mappings
+and known values described below. Unlike the simulated FID/VT teaching
 examples, these shifts are generated from a known tensor with explicit contact
 assumptions. They remain synthetic probes, not measured assignments.
+
+Use the files supplied with the application; see [finding the examples](../examples.md#find-and-open-the-files).
+Paths below are relative to `examples/nmr_pcs_fitting_demo/`. Import both shift
+CSVs from the same scenario as the open `start.pcsp`.
+
+| File in each scenario | Use |
+| --- | --- |
+| `start.pcsp` | Open first; structure ready for the NMR-to-PCS exercise. |
+| `paramagnetic.csv`, `diamagnetic.csv` | Import into the fresh NMR Workbench. |
+| `mapping_and_truth.csv` | Read the supplied Ref mapping and contact corrections; do not import it as a third shift dataset. |
+| `prepared.pcsp` | Open separately to start at the completed PCS-transfer checkpoint. |
 
 ## Generating assumptions
 
@@ -22,7 +32,8 @@ PCS. No uncertainty or random noise is supplied; use unweighted fitting.
 
 ## Import, derive and transfer
 
-1. Open `direct/start.pcsp`, then a fresh integrated **NMR Workbench** session.
+1. Choose **File → Open PCS Project...**, open `direct/start.pcsp`, then launch a
+   fresh **NMR Workbench** from the **Tools** Ribbon.
 2. Import `paramagnetic.csv` and `diamagnetic.csv` through NMR Data Preview/Apply.
    Check roles, 1H, 300 K and twelve records per dataset.
 3. Pair the datasets in **Shift Analysis**. Review twelve matched assignments
@@ -52,8 +63,8 @@ and historical transfer receipts remain intact. See
 
 ## Checkpoints and reproducibility
 
-Each `prepared.pcsp` is an expected transfer checkpoint, produced using the actual
-import/pair/provider/handoff APIs. It includes PCS provenance/targets, but no NMR
+Each `prepared.pcsp` contains the expected data after PCS transfer.
+It includes PCS provenance/targets, but no NMR
 session or fitted result. Use it to practice fitting separately. Save your practice
 `.nmrsession` and `.pcsp` independently; reopening a PCS file does not reconstruct
 the underlying NMR datasets.
@@ -63,7 +74,3 @@ the underlying NMR datasets.
 Actual Mode B fit of `contact_corrected/prepared.pcsp`: twelve observations,
 unweighted residuals and recovered 12 / 3 tensor. This is the transferred PCS
 checkpoint, not a screenshot of the observed-shift import dialog.
-
-```shell
-python examples/nmr_pcs_fitting_demo/generate_demo.py --output dev_docs/nmr-pcs-review
-```

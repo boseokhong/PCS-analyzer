@@ -68,5 +68,5 @@ Enable/disable or Refresh is not a substitute for a clean restart. See
 - For catalog distribution, provide the release ZIP, its SHA-256 and matching
   metadata. A developer release alone does not change the catalog.
 
-The [distribution design notes](../plugin_distribution_guide_v0_1.md) distinguish
-current catalog capabilities from future integrated API and governance proposals.
+The [distribution notes](../plugin_distribution_guide_v0_1.md) describe repository
+responsibilities and the limits of the current interface.

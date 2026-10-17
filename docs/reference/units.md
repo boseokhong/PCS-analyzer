@@ -18,12 +18,13 @@ exports. Scientific definitions remain on the canonical theory pages.
 | Rhombicity Table `theta(deg)`, `phi(deg)` | degrees | Units are explicit in the column headings |
 | Δχ_ax and Δχ_rh inputs | \(10^{-32}\,\mathrm{m^3}\) per molecule | A displayed value of 1 means \(1\times10^{-32}\,\mathrm{m^3}\) |
 | Reconstructed molar susceptibility | \(\mathrm{m^3\,mol^{-1}}\) | Uses the tensor convention and Avogadro conversion described below |
-| NMR spectrum position and FWHM | ppm | The spectrum viewer broadening controls are display quantities |
+| NMR spectrum position and stick-display FWHM | ppm | Stick broadening changes the display, not measured line shapes |
+| NMR FID exponential/Gaussian apodization | Hz | Processing broadening parameters; separate from stick-display width |
 | RDC | Hz | Joint PCS+RDC input and prediction |
 | PRE Gamma2/R2_para | s⁻¹ | PRE input, prediction, and RMSD |
 | Magnetic field | T | Advanced RDC/PRE controls |
-| Temperature | K | Advanced RDC and PCS Workbench tensor selection |
-| PRE correlation time | seconds internally; ns in the report | Current fitted range is \(10^{-12}\) to \(10^{-6}\) s |
+| Temperature | K | RDC, Multi-Lanthanide, VT NMR and PCS Workbench inputs |
+| PRE correlation time | seconds internally; ns in controls/report | Default bounds are 0.001–1000 ns (\(10^{-12}\)–\(10^{-6}\) s); user bounds are configurable |
 | PCS Workbench ORCA tensor | cm³·K·mol⁻¹ on input; Å³ per molecule after conversion | The selected temperature enters the conversion; the Workbench then removes the isotropic trace |
 | PCS Workbench `.3d` origin and spacing | Å as interpreted by the current reader | No length-unit conversion is applied to these grid fields |
 

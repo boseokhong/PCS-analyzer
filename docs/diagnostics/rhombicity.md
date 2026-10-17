@@ -68,15 +68,13 @@ Both residual columns use δ_Exp minus calculated PCS. With rhombicity enabled,
 changing **Rotate around Z-axis (°)** changes φ and the rhombic prediction
 without changing the axial factor. The slider and entry cover −180° to +180°.
 
-The Δχ_rh input and its Enable checkbox are grouped together. Thin separators
-distinguish the tensor, Z-rotation and residual sections; controls share a
-vertical centre and wrap in narrow windows. Residual colours use absolute values with
+Residual colours use absolute values with
 editable cutoffs shared with the main table. Defaults are green through 0.10 ppm,
 orange through 0.30 ppm, and red above 0.30 ppm. See
 [Residual Analysis](residual-analysis.md) for how these thresholds differ
 from the Fitting plot.
 
-![Grouped and aligned Rhombicity Table controls](../images/rhombicity-table-controls.png)
+![Rhombicity Table tensor, rotation and residual controls](../images/rhombicity-table-controls.png)
 
 ## Axial versus rhombic comparison
 

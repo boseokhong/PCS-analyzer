@@ -1,0 +1,59 @@
+Third-party libraries and source information
+===========================================
+
+PCS Analyzer's own source is distributed under BSD 3-Clause. Third-party
+libraries and programs retain their own licenses. THIRD_PARTY_NOTICES.txt lists
+the Python distributions selected by the build and paths to their copied
+notices. Component license texts do not change the license of PCS Analyzer's
+own code and do not grant rights to unrelated components.
+
+This portable distribution uses separate shared libraries under lib/. There is
+no integrity check in the build recipe that prevents replacing a third-party
+library with an interface-compatible modified version. Keep a backup of the
+installation before replacing files; matching architecture, Python ABI and
+dependent-library versions are required. Close PCS Analyzer and its child
+viewers before replacing libraries. Preserve the library layout and names.
+
+The application source is available at:
+https://github.com/boseokhong/PCS-analyzer
+
+Qt/PySide6 and Shiboken
+----------------------
+Applicable notices and LGPL/GPL texts are included in this directory. Consult
+the generated inventory for the build's PySide6 distribution versions; native
+Qt component versions must also be checked against the shipped binaries.
+
+Upstream Qt source archives:
+https://download.qt.io/archive/qt/
+Upstream PySide6/Shiboken source archives:
+https://download.qt.io/official_releases/QtForPython/pyside6/
+Qt third-party component information:
+https://doc.qt.io/qt-6/licenses-used-in-qt.html
+Qt for Python license information:
+https://doc.qt.io/qtforpython-6/licenses.html
+
+These upstream locations identify source resources. They are not a written
+offer of corresponding source from the distributor, and do not establish that
+the exact source, patches and build information for every shipped binary have
+been supplied. The release distributor must complete that check for the actual
+release. Replacing Qt/PySide6 must preserve the compatible shared-library and
+Python binding interfaces.
+
+FFTW and FFmpeg
+---------------
+If included, FFTW libraries have licensing separate from the pyFFTW wrapper,
+and the FFmpeg executable has licensing separate from imageio-ffmpeg. Consult
+their actual build configuration, license texts and corresponding-source
+requirements; wrapper metadata alone is insufficient.
+
+FFTW: https://www.fftw.org/
+pyFFTW: https://github.com/pyFFTW/pyFFTW
+FFmpeg: https://ffmpeg.org/
+imageio-ffmpeg: https://github.com/imageio/imageio-ffmpeg
+
+Other native/vendor components
+------------------------------
+Python, Tcl/Tk, VTK, BLAS/LAPACK, compiler runtimes, codecs and fonts may include
+additional components and terms. Retained package notices describe many of
+these. The generated Python distribution inventory is not an exhaustive native
+software bill of materials or a certificate of redistribution compliance.

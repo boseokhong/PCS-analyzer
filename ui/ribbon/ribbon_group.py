@@ -47,7 +47,8 @@ class RibbonGroup(ttk.Frame):
         kwargs.setdefault("style", "Ribbon.Group.TFrame")
         self._default_padding = "padding" not in kwargs
         scale = tk_scale_factor(master)
-        kwargs.setdefault("padding", (round(10 * scale), 0, round(10 * scale), 0))
+        # Insets belong to command/caption content, not outside the divider.
+        kwargs.setdefault("padding", 0)
         super().__init__(master, **kwargs)
 
         normalized_layout = str(layout or "auto").strip().lower()
@@ -63,7 +64,7 @@ class RibbonGroup(ttk.Frame):
             self.separator = ttk.Separator(
                 self, orient="vertical", style="Ribbon.Separator.TSeparator"
             )
-            self.separator.pack(side="right", fill="y", padx=(3, 0),
+            self.separator.pack(side="right", fill="y", padx=0,
                                 pady=(round(12 * scale), round(24 * scale)))
         else:
             self.separator = None
@@ -71,7 +72,8 @@ class RibbonGroup(ttk.Frame):
         self.content = ttk.Frame(self, style="Ribbon.Group.TFrame")
 
         self.caption_band = ttk.Frame(self, style="Ribbon.Group.TFrame")
-        self.caption_band.pack(side="bottom", fill="x")
+        inset = round(10 * scale) if self._default_padding else 0
+        self.caption_band.pack(side="bottom", fill="x", padx=inset)
         self.caption_separator = None
 
         self.caption_var = tk.StringVar(master=self, value=str(caption))
@@ -82,7 +84,7 @@ class RibbonGroup(ttk.Frame):
             style="Ribbon.GroupCaption.TLabel",
         )
         self.caption_label.pack(fill="x")
-        self.content.pack(side="top", fill="both", expand=True, padx=(0, 1), pady=0)
+        self.content.pack(side="top", fill="both", expand=True, padx=inset, pady=0)
         self.buttons: list[ttk.Widget] = []
         self._configured_columns = 0
 
@@ -90,7 +92,9 @@ class RibbonGroup(ttk.Frame):
         """Rescale only presentation spacing; retain widgets and command layout."""
         scale = tk_scale_factor(self.winfo_toplevel())
         if self._default_padding:
-            self.configure(padding=(round(10 * scale), 0, round(10 * scale), 0))
+            inset = round(10 * scale)
+            self.content.pack_configure(padx=inset)
+            self.caption_band.pack_configure(padx=inset)
         if self.separator is not None:
             self.separator.pack_configure(pady=(round(12 * scale), round(24 * scale)))
 
@@ -164,7 +168,7 @@ class RibbonGroup(ttk.Frame):
                     column=column,
                     rowspan=self.COMPACT_ROWS,
                     sticky="nsew",
-                    padx=(1, 2),
+                    padx=1,
                     pady=(0, 1),
                 )
                 column += 1

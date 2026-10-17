@@ -104,4 +104,4 @@ A future integrated Plugin API is intended to sit on stable application services
 or schema stability. Manifest application-version checks are implemented,
 but they are separate from API compatibility guarantees.
 
-See [Creating Plugins](creating-plugins.md) for the current entry pattern and the [distribution design notes](../plugin_distribution_guide_v0_1.md) for future integrated API proposals.
+See [Creating Plugins](creating-plugins.md) for the current entry pattern and the [distribution design notes](../plugin_distribution_guide_v0_1.md) for distribution responsibilities and current interface limits.

@@ -4,6 +4,8 @@ The existing `examples/documentation_demo/Nd_iPr2BA3_demo/Nd_iPr2BA3_axial.pcsp`
 is suitable for molecular display and averaging practice. Keep its original
 experimental assignment caveats: disabling averaging does not turn a group
 observation into independent measurements of all member atoms.
+Use **File → Open PCS Project...** for that project; see
+[finding the examples](../examples.md#find-and-open-the-files) for its location.
 
 ## Compare views using the Nd project
 
@@ -25,8 +27,10 @@ figures separately from the canonical input project.
 `examples/averaging_visualization_demo/groups.xyz` supplies synthetic disconnected
 fragments with three methyl groups, one CF₃ group and one tBu centre. These are
 topology/detection examples, not optimized chemistry or experimental PCS data.
-See the [example README](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/averaging_visualization_demo)
-for Ref membership and interpretation limits. Load the fixture in a fresh document
+Ref 2 is the tBu centre, Refs 4–6 are its methyl carbons, and Ref 17 is the
+CF₃ carbon. Nd at Ref 1 is a display reference, not a validated coordination site.
+Click **+** in the document tab strip, then use **File → Load XYZ...** to load
+`groups.xyz` in that new document
 to inspect grouping controls; do not assign it the Nd example's experimental data.
 
 Raw Ref IDs and generated pseudo-atom indices are distinct. Group detection

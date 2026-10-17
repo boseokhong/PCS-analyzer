@@ -1,30 +1,13 @@
 # PCS Analyzer
 
-!!! info "Documentation status"
-    The core structure of this manual is now in place. Further revisions and
-    step-by-step tutorials are in progress. Some topics remain incomplete;
-    review the limitations documented for each workflow.
+**PCS Analyzer** is a desktop application for the analysis, fitting and
+visualization of **pseudocontact shifts (PCS)** in paramagnetic molecular systems.
+It connects molecular structures with experimental NMR data to calculate PCS,
+fit magnetic susceptibility tensors and examine agreement with the chosen model.
 
-**PCS Analyzer** is a Python-based application for the analysis, fitting, and visualization of **pseudocontact shifts (PCS)** in paramagnetic molecular systems.
-
-It provides an integrated workflow that connects molecular structure, magnetic susceptibility anisotropy, and experimental NMR shift data.
-
-<div class="grid cards" markdown>
-
--   :material-molecule:{ .lg .middle } **Structure-based analysis**
-
-    Load molecular geometries and evaluate PCS in a defined molecular or tensor coordinate frame.
-
--   :material-chart-scatter-plot:{ .lg .middle } **PCS fitting and diagnostics**
-
-    Compare experimental and calculated shifts, optimize tensor parameters, and inspect fitting residuals.
-
--   :material-axis-arrow:{ .lg .middle } **Scientific visualization**
-
-    Explore PCS distributions using polar, Cartesian, projection, and three-dimensional representations.
-
-</div>
-
+[Quick Start](quick-start.md){ .md-button .md-button--primary }
+[Installation](installation.md){ .md-button }
+[Examples](examples.md){ .md-button }
 
 ## Main interface
 
@@ -32,40 +15,53 @@ It provides an integrated workflow that connects molecular structure, magnetic s
   <a href="images/main-workspace.png" class="glightbox" data-gallery="main-workspace">
     <img src="images/main-workspace.png" alt="PCS Analyzer workspace with Ribbon, document tabs, data table, analysis area, and Control Panel">
   </a>
-  <figcaption>PCS Analyzer main workspace.</figcaption>
+  <figcaption>Structure and PCS data, analysis results and calculation controls in the main workspace.</figcaption>
 </figure>
 
-The main workspace combines a **Ribbon**, **document tabs**, a molecular
-and PCS data table, analysis tabs, and a sectioned **Control Panel**. Use
-**Home** for project actions, **Data** for experimental PCS and viewers, and
-**Tools** for workbenches and modules. A contextual Ribbon page provides
-commands for the selected analysis.
+See [Interface Overview](interface.md) for the layout and
+[Projects and Persistence](projects.md) for saving an analysis or reopening projects.
 
-Each document holds a separate PCS analysis; the table and Control Panel
-show the active document. See [Interface Overview](interface.md) for the
-layout and [Projects and Persistence](projects.md) for saving projects and
-workspace references.
+## Analysis capabilities
 
+<div class="grid cards" markdown>
 
-## Typical workflow
+-   :material-molecule:{ .lg .middle } **Structure-based analysis**
 
-A PCS analysis generally follows four steps:
+    Load molecular geometries, assign the paramagnetic centre and calculate PCS
+    with axial or rhombic tensor components. Account for symmetry and torsional
+    averaging when the experimental assignments require it.
 
-1. **Load a molecular structure**  
-   Import a molecular geometry from an XYZ file or supported ORCA output.
+    [Structures](structures/loading.md) · [Averaging](structures/symmetry-averaging.md)
 
-2. **Define the magnetic susceptibility tensor**  
-   Specify the axial susceptibility anisotropy and, when required, the rhombic component and tensor orientation.
+-   :material-chart-scatter-plot:{ .lg .middle } **PCS fitting and diagnostics**
 
-3. **Add experimental NMR data**  
-   Assign experimental PCS values to the corresponding nuclei. Observed and diamagnetic chemical-shift layers are managed separately.
+    Fit tensor parameters and orientation, inspect residuals and compare
+    conformer populations or complementary observables under their stated models.
 
-4. **Analyze, fit, and visualize**  
-   Compare calculated and experimental shifts, perform fitting or diagnostic analysis, and inspect the resulting PCS distribution.
+    [Fitting](fitting/overview.md) · [Residuals](diagnostics/residual-analysis.md)
 
-[Quick Start](quick-start.md){ .md-button .md-button--primary }
-[Installation](installation.md){ .md-button }
+-   :material-axis-arrow:{ .lg .middle } **Scientific visualization**
 
+    Inspect molecular geometry and PCS fields through polar plots, projections
+    and 3D views, and export figures for further analysis or presentation.
+
+    [2D PCS](visualization/polar-plot.md) · [3D structure](visualization/3d-viewer.md)
+
+</div>
+
+## Start with your data
+
+Choose a starting point based on the data you already have.
+
+| Your data | Start here |
+| --- | --- |
+| Molecular structure and experimental PCS | [Quick Start](quick-start.md): load, assign, analyze and save |
+| Paramagnetic and diamagnetic chemical shifts | [Observed and Diamagnetic Shifts](experimental-data/delta-obs-dia.md) |
+| Raw NMR FIDs | [NMR Workbench](nmr/spectrum-viewer.md) |
+
+The [examples guide](examples.md) offers optional practice with starting files
+and expected results. It includes standard fitting, Multi-Conformer, Joint
+PCS+RDC, PRE, Multi-Lanthanide, Conformer Search and NMR exercises.
 
 ## Visualization
 
@@ -131,137 +127,35 @@ A PCS analysis generally follows four steps:
 
     Process raw 1D NMR data, reference spectra, pick and assign peaks, and prepare chemical-shift observables for PCS analysis.
 
-    `NMR Workbench` incorporates the `NMR Shift Viewer` functionality available through v1.3.4.
-
     [Learn more](nmr/spectrum-viewer.md)
 
 </div>
 
-## Analysis capabilities
-
-PCS Analyzer includes tools for:
-
-- molecular structure import and coordinate handling
-- axial and rhombic PCS calculations
-- magnetic susceptibility tensor analysis
-- comparison of calculated and experimental shifts
-- tensor and orientation fitting
-- residual and rhombicity diagnostics
-- 2D and 3D PCS visualization
-- NMR-oriented analysis tools
-- conformational analysis and PCS-guided conformer search
-
-For worked fitting examples, start with [Standard fitting and rhombicity](fitting/standard-fitting-tutorial.md),
-then see [Multi-Conformer and reliability](fitting/multi-conformer-tutorial.md),
-[Joint PCS+RDC](fitting/joint-pcs-rdc-tutorial.md), [PRE](fitting/pre-tutorial.md),
-and [Multi-Lanthanide/Reilley](fitting/multi-lanthanide-tutorial.md).
-Review [Current Limitations](reference/limitations.md) when choosing a workflow.
-
-[Conformer Search](conformer-search/tutorial.md), [NMR to PCS fitting](nmr/tutorial-pcs-fitting.md)
-and [averaging/visualization practice](visualization/averaging-demo.md) have separate
-worked examples. The [repository examples index](https://github.com/boseokhong/PCS-analyzer/tree/main/examples)
-identifies starting files, synthetic versus measured data and related tutorials.
-
-
 ## PCS model
 
-PCS Analyzer is primarily designed for approximately rotational molecular geometries, where the magnetic susceptibility tensor can often be treated as effectively axial.
+PCS Analyzer uses a point-dipole PCS model with an axial default and an optional
+rhombic contribution. Structure, centre, tensor orientation and averaging must
+match the experiment you intend to interpret. Paramagnetic shift differences
+are not automatically pure PCS.
 
-In this default case, the PCS contribution is written as
+Polar contours and **G_ax vs PCS** are axial diagnostics. Tensor-aware tables
+and views follow the [active prediction model](pcs/axial-rhombic.md#active-prediction-model).
 
-$$
-\delta_{\mathrm{PCS}}\;(\mathrm{ppm})
-=
-\frac{10^4}{12\pi}
-\Delta\chi_{\mathrm{ax}}
-G_{\mathrm{ax}},
-$$
+Equations, input units and definitions are given in [PCS Theory](pcs/theory.md)
+and [Tensor Conventions](pcs/tensor-conventions.md). The
+[method references](reference/method-references.md) distinguish background
+literature from the assumptions of the implemented workflows.
 
-with
+Some documentation topics remain incomplete. Review
+[Current Limitations](reference/limitations.md) and the assumptions of the
+workflow you intend to use.
 
-$$
-G_{\mathrm{ax}}
-=
-\frac{3\cos^2\theta-1}{r^3}.
-$$
+## Modules and workbenches
 
-Here, \(r\) is the distance from the paramagnetic centre to the observed nucleus and \(\theta\) is the polar angle relative to the principal \(z\)-axis.
-
-For systems where rhombicity cannot be neglected, PCS Analyzer can include the rhombic contribution and use the full axial–rhombic expression,
-
-$$
-\delta_{\mathrm{PCS}}\;(\mathrm{ppm})
-=
-\frac{10^4}{12\pi}
-\left(
-\Delta\chi_{\mathrm{ax}}G_{\mathrm{ax}}
-+
-\Delta\chi_{\mathrm{rh}}G_{\mathrm{rh}}
-\right),
-$$
-
-where
-
-$$
-G_{\mathrm{rh}}
-=
-\frac{3}{2}
-\frac{\sin^2\theta\cos(2\phi)}{r^3},
-$$
-
-and \(\phi\) is the azimuthal angle in the \(xy\)-plane.
-
-The default **Prediction model** is **Axial**. **Full tensor (Axial + Rhombic)**
-adds the rhombic term only when **Enable Δχ_rh** is on. Polar contours and
-**G_ax vs PCS** remain axial diagnostics under either selection. See
-[Active prediction model](pcs/axial-rhombic.md#active-prediction-model).
-
-!!! note "Tensor conventions"
-
-    PCS Analyzer defines
-
-    \[
-    \Delta\chi_{\mathrm{ax}}
-    =
-    \chi_{zz}
-    -
-    \frac{\chi_{xx}+\chi_{yy}}{2},
-    \]
-
-    and
-
-    \[
-    \Delta\chi_{\mathrm{rh}}
-    =
-    \chi_{xx}-\chi_{yy}.
-    \]
-
-    In PCS calculations, \(\Delta\chi_{\mathrm{ax}}\) and \(\Delta\chi_{\mathrm{rh}}\) are entered in units of \(10^{-32}\,\mathrm{m^3}\) per molecule, with molecular coordinates in Å.
-
-    The \(z\)-axis defines the principal axial direction, while the \(x\) and \(y\) axes define the orientation of the rhombic contribution.
-
-See [Tensor Conventions](pcs/tensor-conventions.md) and [Mathematical Conventions](reference/mathematical-conventions.md) for detailed definitions and unit conversions.
-
-
-## Documentation
-
-New users may want to begin with:
-
-- [Installation](installation.md)
-- [Quick Start](quick-start.md)
-- [Interface Overview](interface.md)
-
-For the theoretical and numerical definitions used by the program:
-
-- [PCS Theory](pcs/theory.md)
-- [Tensor Conventions](pcs/tensor-conventions.md)
-- [Mathematical Conventions](reference/mathematical-conventions.md)
-
-## Extending PCS Analyzer
-
-PCS Analyzer supports external plugins for adding custom analysis tools, viewers, fitting utilities, and research-specific workflows.
-
-[Plugin Documentation](plugins-docs/overview.md){ .md-button }
+[NMR Workbench](nmr/spectrum-viewer.md) processes spectra and prepares reviewed
+shift observations. [PCS Workbench](pcs-workbench/overview.md) compares point-dipole
+and distributed PCS fields using its own ORCA/grid inputs. External side tools
+are installed and launched through [Module Manager](plugins-docs/overview.md).
 
 ## Citation
 

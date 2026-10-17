@@ -7,9 +7,11 @@ not measurements or a physical model of the supplied structure.
 
 ## Files and expected behavior
 
-[Get the example directory and full README](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/nmr_vt_demo).
-Obtain the repository source for FID practice and keep each experiment's
-`fid`, `procpar` and `text` together.
+[Get the example input directory](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/nmr_vt_demo).
+The same inputs are included in the portable release; see
+[finding the example files](../examples.md#find-and-open-the-files).
+Short paths below are relative to `examples/nmr_vt_demo/`. Keep each experiment's
+`fid` and `procpar` together.
 
 | Input | Use |
 | --- | --- |
@@ -18,8 +20,7 @@ Obtain the repository source for FID practice and keep each experiment's
 | `CSV/Expected_shifts.csv` | 24 ideal corrected observed shifts, including the reference values. |
 | `structure.xyz` | Toy nine-atom Nd/O/H cluster for optional target review. |
 
-Open a fresh Workbench from PCS Analyzer, or run `python tools/nmr_workbench.py`
-from the source root with runtime dependencies installed. Use the main app for
+Open a fresh **NMR Workbench** from PCS Analyzer's **Tools** Ribbon. Use the main app for
 structural operations. All provided temperatures are nominal; no calibration
 or member override is supplied.
 
@@ -168,8 +169,6 @@ in a fresh Workbench and inspect identities, five members, four tracks and
 associations. `.nmrseries` definitions alone do not preserve the full session.
 Previews/caches/transient selections are not saved. See [Sessions](sessions.md).
 
-Regeneration is optional; committed FIDs are ready to use. With NumPy and
-nmrglue installed, `python examples/nmr_vt_demo/generate_demo.py --overwrite`
-replaces the generated example files. Without the option it refuses replacement.
-It does not create reviewed peak/track identities; practice starts with fresh
-imports rather than previously embedded session spectra.
+The supplied FIDs are ready to import. Peak/track identities are established
+during this exercise; start with fresh imports rather than previously embedded
+session spectra.

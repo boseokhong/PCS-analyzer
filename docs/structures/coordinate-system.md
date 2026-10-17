@@ -158,11 +158,13 @@ values alone. For an axial tensor, rotation about its principal z-axis is
 unobservable in PCS; the ZYZ α control is disabled while rhombicity is disabled.
 Standard Mode B/C fit angles are XYZ even when the panel shows Tensor Euler ZYZ.
 
-!!! warning "Conformer Search handoff"
+!!! note "Conformer Search handoff"
 
-    The embedded Conformer Search still passes the Structure XYZ values to a
-    calculator that interprets them as ZYZ without conversion. This remains a
-    known implementation discrepancy for nonzero orientations. See
+    **Sync Main** converts the main Structure XYZ orientation to the search
+    calculator's ZYZ representation while preserving the rotation matrix.
+    The displayed angle numbers can differ while describing the same direction.
+    Older implementations passed the numbers without conversion; searches made
+    with that behavior at nonzero orientation should be rerun. See
     [Conformer Search](../conformer-search/overview.md#inputs-inherited-from-pcs-analyzer).
 
 ## Rotation about an arbitrary centre

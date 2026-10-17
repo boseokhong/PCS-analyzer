@@ -1,9 +1,10 @@
 # Tutorial: Standard fitting and rhombicity
 
-Use `examples/standard_fitting_demo/` from a source checkout containing this
-tutorial. The [example README](https://github.com/boseokhong/PCS-analyzer/tree/main/examples/standard_fitting_demo)
-contains detailed conditions, commands and generating truth. These synthetic
+Use `examples/standard_fitting_demo/` from the source checkout or portable release.
+The conditions and known values are listed below. These synthetic
 geometrical probes are not a chemically optimized molecule or experimental data.
+Short paths below are relative to `examples/standard_fitting_demo/`; see
+[finding the example files](../examples.md#find-and-open-the-files).
 
 ## Choose the exercise
 
@@ -75,11 +76,3 @@ residual is δ_Exp−δ_Pred; standard fit reports use the opposite sign. Preser
 the frame when comparing the two projects. This controlled comparison excludes
 contact shifts and structural uncertainty; it is not an experimental acceptance
 criterion. See [rhombicity definitions](../diagnostics/rhombicity.md).
-
-## Regenerating the synthetic inputs
-
-```shell
-python examples/standard_fitting_demo/generate_demo.py --output dev_docs/standard-review
-```
-
-Use `--overwrite` only to replace existing generated files deliberately.

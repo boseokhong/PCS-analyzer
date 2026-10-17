@@ -6,16 +6,20 @@ with the current metal position and tensor orientation fixed. RDCs from an
 external alignment medium do not satisfy this coupled model.
 
 The examples below use synthetic labelled probes, not an optimized molecular
-structure or experimental dataset. Source files and generators are in
+structure or experimental dataset. Prepared projects and input files are in
 `examples/joint_pcs_rdc_demo/`. The known tensor is Δχ_ax=-18 and Δχ_rh=5 E-32
 m³ per molecule, at 14.1 T and 298 K.
 
+Short paths below are relative to `examples/joint_pcs_rdc_demo/` from the release
+or source archive; see [finding the examples](../examples.md#find-and-open-the-files).
+
 ## 1. Open the prepared project
 
-Use **Open Project** to open `examples/joint_pcs_rdc_demo/noisy/demo.pcsp`, then
+Use **File → Open PCS Project...** to open `examples/joint_pcs_rdc_demo/noisy/demo.pcsp`, then
 select **Advanced Fitting → Joint PCS+RDC**. The project contains 24 PCS
 observations, 12 RDC bonds, supplied uncertainties and a recorded successful
 fit. Reopening restores it as **Current** without rerunning or applying it.
+No separate CSV import or structure loading is needed for this starting point.
 
 The noiseless project verifies exact numerical recovery. The noisy project
 adds reproducible independent Gaussian noise: 0.02 ppm for PCS and 0.5 Hz for
@@ -72,12 +76,15 @@ The current model fits both scalar components, retains the main metal and
 orientation, and does not support torsional averaging of RDC bonds.
 Use consistent signed RDC definitions when exchanging data with other software.
 The molecular susceptibility alignment factor contains no Avogadro divisor.
+See [Method References](../reference/method-references.md#joint-pcs-and-rdc)
+for background and reporting scope.
 
 ## 4. Validate and run
 
-Select **Validate inputs** to check mapping, errors and rank. It does not
-install or apply a result. **Run Fit** captures detached inputs and performs
-the fixed-frame linear fit in the background.
+Select **Validate inputs** to check mapping, errors and rank, then choose
+**Run Fit**. The fixed-frame linear fit runs in the background. Inspect the
+result before choosing **Apply**; neither validation nor running the fit changes
+the main tensor.
 
 For the noisy example, expect approximately:
 
@@ -106,10 +113,10 @@ rank nor a low RMSD establishes structural correctness or precise parameters.
 ![Collapsed input and joint residual plots](../images/joint-pcs-rdc-residuals.png)
 
 Editing the selected observations, geometry, orientation, RDC inputs or fit
-conditions can make the report **Stale**. **Apply** is then disabled. Current
-status accepts only the absolute rounding envelope of the legacy eight-decimal
-coordinate/shift tables and equivalent orientation representations. A real
-geometry/condition edit still requires refitting.
+conditions can make the report **Stale**, which disables **Apply**. Review the
+changes and rerun the fit with the intended inputs. Tiny representation-rounding
+differences and equivalent orientation representations do not alone make the
+result stale; changed scientific inputs require refitting.
 
 The model currently estimates no confidence intervals or bootstrap/CV results.
 The noisy example is a reproducible calculation check, not a reliability study.
@@ -130,13 +137,11 @@ reject its unsupported nucleus and retain the previous input collection.
 
 ## 7. Save, export and apply deliberately
 
-**Save Project** retains RDC inputs, selected PCS observation IDs, fit settings
-and the last recorded result in an optional versioned `[joint_pcs_rdc]` section.
-The main structure and PCS observations remain in their normal project sections.
-Reopening validates recorded predictions against recorded inputs without
-refitting, automatically applying the tensor, or overwriting it from the report.
-Corrupt joint sections reject project loading. Older files without the section
-receive empty joint inputs and defaults.
+**Save Project** retains the RDC inputs, selected PCS observations, fit settings
+and last recorded result. Reopening checks the saved result without refitting
+or applying its tensor. Older projects without joint-fit data open with empty
+joint inputs and defaults. For storage and compatibility details, see
+[File Formats](../reference/file-formats.md#specialized-csv-inputs).
 
 **Export result** writes recorded inputs, matching and numerical diagnostics as
 JSON, including stale results. It does not substitute live settings.
@@ -144,16 +149,6 @@ JSON, including stale results. It does not substitute live settings.
 result. It preserves metal, orientation, rhombic enablement and prediction
 policy; enabling a rhombic contribution in main predictions remains a separate
 choice. Joint reports stay separate from standard Fit History.
-
-## 8. Reproduce the checks
-
-From the source repository:
-
-```bash
-python examples/joint_pcs_rdc_demo/generate_projects.py --overwrite
-python examples/joint_pcs_rdc_demo/run_demo.py --scenario noisy
-python examples/joint_pcs_rdc_demo/run_demo.py --scenario ambiguous
-```
 
 See [Fitting overview](overview.md#joint-pcsrdc),
 [Projects](../projects.md) and [File formats](../reference/file-formats.md).

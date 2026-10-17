@@ -1,4 +1,5 @@
 site_name: PCS Analyzer Documentation
+site_url: https://boseokhong.github.io/PCS-analyzer/
 site_description: Analysis and visualization of pseudocontact shifts in paramagnetic molecular systems
 site_author: Boseok Hong
 
@@ -40,8 +41,10 @@ nav:
   - Getting Started:
       - Installation: installation.md
       - Quick Start: quick-start.md
+      - Examples and Practice Data: examples.md
       - Interface Overview: interface.md
       - Projects and Persistence: projects.md
+      - Troubleshooting: troubleshooting.md
 
   - Structures:
       - Loading Structures: structures/loading.md
@@ -120,9 +123,11 @@ nav:
           - Distribution Design Notes: plugin_distribution_guide_v0_1.md
 
   - Reference:
+      - Glossary: reference/glossary.md
       - Current Limitations: reference/limitations.md
       - Mathematical Conventions: reference/mathematical-conventions.md
       - Units: reference/units.md
+      - Method References and Reporting: reference/method-references.md
       - File Formats: reference/file-formats.md
       - Changelog: reference/changelog.md
 
@@ -152,3 +157,8 @@ extra_javascript:
   
 extra_css:
   - stylesheets/extra.css
+
+extra:
+  version:
+    provider: mike
+    default: latest

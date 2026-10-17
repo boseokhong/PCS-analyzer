@@ -1,0 +1,5 @@
+# Preserve the measured vendor acquisition bytes, including metadata line endings.
+examples/documentation_demo/Yb_iPr2BA3_demo/PROTON_01.fid/* binary
+# Retain the upstream license text bytes across Windows checkouts.
+licenses/GPL-3.0.txt -text
+licenses/LGPL-3.0.txt -text

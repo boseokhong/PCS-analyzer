@@ -34,17 +34,12 @@ Catalog inclusion and labels do not certify security or scientific validity.
 The software's available categories/lifecycle states are metadata; a formal
 approval, review or governance policy must be documented separately if adopted.
 
-## Future integrated API
+## Current interface limits
 
-A stable, versioned integrated API is still proposed. It should expose explicit
-units, coordinate/tensor conventions and narrow application services, with
-read-only capabilities before writable operations. Existing `app.state` access
-and descriptive `state_access` do not implement permission boundaries.
-
-Do not require `api_version` for a standalone module that only uses the current
-unversioned wrapper. Do not document capability permissions, API negotiation,
-or guaranteed schema stability as current functionality. Future GUI migration
-should preserve the same scientific behavior and user-data compatibility.
+Standalone modules use the current unversioned wrapper. Existing `app.state`
+access and descriptive `state_access` do not implement permission boundaries.
+There is no implemented API-version negotiation or guaranteed schema stability;
+see [PluginApp](plugins-docs/plugin-api.md) before relying on host internals.
 
 ## Author checklist
 

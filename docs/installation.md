@@ -2,6 +2,11 @@
 
 PCS Analyzer is distributed as a **portable Windows application** and can also be run from the Python source code. The prebuilt release is Windows-only; source operation on other platforms depends on the local Python, Tk, Qt, and VTK environment and is not verified by the portable-release workflow.
 
+Use the version selector in the documentation header to match your application
+release. **latest** refers to the latest published stable manual; **dev**, when
+available, describes unreleased work. Archived versions retain their own pages
+and images. The current source manual targets **1.4.0**.
+
 ## Windows portable version
 
 The portable distribution includes its Python runtime and does not require a separate Python installation.

@@ -1,16 +1,35 @@
-name: Deploy documentation
+name: Build and publish versioned documentation
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs.yml"
+      - ".github/scripts/archive_docs.py"
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Archive the existing site, or publish an unreleased preview"
+        type: choice
+        options: [archive-only, preview]
+        default: archive-only
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: docs-${{ github.event_name == 'pull_request' && github.ref || 'publication' }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,8 +43,101 @@ jobs:
 
       - name: Install MkDocs
         run: |
-          python -m pip install --upgrade pip
-          pip install mkdocs-material mkdocs-glightbox
+          python -m pip install -r requirements-docs.txt
 
-      - name: Deploy documentation
-        run: mkdocs gh-deploy --force
+      - name: Validate the manual
+        run: python -m mkdocs build --strict
+
+  publish:
+    needs: build
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && !github.event.release.prerelease)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      LEGACY_DOCS_COMMIT: e4d12c9e632c9b52cb673912564a648f4c54c867
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install -r requirements-docs.txt
+
+      - name: Read publication branch separately
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: .docs-publication
+          fetch-depth: 1
+
+      - name: Preserve the original 1.3.4 site
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C .docs-publication config user.name "github-actions[bot]"
+          git -C .docs-publication config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C .docs-publication config core.autocrlf false
+          if [ ! -f .docs-publication/versions.json ]; then
+            test "$(git -C .docs-publication rev-parse HEAD)" = "$LEGACY_DOCS_COMMIT"
+          fi
+          python .github/scripts/archive_docs.py --site-dir .docs-publication --source-commit "$LEGACY_DOCS_COMMIT"
+          git -C .docs-publication add --all
+          if ! git -C .docs-publication diff --cached --quiet; then
+            git -C .docs-publication commit -m "Archive published 1.3.4 documentation and assets"
+          fi
+          git fetch ./.docs-publication HEAD:refs/heads/gh-pages
+          git fetch origin gh-pages
+
+      - name: Choose release or preview version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_ACTION: ${{ inputs.action }}
+        run: |
+          python - <<'PY'
+          import ast, os, re
+          from pathlib import Path
+          if os.environ["EVENT_NAME"] == "release":
+              match = re.fullmatch(r"v?(\d+\.\d+\.\d+)", os.environ["RELEASE_TAG"])
+              if not match:
+                  raise SystemExit("Release tag must be vMAJOR.MINOR.PATCH")
+              version = match.group(1)
+              tree = ast.parse(Path("app_version.py").read_text())
+              app_version = next(ast.literal_eval(n.value) for n in tree.body
+                                 if isinstance(n, ast.Assign) and any(
+                                     isinstance(t, ast.Name) and t.id == "APP_VERSION" for t in n.targets))
+              if version != app_version:
+                  raise SystemExit("Release tag and application version disagree")
+              if version == "1.3.4":
+                  raise SystemExit("The historical archive must not be rebuilt")
+              stable = "true"
+          else:
+              version = "dev" if os.environ["MANUAL_ACTION"] == "preview" else ""
+              stable = "false"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+              stream.write(f"version={version}\nstable={stable}\n")
+          PY
+
+      - name: Publish a release build locally
+        if: steps.version.outputs.stable == 'true'
+        env:
+          DOC_VERSION: ${{ steps.version.outputs.version }}
+        run: mike deploy --update-aliases --alias-type redirect "$DOC_VERSION" latest
+
+      - name: Publish a preview build locally
+        if: steps.version.outputs.version == 'dev'
+        run: mike deploy --alias-type redirect dev
+
+      - name: Set the stable landing page
+        run: mike set-default latest
+
+      - name: Publish documentation without rewriting history
+        run: git push origin gh-pages

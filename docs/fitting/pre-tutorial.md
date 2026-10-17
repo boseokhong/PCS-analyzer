@@ -7,10 +7,14 @@ proton Γ₂ model; the fitted time is not necessarily pure rotational tumbling.
 
 ## 1. Open the example
 
-Open `examples/pre_demo/noisy/demo.pcsp` using **Open Project**. Select
+Use the example inputs supplied with the release; see [finding the files](../examples.md#find-and-open-the-files).
+Open `examples/pre_demo/noisy/demo.pcsp` using **File → Open PCS Project...**. Select
 **Advanced Fitting → PRE**. The project contains six synthetic proton probes,
 supplied errors and a recorded successful result, restored as **Current**.
 These coordinates are not a chemically optimized molecular structure.
+The project already contains the geometry, PRE observations and fit conditions;
+do not import `pre.csv` again for this exercise. Short paths such as
+`noiseless/demo.pcsp` are relative to `examples/pre_demo/`.
 
 The exact generating time is 3 ns at 14.1 T and μ_eff=3.68 μB. Fixed small
 perturbations give a fitted time of approximately 3.01264 ns. The separate
