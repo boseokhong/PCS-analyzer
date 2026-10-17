@@ -69,6 +69,43 @@ def split_public_payload(entries):
     return internal, public
 
 
+def check_public_payload(entries, project_root):
+    """Fail the build when reviewed public inputs are missing or local files leak."""
+    project_root = Path(project_root).resolve()
+    _, public = split_public_payload(entries)
+    destinations = [Path(entry[0]).as_posix() for entry in public]
+    if len({path.casefold() for path in destinations}) != len(destinations):
+        raise ValueError("Duplicate public release destination")
+    expected_examples = {
+        (Path(destination) / Path(source).name).as_posix()
+        for source, destination in collect_public_examples(project_root)
+    }
+    expected_docs = {
+        line.strip() for line in
+        (project_root / "tools" / "public_docs_files.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    for folder, expected in (("examples", expected_examples), ("docs", expected_docs)):
+        actual = {path for path in destinations if path.startswith(folder + "/")}
+        missing, unexpected = expected - actual, actual - expected
+        if missing or unexpected:
+            raise ValueError(
+                folder + " release manifest mismatch; missing: " + ", ".join(sorted(missing))
+                + "; unexpected: " + ", ".join(sorted(unexpected))
+            )
+    allowed_notices = {*REQUIRED_RELEASE_NOTICES, "LICENSE", "THIRD_PARTY_NOTICES.txt"}
+    for path in destinations:
+        parts = Path(path).parts
+        if parts[0] == "licenses":
+            if len(parts) == 2 and parts[1] in allowed_notices:
+                continue
+            if len(parts) >= 3 and parts[1] == "packages":
+                continue
+            if path == "licenses/python/LICENSE.txt":
+                continue
+            raise ValueError("Unreviewed release notice: " + path)
+
+
 def copy_public_payload(entries, directory):
     """Write the reviewed payload beside the exe after PyInstaller COLLECT.
 
