@@ -32,7 +32,7 @@ DOCUMENT_LOCAL_KEY_MANIFEST: dict[str, tuple[str, ...]] = {
     ),
     "tensor_orientation": (
         "tensor", "rh_dchi_rh", "rh_calc_enabled", "angle_x", "angle_y", "angle_z",
-        "pcs_prediction_model", "pcs_tensor_state", "pcs_tensor_frame_convention",
+        "pcs_prediction_model", "pcs_tensor_state", "pcs_tensor_source", "pcs_tensor_frame_convention",
         "pcs_tensor_angle_unit", "pcs_model_revision", "fit_override",
     ),
     "averaging": (

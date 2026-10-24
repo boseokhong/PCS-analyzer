@@ -9,7 +9,7 @@ from ui.widget_style import ui_text_color, ui_label_style, ui_native_colors
 import json
 from pathlib import Path
 import tkinter as tk
-from tkinter import ttk, colorchooser, filedialog
+from tkinter import ttk, colorchooser, filedialog, messagebox
 from typing import Callable, Optional
 
 from ui.style import get_app_fonts
@@ -141,6 +141,11 @@ class StatusBar(ttk.Frame):
         self._label.pack(side="left", fill="x", expand=True, padx=6)
         self._progress = ttk.Progressbar(self, mode="indeterminate", length=120)
         self._progress.pack(side="right", padx=6, pady=2)
+        self.bind("<Destroy>", self._release_variable, add="+")
+
+    def _release_variable(self, event):
+        if event.widget is self:
+            self._msg_var = None
 
     def set(self, text: str):
         self._msg_var.set(text)
@@ -167,6 +172,10 @@ class ControlPanel(ttk.Frame):
         "fft_pad_factor": 2,
         "normalize_density": True,
         "normalization_target": 1.0,
+        "normalization_stage": "before_padding",
+        "padding_check_enabled": False,
+        "padding_check_factor": 3,
+        "padding_check_tolerance": 0.01,
         "density_isovalue": 0.005,
         "show_atoms": False,
         "atom_elements": [],
@@ -209,8 +218,11 @@ class ControlPanel(ttk.Frame):
         on_apply_camera_callback: Optional[Callable[[dict], None]] = None,
         on_save_camera_callback: Optional[Callable[[], None]] = None,
         on_restore_camera_callback: Optional[Callable[[], None]] = None,
+        on_export_volume_callback: Optional[Callable[[], None]] = None,
         temperatures: Optional[list[float]] = None,
         initial_params: Optional[dict] = None,
+        on_check_padding_callback: Optional[Callable[[], None]] = None,
+        on_send_tensor_callback: Optional[Callable[[], None]] = None,
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
@@ -226,6 +238,12 @@ class ControlPanel(ttk.Frame):
         self._on_apply_camera = on_apply_camera_callback
         self._on_save_camera = on_save_camera_callback
         self._on_restore_camera = on_restore_camera_callback
+        self._on_export_volume = on_export_volume_callback
+        self._on_check_padding = on_check_padding_callback
+        self._on_send_tensor = on_send_tensor_callback
+        self._computing = False
+        self._check_has_result = False
+        self._check_density_shape = None
         self._temperatures = temperatures or []
         self._elements: list[str] = []
         self._atom_element_vars: dict[str, tk.BooleanVar] = {}
@@ -242,6 +260,95 @@ class ControlPanel(ttk.Frame):
         self._vars: dict[str, tk.Variable] = {}
         self._level_rows: list[dict] = []
         self._build_ui(params)
+
+    def watch_calculation_changes(self, callback):
+        self._calculation_traces = [
+            (self._vars[key], self._vars[key].trace_add("write", lambda *_: callback()))
+            for key in ("temperature", "fft_pad_factor", "normalize_density",
+                        "normalization_target", "normalization_stage")
+        ]
+        self.bind("<Destroy>", self._stop_calculation_watch, add="+")
+
+    def _stop_calculation_watch(self, event):
+        if event.widget is not self:
+            return
+        variables = list(self._vars.values()) + list(self._atom_element_vars.values())
+        for row in self._level_rows:
+            variables.extend(value for value in row.values() if isinstance(value, tk.Variable))
+        variables.extend(value for value in vars(self).values() if isinstance(value, tk.Variable))
+        for var in variables:
+            for modes, token in var.trace_info():
+                var.trace_remove(modes, token)
+        self._calculation_traces = []
+        self._vars.clear()
+        self._atom_element_vars.clear()
+        self._level_rows.clear()
+        for name, value in list(vars(self).items()):
+            if isinstance(value, tk.Variable):
+                setattr(self, name, None)
+
+    def set_computing(self, computing):
+        self._computing = computing
+        self._run_button.configure(state="disabled" if computing else "normal")
+        self._refresh_padding_check_controls()
+
+    def set_padding_check_context(self, session):
+        self._check_has_result = session.last_result is not None
+        self._check_density_shape = session.dens["rho"].shape if session.dens else None
+        self._refresh_padding_check_controls()
+
+    def set_send_tensor_available(self, available):
+        self._send_tensor_button.configure(state="normal" if available else "disabled")
+
+    def get_tensor_temperature(self):
+        text = str(self._vars["temperature"].get()).strip()
+        return float(text) if text else None
+
+    def _toggle_padding_check(self):
+        opened = not self._padding_check_open.get()
+        self._padding_check_open.set(opened)
+        self._padding_check_toggle.configure(text=("▾" if opened else "▸") + " Padding convergence check")
+        if opened:
+            self._padding_check_frame.grid()
+        else:
+            self._padding_check_frame.grid_remove()
+
+    def _refresh_padding_check_controls(self, *_):
+        enabled = self._vars["padding_check_enabled"].get()
+        for entry in self._padding_check_entries:
+            entry.configure(state="normal" if enabled and not self._computing else "disabled")
+        self._padding_check_button.configure(
+            state="normal" if enabled and self._check_has_result and not self._computing else "disabled")
+        message = "Load a density grid for the comparison memory estimate."
+        if self._check_density_shape:
+            try:
+                from logic.pcs_workbench_state import estimate_calculation_memory
+                shape, memory = estimate_calculation_memory(
+                    self._check_density_shape, int(self._vars["padding_check_factor"].get()))
+                message = ("Comparison grid: " + " × ".join(map(str, shape))
+                           + f"; {memory / 1024 ** 3:.2f} GiB working arrays + FFT overhead. "
+                           "The base result also remains in memory.")
+            except (ValueError, TypeError):
+                message = "Enter a valid comparison padding factor."
+        self._padding_check_memory.set(message)
+
+    def set_input_summary(self, text):
+        self._input_summary.set(text)
+
+    def update_input_summary(self, session):
+        from pathlib import Path
+        from logic.pcs_workbench_state import estimate_calculation_memory
+        lines = ["ORCA: " + (Path(session.orca_path).name if session.orca_path else "Not loaded"),
+                 "Density: " + (Path(session.dens_path).name if session.dens_path else "Not loaded")]
+        if session.orca:
+            lines.append(f"Atoms: {len(session.orca['atoms'])}")
+        if session.dens:
+            params = self.get_params()
+            shape, memory = estimate_calculation_memory(session.dens["rho"].shape, params["fft_pad_factor"])
+            lines.append("Input grid: " + " × ".join(map(str, session.dens["rho"].shape)))
+            lines.append("Padded grid: " + " × ".join(map(str, shape)))
+            lines.append(f"Estimated working arrays: {memory / 1024 ** 3:.2f} GiB + FFT/render overhead")
+        self.set_input_summary("\n".join(lines))
 
     def _refresh_temperature_summary(self):
         temps = sorted(float(t) for t in (self._temperatures or []))
@@ -396,7 +503,7 @@ class ControlPanel(ttk.Frame):
         _section_header(inner, r, "FFT Settings")
         r += 2
 
-        self._vars["fft_pad_factor"] = tk.IntVar(value=int(params["fft_pad_factor"]))
+        self._vars["fft_pad_factor"] = tk.StringVar(value=str(params["fft_pad_factor"]))
         _labeled_entry(inner, r, "Padding factor", self._vars["fft_pad_factor"])
         r += 1
 
@@ -664,6 +771,10 @@ class ControlPanel(ttk.Frame):
         r = 0
         _section_header(calc, r, "Data")
         r += 2
+        self._input_summary = tk.StringVar(value="ORCA: Not loaded\nDensity: Not loaded")
+        ttk.Label(calc, textvariable=self._input_summary, wraplength=280,
+                  justify="left").grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+        r += 1
         self._vars["temperature"] = tk.StringVar(value=str(params["temperature"]))
         ttk.Label(calc, text="Temperature (K)").grid(row=r, column=0, sticky="w", padx=(0, 6), pady=2)
         self._temp_summary_var = tk.StringVar(value="No temperature list loaded.")
@@ -685,9 +796,18 @@ class ControlPanel(ttk.Frame):
         self._refresh_temperature_summary()
         r += 1
 
+        self._send_tensor_button = ttk.Button(
+            calc, text="Send tensor to PCS Analyzer…",
+            command=lambda: self._call_optional(self._on_send_tensor), state="disabled")
+        self._send_tensor_button.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(4, 10))
+        _ToolTip(self._send_tensor_button,
+                 "Send the selected ORCA tensor without a density calculation. "
+                 "Open this Workbench from PCS Analyzer to enable transfer.")
+        r += 1
+
         _section_header(calc, r, "FFT / PDE Settings")
         r += 2
-        self._vars["fft_pad_factor"] = tk.IntVar(value=int(params["fft_pad_factor"]))
+        self._vars["fft_pad_factor"] = tk.StringVar(value=str(params["fft_pad_factor"]))
         _labeled_entry(calc, r, "Padding factor", self._vars["fft_pad_factor"])
         r += 1
         self._vars["normalize_density"] = tk.BooleanVar(value=bool(params["normalize_density"]))
@@ -696,7 +816,49 @@ class ControlPanel(ttk.Frame):
         self._vars["normalization_target"] = tk.DoubleVar(value=float(params["normalization_target"]))
         _labeled_entry(calc, r, "Normalization target", self._vars["normalization_target"])
         r += 1
-        ttk.Button(calc, text="▶ Run computation", style="Accent.TButton", command=self._run).grid(
+        self._vars["normalization_stage"] = tk.StringVar(value=params["normalization_stage"].replace("_", " ").capitalize())
+        ttk.Label(calc, text="Normalization order").grid(row=r, column=0, sticky="w", pady=2)
+        ttk.Combobox(calc, textvariable=self._vars["normalization_stage"], state="readonly",
+                     values=("Before padding", "After padding"), width=16).grid(
+            row=r, column=1, sticky="ew", pady=2)
+        r += 1
+        self._padding_check_open = tk.BooleanVar(value=False)
+        self._padding_check_toggle = ttk.Button(
+            calc, text="▸ Padding convergence check", command=self._toggle_padding_check)
+        self._padding_check_toggle.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(12, 2))
+        r += 1
+        check = ttk.Frame(calc)
+        check.columnconfigure(1, weight=1)
+        check.grid(row=r, column=0, columnspan=2, sticky="ew")
+        self._padding_check_frame = check
+        self._vars["padding_check_enabled"] = tk.BooleanVar(value=bool(params["padding_check_enabled"]))
+        self._vars["padding_check_factor"] = tk.StringVar(value=str(params["padding_check_factor"]))
+        self._vars["padding_check_tolerance"] = tk.StringVar(value=str(params["padding_check_tolerance"]))
+        ttk.Checkbutton(check, text="Enable convergence check", variable=self._vars["padding_check_enabled"]).grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=4)
+        self._padding_check_entries = []
+        for row, label, key in ((1, "Comparison padding factor", "padding_check_factor"),
+                                (2, "Tolerance (ppm)", "padding_check_tolerance")):
+            ttk.Label(check, text=label).grid(row=row, column=0, sticky="w", padx=(0, 6), pady=2)
+            entry = ttk.Entry(check, textvariable=self._vars[key], width=10)
+            entry.grid(row=row, column=1, sticky="ew", pady=2)
+            self._padding_check_entries.append(entry)
+        self._padding_check_memory = tk.StringVar()
+        ttk.Label(check, textvariable=self._padding_check_memory, style=ui_label_style(check, "muted"),
+                  wraplength=280, justify="left").grid(row=3, column=0, columnspan=2, sticky="ew", pady=4)
+        ttk.Label(check, text="Extra calculation; same density normalization scale.",
+                  style=ui_label_style(check, "muted"), wraplength=280).grid(
+            row=4, column=0, columnspan=2, sticky="w")
+        self._padding_check_button = ttk.Button(
+            check, text="Check current result", command=lambda: self._call_optional(self._on_check_padding))
+        self._padding_check_button.grid(row=5, column=0, columnspan=2, sticky="ew", pady=5)
+        for key in ("padding_check_enabled", "padding_check_factor", "padding_check_tolerance"):
+            self._vars[key].trace_add("write", self._refresh_padding_check_controls)
+        check.grid_remove()
+        self._refresh_padding_check_controls()
+        r += 1
+        self._run_button = ttk.Button(calc, text="▶ Run computation", style="Accent.TButton", command=self._run)
+        self._run_button.grid(
             row=r, column=0, columnspan=2, sticky="ew", pady=(14, 4), ipady=4
         )
 
@@ -891,10 +1053,7 @@ class ControlPanel(ttk.Frame):
         ttk.Button(analysis, text="Export atom PCS to CSV…",
                    command=lambda: self._call_optional(self._on_export_atom_csv)).grid(
             row=r, column=0, columnspan=2, sticky="ew", pady=2)
-        r += 1
-        ttk.Button(analysis, text="Export PCS to NumPy…",
-                   command=lambda: self._call_optional(self._on_export_numpy)).grid(
-            row=r, column=0, columnspan=2, sticky="ew", pady=2)
+
 
     @staticmethod
     def _call_optional(callback):
@@ -980,16 +1139,19 @@ class ControlPanel(ttk.Frame):
             try:
                 raw[k] = var.get()
             except tk.TclError:
+                if k in ("temperature", "fft_pad_factor", "normalize_density", "normalization_target"):
+                    raise ValueError(f"Invalid calculation value: {k}.") from None
                 raw[k] = self.DEFAULTS.get(k)
 
         try:
             raw["temperature"] = float(raw["temperature"]) if str(raw["temperature"]).strip() else None
         except (ValueError, TypeError):
-            raw["temperature"] = None
+            raise ValueError("Temperature must be numeric, or blank for the first available tensor.") from None
 
         raw["fft_pad_factor"] = int(raw.get("fft_pad_factor", 2))
         raw["normalize_density"] = bool(raw.get("normalize_density", True))
         raw["normalization_target"] = float(raw.get("normalization_target", 1.0))
+        raw["normalization_stage"] = str(raw.get("normalization_stage", "Before padding")).lower().replace(" ", "_")
         raw["density_isovalue"] = float(raw.get("density_isovalue", 0.005))
         raw["density_opacity"] = float(raw.get("density_opacity", 0.15))
         raw["atom_elements"] = [
@@ -1006,10 +1168,14 @@ class ControlPanel(ttk.Frame):
         raw["camera_projection"] = str(raw.get("camera_projection", "perspective"))
         raw["export_view"] = str(raw.get("export_view", "preset"))
         raw["level_styles"] = self._levels_to_list()
+        from logic.pcs_workbench_state import validate_calculation_params
+        validate_calculation_params(raw)
         return raw
 
     def apply_params(self, params: dict):
         incoming = dict(params or {})
+        if "normalization_stage" not in incoming:
+            incoming["normalization_stage"] = "after_padding"
         # Backward compatibility for presets saved before density_isovalue
         # became the canonical key.
         if "density_isovalue" not in incoming and "density_iso" in incoming:
@@ -1024,6 +1190,10 @@ class ControlPanel(ttk.Frame):
             var = self._vars.get(k)
             if var is not None:
                 try:
+                    if k == "normalization_stage":
+                        v = str(v).replace("_", " ").capitalize()
+                    elif k == "temperature" and v is None:
+                        v = ""
                     var.set(v)
                 except Exception:
                     pass
@@ -1038,6 +1208,7 @@ class ControlPanel(ttk.Frame):
         self._temperatures = sorted(float(t) for t in temps)
         if getattr(self, "_temp_combo", None) is not None:
             self._temp_combo.configure(values=[""] + [f"{t:g}" for t in self._temperatures])
+            self._temp_combo.configure(state="readonly" if self._temperatures else "normal")
 
         cur = str(self._vars["temperature"].get()).strip()
         allowed = {f"{t:g}" for t in self._temperatures}
@@ -1049,7 +1220,12 @@ class ControlPanel(ttk.Frame):
         pass
 
     def _run(self):
-        self._on_run(self.get_params())
+        try:
+            params = self.get_params()
+        except (ValueError, TypeError, tk.TclError) as exc:
+            messagebox.showerror("Invalid calculation settings", str(exc), parent=self.winfo_toplevel())
+            return
+        self._on_run(params)
 
     def _refresh_view(self):
         if self._on_refresh_view is not None:

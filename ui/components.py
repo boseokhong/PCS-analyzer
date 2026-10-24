@@ -766,7 +766,10 @@ def open_pcs_workbench(state):
             pass
 
     try:
-        win = AppWindow(master=state["root"])
+        from ui.orca_tensor_transfer import review_tensor_transfer
+        win = AppWindow(master=state["root"],
+                        on_send_tensor_callback=lambda payload: review_tensor_transfer(
+                            state, payload, state.get("pcs_workbench_window") or state["root"]))
         state["pcs_workbench_window"] = win
 
         def _on_close():
@@ -3340,13 +3343,24 @@ def build_app():
 
     tensor_status_var = tk.StringVar(value="Axial")
     state["tensor_status_var"] = tensor_status_var
+    def _refresh_tensor_state_label():
+        from logic.orca_tensor_transfer import tensor_state_label
+        tensor_status_var.set(tensor_state_label(state, get_canonical_tensor_state(state)))
+    state["refresh_tensor_state_label"] = _refresh_tensor_state_label
+    def _show_tensor_details():
+        from ui.orca_tensor_transfer import show_tensor_details
+        show_tensor_details(state)
     tensor_status_label, tensor_state_name, tensor_details_button = tensor_form.status_action(
         "Tensor state",
         textvariable=tensor_status_var,
         action_text="Details…",
-        command=lambda: state["plots_nb"].select(state["rhtab"]),
+        command=_show_tensor_details,
     )
     state["tensor_status_label"] = tensor_status_label
+    # Keep the existing status slot compact when optional source text is shown.
+    import tkinter.font as tkfont
+    tensor_status_label.configure(wraplength=tkfont.Font(
+        root=tensor_status_label, font=get_app_fonts(state)["ui"]).measure("Axial + Rhombic"))
     state["tensor_details_button"] = tensor_details_button
 
     prediction_labels = {
@@ -4079,9 +4093,7 @@ def build_app():
             state=tk.NORMAL if canonical.rhombic_enabled else tk.DISABLED
         )
         if state.get("tensor_status_var") is not None:
-            state["tensor_status_var"].set(
-                "Axial + Rhombic" if canonical.rhombic_enabled else "Axial"
-            )
+            _refresh_tensor_state_label()
         summary = state.get("rh_euler_summary_var")
         if summary is not None:
             summary.set(
@@ -5704,6 +5716,9 @@ def update_graph(state):
     pcs_values = np.arange(pcs_min, pcs_max + pcs_interval, pcs_interval)
     # Reject invalid display inputs before committing the pending tensor edit.
     _sync_legacy_pcs_tensor(state, source="legacy:update_graph")
+    refresh_tensor_label = state.get("refresh_tensor_state_label")
+    if callable(refresh_tensor_label):
+        refresh_tensor_label()
     state['pcs_values'] = pcs_values
 
     if state.get('atom_data'):

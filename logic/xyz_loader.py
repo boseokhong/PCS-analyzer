@@ -235,7 +235,7 @@ def parse_orca_out_all(file_path: str) -> List[List[Atom]]:
     return out
 
 # orca cartesian, susceptibility, temperature parse
-def _extract_orca_susceptibility_tensors(text: str) -> dict[float, np.ndarray]:
+def _extract_orca_tensor_sections(text: str) -> list[dict]:
     """
     Extract temperature-dependent susceptibility tensors from ORCA output text.
 
@@ -249,38 +249,66 @@ def _extract_orca_susceptibility_tensors(text: str) -> dict[float, np.ndarray]:
     """
     lines = text.splitlines()
 
-    temp_re = re.compile(r"TEMPERATURE/K:\s*([0-9.+\-Ee]+)")
+    temp_re = re.compile(r"TEMPERATURE/K:\s*(\S+)")
     tensor_header_re = re.compile(r"Tensor in molecular frame", re.IGNORECASE)
 
-    tensors_by_temp: dict[float, np.ndarray] = {}
-    current_temp = None
+    sections = []
+    current = None
+    section_title = "Susceptibility tensors"
 
     for i, line in enumerate(lines):
+        if re.search(r"TEMPERATURE\s+DEPENDENT\s+(?:MOLAR\s+)?MAGNETIC\s+SUSCEPTIBILITY", line, re.I):
+            current = None
+            section_title = line.strip()
         m_temp = temp_re.search(line)
         if m_temp:
             try:
                 current_temp = float(m_temp.group(1))
-            except Exception:
-                current_temp = None
-            continue
+                if not np.isfinite(current_temp) or current_temp <= 0:
+                    raise ValueError
+            except ValueError as exc:
+                raise ValueError(f"Invalid susceptibility temperature at line {i + 1}.") from exc
+            if current is None or current_temp in current["tensors_by_temp"]:
+                current = {"title": section_title, "line": i + 1, "tensors_by_temp": {}}
+                sections.append(current)
+            # Never read across the next temperature into a different tensor.
+            following = lines[i + 1:i + 21]
+            header = None
+            rows = []
+            for candidate in following:
+                if temp_re.search(candidate):
+                    break
+                if tensor_header_re.search(candidate):
+                    header = True
+                    rows = []
+                    continue
+                if header:
+                    tokens = candidate.split()
+                    try:
+                        row = [float(value.replace("D", "E").replace("d", "e")) for value in tokens]
+                    except ValueError:
+                        row = []
+                    if len(row) == 3 and np.all(np.isfinite(row)):
+                        rows.append(row)
+                        if len(rows) == 3:
+                            break
+                    elif rows:
+                        break
+            if len(rows) != 3:
+                raise ValueError(
+                    f"Malformed susceptibility tensor at {current_temp:g} K near line {i + 1}. "
+                    "Expected three consecutive rows of three finite numbers."
+                )
+            tensor = np.array(rows, dtype=float)
+            if not np.allclose(tensor, tensor.T, rtol=1e-5, atol=1e-8):
+                raise ValueError(f"Susceptibility tensor at {current_temp:g} K is not symmetric.")
+            current["tensors_by_temp"][current_temp] = tensor
+    return sections
 
-        if tensor_header_re.search(line):
-            if current_temp is None:
-                continue
 
-            try:
-                mat = []
-                for j in range(1, 4):
-                    row = [float(x) for x in lines[i + j].split()[:3]]
-                    if len(row) != 3:
-                        raise ValueError
-                    mat.append(row)
-
-                tensors_by_temp[current_temp] = np.array(mat, dtype=float)
-            except Exception:
-                continue
-
-    return tensors_by_temp
+def _extract_orca_susceptibility_tensors(text: str) -> dict[float, np.ndarray]:
+    sections = _extract_orca_tensor_sections(text)
+    return sections[-1]["tensors_by_temp"] if sections else {}
 
 def load_orca_data(file_path: str) -> dict:
     """
@@ -296,11 +324,14 @@ def load_orca_data(file_path: str) -> dict:
         text = f.read()
 
     atoms = parse_orca_out(file_path)
-    tensors_by_temp = _extract_orca_susceptibility_tensors(text)
+    sections = _extract_orca_tensor_sections(text)
+    tensors_by_temp = sections[-1]["tensors_by_temp"] if sections else {}
 
     return {
         "atoms": atoms,
         "tensors_by_temp": tensors_by_temp,
+        "tensor_sections": sections,
+        "selected_tensor_section": len(sections),
     }
 
 def pick_orca_tensor_at_temperature(

@@ -586,6 +586,7 @@ def compute_pcs_pde_result(
     fft_pad_factor = int(params.get("fft_pad_factor", 2))
     normalize_density = bool(params.get("normalize_density", True))
     normalization_target = float(params.get("normalization_target", 1.0))
+    normalization_stage = str(params.get("normalization_stage", "before_padding"))
 
     chi_r2 = rank2_chi(chi_tensor)
 
@@ -600,6 +601,7 @@ def compute_pcs_pde_result(
         fft_pad_factor=fft_pad_factor,
         normalize_density=normalize_density,
         normalization_target=normalization_target,
+        normalization_stage=normalization_stage,
     )
 
     rho_used = np.asarray(meta.get("rho_used"), dtype=float)
@@ -655,6 +657,7 @@ def compute_pcs_pde_result(
         "fft_pad_factor": int(fft_pad_factor),
         "normalize_density": bool(normalize_density),
         "normalization_target": float(normalization_target),
+        "normalization_stage": normalization_stage,
         "normalization_info": meta.get("normalization_info"),
         "density_before": meta.get("density_before"),
         "density_after": meta.get("density_after"),

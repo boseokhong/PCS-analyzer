@@ -24,7 +24,7 @@ CONTEXT_KEYS = FIT_KEYS + tuple(k for k in STRUCTURE_KEYS if k != "atom_data") +
     "torsion_avg_phase",
 ) + PCS_DATA_KEYS
 # A source replacement is a real edit even when its coordinates are identical.
-CONTEXT_KEYS += ("current_structure_path",)
+CONTEXT_KEYS += ("current_structure_path", "pcs_tensor_source")
 
 
 def _digest(value):

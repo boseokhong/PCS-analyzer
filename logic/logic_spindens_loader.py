@@ -80,12 +80,15 @@ def load_spindens_3d(file_path: str) -> dict:
         )
 
     data = np.asarray(values, dtype=np.float64)
+    if not np.all(np.isfinite(data)) or not np.all(np.isfinite([ox, oy, oz, dx, dy, dz])):
+        raise ValueError("Density values, origin and spacing must be finite.")
 
     # Exact translation of:
     # density = reshape(abs(A.data), npts(2), npts(3), npts(1));
     # density = permute(density, [3 2 1]);
     rho = np.abs(data).reshape((ny, nz, nx), order="F")
     rho = np.transpose(rho, (2, 1, 0))
+    rho_signed = data.reshape((ny, nz, nx), order="F").transpose(2, 1, 0)
 
     return {
         "title": title,
@@ -93,4 +96,5 @@ def load_spindens_3d(file_path: str) -> dict:
         "origin": np.array([ox, oy, oz], dtype=np.float64),
         "spacing": (float(dx), float(dy), float(dz)),
         "rho": rho,
+        "rho_signed": rho_signed,
     }

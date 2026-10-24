@@ -845,6 +845,11 @@ def build_pcsp_text(state: dict, *, source_path: str | None = None) -> str:
     _write_kv(lines, "dchi_rh", state.get("rh_dchi_rh", 0.0))
     _write_kv(lines, "rhombic_enabled", bool(state.get("rh_calc_enabled", False)))
     _write_kv(lines, "prediction_model", get_prediction_model(state).value)
+    if state.get("pcs_tensor_source") is not None:
+        from logic.orca_tensor_transfer import validate_source_record
+        source = validate_source_record(state["pcs_tensor_source"])
+        _write_kv(lines, "tensor_source_json", json.dumps(source, ensure_ascii=True,
+                  separators=(",", ":"), allow_nan=False).replace("#", "\\u0023"))
     _write_kv(lines, "pcs_min", _get_entry_float(state, "pcs_min_entry", cfg.get("default_pcs_min", -10.0)))
     _write_kv(lines, "pcs_max", _get_entry_float(state, "pcs_max_entry", cfg.get("default_pcs_max", 10.0)))
     _write_kv(lines, "pcs_interval", _get_entry_float(state, "pcs_interval_entry", cfg.get("default_pcs_interval", 0.5)))
@@ -1228,6 +1233,13 @@ def parse_project_file(path: str | Path) -> ParsedPCSProject:
     for name in ("delta_exp", "delta_obs", "delta_dia"):
         parse_delta_rows(sections.get(name, []))
     parse_level_rows(sections.get("viewer.pcs_field.levels", []))
+    tensor_source = parse_key_values(sections.get("pcs_model", [])).get("tensor_source_json")
+    if tensor_source:
+        from logic.orca_tensor_transfer import validate_source_record
+        try:
+            validate_source_record(json.loads(tensor_source))
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            raise PCSPError("Invalid ORCA tensor provenance in [pcs_model].") from exc
     preview = parse_key_values(sections.get("fit_override", []))
     if _parse_bool(preview.get("enabled", "false")) and preview.get("mode") == "full_tensor":
         _mode_c_preview(preview, legacy_incomplete=True)
@@ -1360,6 +1372,14 @@ def _apply_parsed_project(project: ParsedPCSProject, state: dict) -> None:
     state["rh_dchi_rh"] = _parse_float(pcs_model.get("dchi_rh", "0.0"), default=0.0)
     _set_var(state, "rh_dchi_rh_var", str(state["rh_dchi_rh"]))
     state["rh_calc_enabled"] = _parse_bool(pcs_model.get("rhombic_enabled", "false"))
+    if pcs_model.get("tensor_source_json"):
+        from logic.orca_tensor_transfer import validate_source_record
+        try:
+            state["pcs_tensor_source"] = validate_source_record(json.loads(pcs_model["tensor_source_json"]))
+        except (ValueError, TypeError, KeyError) as exc:
+            raise PCSPError("Invalid ORCA tensor provenance in [pcs_model].") from exc
+    else:
+        state.pop("pcs_tensor_source", None)
     _set_var(state, "rh_calc_enabled_var", state["rh_calc_enabled"])
     install_prediction_model(
         state,

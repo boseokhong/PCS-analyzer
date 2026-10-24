@@ -8,12 +8,16 @@ from the main PCS Analyzer interface.
 from __future__ import annotations
 
 from ui.widget_style import ui_text_color, ui_label_style, ui_font_name
-from ui.style import get_app_fonts
+from ui.style import get_app_fonts, table_row_height
+from ui.dialog_layout import DialogForm, dialog_actions, fit_dialog
 import csv
 import threading
 import traceback
+import queue
+from dataclasses import replace
+from pathlib import Path
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 from typing import Optional
 
 import numpy as np
@@ -37,9 +41,13 @@ from ui.ui_pcs_pde_viewer import (
     apply_camera_preset,
 )
 from logic.logic_pcs_pde import rank2_chi, PYFFTW_AVAILABLE, PYFFTW_THREADS
+from logic.pcs_workbench_state import AppSession, calculation_signature, estimate_calculation_memory
+from logic.pcs_padding_convergence import (
+    padding_check_options, compute_padding_check, padding_check_failure, format_padding_check,
+)
 
 AVOGADRO = 6.02214129e23
-PCS_WORKBENCH_VERSION = "0.1.0"
+PCS_WORKBENCH_VERSION = "0.1.1"
 
 
 def convert_orca_chi_to_angstrom3(chi_raw: np.ndarray, temperature: float) -> np.ndarray:
@@ -48,24 +56,6 @@ def convert_orca_chi_to_angstrom3(chi_raw: np.ndarray, temperature: float) -> np
     if T <= 0.0:
         raise ValueError("Temperature must be positive.")
     return (4.0 * np.pi * 1.0e24 * chi_raw) / (AVOGADRO * T)
-
-
-def _fit_toplevel_to_content(
-    win: tk.Toplevel,
-    *,
-    min_width: int = 360,
-    min_height: int = 240,
-    margin: int = 24,
-) -> None:
-    """Resize a dialog to its requested content size without exceeding screen bounds."""
-    win.update_idletasks()
-    width = max(int(min_width), int(win.winfo_reqwidth()) + int(margin))
-    height = max(int(min_height), int(win.winfo_reqheight()) + int(margin))
-    width = min(width, max(int(min_width), int(win.winfo_screenwidth()) - 80))
-    height = min(height, max(int(min_height), int(win.winfo_screenheight()) - 100))
-    x = max(20, int(win.winfo_rootx()))
-    y = max(20, int(win.winfo_rooty()))
-    win.geometry(f"{width}x{height}+{x}+{y}")
 
 
 class InfoPanel(ttk.Frame):
@@ -107,7 +97,18 @@ class InfoPanel(ttk.Frame):
         self._text.configure(state="disabled")
 
     def update_from_session(self, session: "AppSession"):
-        lines: list[str] = []
+        lines: list[str] = [f"Status: {session.status}\n"]
+        if session.last_error:
+            lines.extend([f"\nError: {session.last_error}\n", session.last_traceback, "\n"])
+        if session.orca and session.orca.get("tensor_sections"):
+            selected = session.orca["selected_tensor_section"]
+            section = session.orca["tensor_sections"][selected - 1]
+            lines.append(f"Tensor source: section {selected}, line {section['line']}\n")
+        if session.last_result is not None:
+            result = session.last_result
+            lines.append(f"Result snapshot: {result.get('temperature'):g} K; "
+                         f"padding {result.get('fft_pad_factor')}; "
+                         f"normalization {result.get('normalization_stage', 'after_padding')}\n")
 
         def _sep(title: str = ""):
             lines.append("\n" + "─" * 54 + "\n")
@@ -271,6 +272,8 @@ class InfoPanel(ttk.Frame):
                         f"{pde_s:>10}  {pt_s:>10}  {dlt_s:>10}\n"
                     )
 
+        if session.last_result is not None and session.last_result.get("padding_convergence"):
+            lines.append(format_padding_check(session.last_result["padding_convergence"]))
         self.set_text("".join(lines) if lines else "No data loaded.")
 
 
@@ -1214,21 +1217,8 @@ def _default_pcs_plot_settings(kind="compare"):
         "band_ppm": 0.5,
     }
 
-class AppSession:
-    orca_path: Optional[str] = None
-    dens_path: Optional[str] = None
-    orca: Optional[dict] = None
-    dens: Optional[dict] = None
-    temperature: Optional[float] = None
-    chi_raw: Optional[np.ndarray] = None
-    chi: Optional[np.ndarray] = None
-    last_result: Optional[dict] = None
-    last_view_params: Optional[dict] = None
-    viewer_plotter = None
-
-
 class AppWindow(tk.Toplevel):
-    def __init__(self, master=None):
+    def __init__(self, master=None, *, on_send_tensor_callback=None):
         super().__init__(master)
 
         self.title(f"PCS Workbench v{PCS_WORKBENCH_VERSION}")
@@ -1237,6 +1227,12 @@ class AppWindow(tk.Toplevel):
 
         self._session = AppSession()
         self._compute_thread: Optional[threading.Thread] = None
+        self._completion_queue = queue.SimpleQueue()
+        self._active_snapshot = None
+        self._padding_check_base = None
+        self._on_send_tensor_callback = on_send_tensor_callback
+        self._closed = False
+        self._poll_job = None
 
         self._tensor_view_opts = _tensor_view_defaults()
         self._tensor_view_plotter = None
@@ -1250,12 +1246,15 @@ class AppWindow(tk.Toplevel):
         self._build_body()
         self._build_statusbar()
         self._update_info()
-        self.after(30, self._pump_pyvista_events)
+        self._viewer_pump_job = self.after(30, self._pump_pyvista_events)
 
         # PDE vs PD pcs plot
         self._pcs_plot_settings_compare = _default_pcs_plot_settings("compare")
         self._pcs_plot_settings_residual = _default_pcs_plot_settings("residual")
         self._pcs_plot_ctrl_win = None
+        self._calculation_signature = calculation_signature(self._ctrl.get_params())
+        self._ctrl.watch_calculation_changes(self._calculation_inputs_changed)
+        self.protocol("WM_DELETE_WINDOW", self._on_quit)
 
     def _build_menu(self):
         menubar = tk.Menu(self)
@@ -1263,8 +1262,10 @@ class AppWindow(tk.Toplevel):
         file_menu = tk.Menu(menubar, tearoff=False)
         file_menu.add_command(label="Open ORCA output…", command=self._load_orca)
         file_menu.add_command(label="Open spin density…", command=self._load_dens)
+        file_menu.add_command(label="Send tensor to PCS Analyzer…", command=self._send_tensor, state="disabled")
+        self._file_menu = file_menu
         file_menu.add_separator()
-        file_menu.add_command(label="Export PCS to NumPy…", command=self._export_npy)
+        file_menu.add_command(label="Export 3D data…", command=self._open_volume_export)
         file_menu.add_command(label="Export atom PCS to CSV…", command=self._export_atom_pcs_csv)
         file_menu.add_command(label="Export PNG…", command=lambda: self._export_png(self._ctrl.get_params()))
         file_menu.add_separator()
@@ -1316,13 +1317,43 @@ class AppWindow(tk.Toplevel):
             on_apply_camera_callback=self._apply_pcs_camera,
             on_save_camera_callback=self._save_pcs_camera,
             on_restore_camera_callback=self._restore_pcs_camera,
+            on_export_volume_callback=self._open_volume_export,
+            on_check_padding_callback=self._check_current_padding,
+            on_send_tensor_callback=self._send_tensor,
         )
         self._ctrl.pack(fill="both", expand=True)
         paned.add(left_frame, weight=0)
 
         right_frame = ttk.LabelFrame(paned, text="Results & Information", padding=0)
-        self._info = InfoPanel(right_frame)
-        self._info.pack(fill="both", expand=True)
+        self._result_summary = tk.StringVar(value="No current result · Run computation to generate results.")
+        summary = ttk.Label(right_frame, textvariable=self._result_summary,
+                            wraplength=480, justify="left", padding=(12, 8))
+        summary.pack(fill="x")
+        summary.bind("<Configure>", lambda event: summary.configure(wraplength=max(1, event.width - 24)))
+        results = ttk.Notebook(right_frame)
+        results.pack(fill="both", expand=True)
+        self._info = InfoPanel(results)
+        results.add(self._info, text="Summary & diagnostics")
+        table_frame = ttk.Frame(results)
+        table_frame.rowconfigure(0, weight=1)
+        table_frame.columnconfigure(0, weight=1)
+        columns = ("ref", "atom", "x", "y", "z", "pcs_pde", "pcs_point", "delta")
+        self._atom_table = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="extended")
+        ttk.Style(self).configure("PCSWorkbench.Treeview",
+            rowheight=table_row_height(self, get_app_fonts(self)["ui"]))
+        self._atom_table.configure(style="PCSWorkbench.Treeview")
+        for key, label in zip(columns, ("Ref", "Atom", "X (Å)", "Y (Å)", "Z (Å)",
+                                       "PCS PDE (ppm)", "PCS point (ppm)", "Δ PDE − point (ppm)")):
+            self._atom_table.heading(key, text=label)
+            self._atom_table.column(key, width=125 if key.startswith("pcs") or key == "delta" else 75,
+                                    anchor="w" if key == "atom" else "e")
+        self._atom_table.grid(row=0, column=0, sticky="nsew")
+        yscroll = ttk.Scrollbar(table_frame, command=self._atom_table.yview)
+        xscroll = ttk.Scrollbar(table_frame, orient="horizontal", command=self._atom_table.xview)
+        self._atom_table.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
+        yscroll.grid(row=0, column=1, sticky="ns")
+        xscroll.grid(row=1, column=0, sticky="ew")
+        results.add(table_frame, text="Atom comparison")
         paned.add(right_frame, weight=1)
 
     def _build_statusbar(self):
@@ -1330,9 +1361,71 @@ class AppWindow(tk.Toplevel):
         self._status.pack(side="bottom", fill="x")
 
     def _update_info(self):
+        result = self._session.last_result
+        if result is None:
+            self._result_summary.set("No current result · Run computation to generate results.")
+        else:
+            check_status = (result.get("padding_convergence") or {}).get("status", "Not checked")
+            self._result_summary.set(
+                f"{result['temperature']:g} K · Padding {result['fft_pad_factor']} · Convergence: {check_status}")
         self._info.update_from_session(self._session)
+        can_send = self._on_send_tensor_callback is not None and self._session.orca is not None
+        self._ctrl.set_send_tensor_available(can_send)
+        self._file_menu.entryconfigure("Send tensor to PCS Analyzer…", state="normal" if can_send else "disabled")
+        self._ctrl.set_padding_check_context(self._session)
+        rows = self._session.last_result.get("atom_rows", []) if self._session.last_result else []
+        children = self._atom_table.get_children()
+        if children:
+            self._atom_table.delete(*children)
+        for row in rows:
+            self._atom_table.insert("", "end", values=(row["ref"], row["atom"], *[
+                f"{row[key]:.6g}" for key in ("x", "y", "z")
+            ], *[
+                f"{row[key]:.2f}" for key in ("pcs_pde", "pcs_point", "delta")
+            ]))
+
+    def _calculation_inputs_changed(self):
+        try:
+            signature = calculation_signature(self._ctrl.get_params())
+        except (ValueError, TypeError, tk.TclError):
+            signature = None
+        if signature != self._calculation_signature:
+            self._calculation_signature = signature
+            if signature is not None and self._session.orca:
+                try:
+                    t, raw, chi = self._prepare_chi_for_params(self._ctrl.get_params())
+                    self._session.temperature, self._session.chi_raw, self._session.chi = t, raw, chi
+                except (ValueError, TypeError):
+                    pass  # The input summary reports invalid settings below.
+            self._invalidate_result("Recalculation required: calculation settings changed.")
+        self._update_input_summary()
+
+    def _invalidate_result(self, reason):
+        self._session.invalidate(reason)
+        close_pcs_pde_view(self._session.viewer_plotter)
+        self._session.viewer_plotter = None
+        if self._tensor_view_plotter is not None:
+            try:
+                self._tensor_view_plotter.close()
+            except Exception as exc:
+                self._session.last_error = f"Tensor viewer close failed: {exc}"
+            finally:
+                self._tensor_view_plotter = None
+        self._saved_pcs_camera_state = None
+        self._update_info()
+        if hasattr(self, "_status"):
+            self._status.set(reason)
+
+    def _update_input_summary(self):
+        try:
+            self._ctrl.update_input_summary(self._session)
+        except (ValueError, TypeError, tk.TclError) as exc:
+            self._ctrl.set_input_summary(f"Invalid calculation settings: {exc}")
 
     def _pump_pyvista_events(self):
+        self._viewer_pump_job = None
+        if self._closed:
+            return
         plotter = self._session.viewer_plotter
 
         if plotter is not None:
@@ -1353,7 +1446,7 @@ class AppWindow(tk.Toplevel):
 
         try:
             if self.winfo_exists():
-                self.after(30, self._pump_pyvista_events)
+                self._viewer_pump_job = self.after(30, self._pump_pyvista_events)
         except tk.TclError:
             pass
 
@@ -1439,6 +1532,31 @@ class AppWindow(tk.Toplevel):
             messagebox.showerror("ORCA load error", "No susceptibility tensors found.")
             return
 
+        sections = orca.get("tensor_sections", [])
+        if len(sections) > 1:
+            description = "\n".join(
+                f"{index}: line {section['line']}, {len(section['tensors_by_temp'])} temperatures"
+                for index, section in enumerate(sections, 1)
+            )
+            selected = simpledialog.askinteger(
+                "Select susceptibility section",
+                "Multiple tensor sections were found. Choose the intended calculation section.\n"
+                "The calculation level is not inferred automatically.\n\n" + description,
+                initialvalue=len(sections), minvalue=1, maxvalue=len(sections), parent=self,
+            )
+            if selected is None:
+                return
+            orca["tensors_by_temp"] = sections[selected - 1]["tensors_by_temp"]
+            orca["selected_tensor_section"] = selected
+
+        try:
+            t, chi_raw = pick_orca_tensor_at_temperature(orca["tensors_by_temp"], None)
+            chi_converted = convert_orca_chi_to_angstrom3(chi_raw, t)
+        except (ValueError, TypeError) as exc:
+            messagebox.showerror("ORCA tensor error", str(exc), parent=self)
+            return
+
+        self._invalidate_result("Recalculation required: ORCA input changed.")
         self._session.orca_path = path
         self._session.orca = orca
 
@@ -1446,16 +1564,16 @@ class AppWindow(tk.Toplevel):
         self._ctrl.set_temperatures(temps)
         self._ctrl.set_elements([atom[0] for atom in orca["atoms"]])
 
-        t, chi_raw = pick_orca_tensor_at_temperature(orca["tensors_by_temp"], None)
         self._session.temperature = t
         self._session.chi_raw = np.asarray(chi_raw, dtype=float)
-        self._session.chi = convert_orca_chi_to_angstrom3(chi_raw, t)
+        self._session.chi = chi_converted
 
         self._status.set(
             f"ORCA loaded: {len(orca['atoms'])} atoms, {len(temps)} temperature(s) "
             f"[{temps[0]:g}–{temps[-1]:g} K]"
         )
         self._update_info()
+        self._update_input_summary()
 
     def _load_dens(self):
         path = filedialog.askopenfilename(
@@ -1475,6 +1593,7 @@ class AppWindow(tk.Toplevel):
             self._status.set("Density load failed.")
             return
 
+        self._invalidate_result("Recalculation required: density input changed.")
         self._session.dens_path = path
         self._session.dens = dens
 
@@ -1484,6 +1603,7 @@ class AppWindow(tk.Toplevel):
             f"ρ ∈ [{dens['rho'].min():.2e}, {dens['rho'].max():.2e}]"
         )
         self._update_info()
+        self._update_input_summary()
 
     def _prepare_chi_for_params(self, params: dict):
         if self._session.orca is None:
@@ -1496,9 +1616,29 @@ class AppWindow(tk.Toplevel):
         chi_converted = convert_orca_chi_to_angstrom3(chi_raw, t)
         return t, np.asarray(chi_raw, dtype=float), np.asarray(chi_converted, dtype=float)
 
+    def _send_tensor(self):
+        if self._on_send_tensor_callback is None or self._session.orca is None:
+            return
+        try:
+            t, raw, chi = self._prepare_chi_for_params({"temperature": self._ctrl.get_tensor_temperature()})
+            orca = self._session.orca
+            section_number = orca.get("selected_tensor_section")
+            section = orca.get("tensor_sections", [])[section_number - 1] if section_number else {}
+            from ui.ui_pcs_pde_viewer import _guess_metal_index
+            payload = dict(atoms=tuple(tuple(atom) for atom in orca["atoms"]),
+                           metal_index=_guess_metal_index([atom[0] for atom in orca["atoms"]]),
+                           chi_raw=raw.copy(), chi_converted=chi.copy(), temperature=t,
+                           file=self._session.orca_path, section=section_number, line=section.get("line"))
+            self._on_send_tensor_callback(payload)
+        except (ValueError, TypeError, tk.TclError) as exc:
+            messagebox.showerror("Tensor transfer", str(exc), parent=self)
+
     def _on_run(self, params: Optional[dict] = None):
-        if params is None:
-            params = self._ctrl.get_params()
+        try:
+            params = dict(params if params is not None else self._ctrl.get_params())
+        except (ValueError, TypeError, tk.TclError) as exc:
+            messagebox.showerror("Invalid calculation settings", str(exc), parent=self)
+            return
 
         if self._session.orca is None:
             messagebox.showwarning("No ORCA data", "Please load an ORCA output file first.")
@@ -1506,14 +1646,32 @@ class AppWindow(tk.Toplevel):
         if self._session.dens is None:
             messagebox.showwarning("No density data", "Please load a spin density file first.")
             return
-        if self._compute_thread and self._compute_thread.is_alive():
-            messagebox.showinfo("Busy", "A computation is already running. Please wait.")
+        if self._active_snapshot is not None:
+            messagebox.showinfo("Busy", "A computation is already running. Please wait.", parent=self)
             return
 
         try:
             t, chi_raw, chi_converted = self._prepare_chi_for_params(params)
+            check_options = padding_check_options(params)
+            shape, memory = estimate_calculation_memory(
+                self._session.dens["rho"].shape, params.get("fft_pad_factor", 2)
+            )
+            if check_options:
+                shape, comparison_memory = estimate_calculation_memory(
+                    self._session.dens["rho"].shape, check_options["comparison_factor"])
+                # Retain the three base volumes while the larger grid is solved.
+                base_shape, _ = estimate_calculation_memory(
+                    self._session.dens["rho"].shape, params["fft_pad_factor"])
+                memory = comparison_memory + int(np.prod(base_shape, dtype=object)) * 8 * 3
+            if memory > 2 * 1024 ** 3 and not messagebox.askokcancel(
+                "Large calculation",
+                f"Padded grid: {shape}. Estimated working arrays: {memory / 1024 ** 3:.2f} GiB.\n"
+                "FFT planning and rendering can require additional memory. Continue?", parent=self,
+            ):
+                return
+            snapshot = self._session.snapshot(params, t, chi_raw, chi_converted)
         except Exception as exc:
-            messagebox.showerror("Tensor error", str(exc))
+            messagebox.showerror("Calculation input error", str(exc), parent=self)
             return
 
         self._session.temperature = t
@@ -1521,47 +1679,124 @@ class AppWindow(tk.Toplevel):
         self._session.chi = chi_converted
         self._session.last_view_params = dict(params)
 
-        try:
-            dens = load_spindens_3d(self._session.dens_path)
-            self._session.dens = dens
-        except Exception as exc:
-            messagebox.showerror("Density reload error", str(exc))
-            return
-
-        origin_ang = np.asarray(dens["origin"], dtype=float)
-        dx, dy, dz = dens["spacing"]
-        spacing_ang = (float(dx), float(dy), float(dz))
-
+        self._invalidate_result("Computing")
+        # Invalidation advances the input generation; snapshot that generation.
+        snapshot = replace(snapshot, revision=self._session.revision)
+        self._active_snapshot = snapshot
+        self._padding_check_base = None
+        self._ctrl.set_computing(True)
         self._update_info()
-        self._status.start_busy(f"Computing PCS at {t:g} K…")
+        self._status.start_busy(f"Computing PCS at {t:g} K…" + (" Padding comparison will follow." if check_options else ""))
+        completions = self._completion_queue
 
         def _worker():
             try:
-                result = compute_pcs_pde_result(
-                    atoms=self._session.orca["atoms"],
-                    origin=origin_ang,
-                    spacing=spacing_ang,
-                    rho=self._session.dens["rho"],
-                    chi_tensor=self._session.chi,
-                    params=params,
-                    chi_raw=self._session.chi_raw,
-                    temperature=self._session.temperature,
-                )
-                self._session.last_result = result
-                self.after(0, lambda: self._on_compute_done(success=True, params=params))
+                result = compute_pcs_pde_result(**snapshot.compute_kwargs())
+                if check_options:
+                    try:
+                        result["padding_convergence"] = compute_padding_check(
+                            snapshot, result, check_options, compute_pcs_pde_result)
+                    except Exception as exc:
+                        result["padding_convergence"] = padding_check_failure(
+                            result["fft_pad_factor"], check_options, exc)
+                completions.put((snapshot, result, "", ""))
             except Exception as exc:
-                print(traceback.format_exc())
-                self.after(0, lambda: self._on_compute_done(success=False, error=str(exc), params=params))
+                completions.put((snapshot, None, str(exc) or type(exc).__name__, traceback.format_exc()))
 
         self._compute_thread = threading.Thread(target=_worker, daemon=True)
         self._compute_thread.start()
+        self._poll_job = self.after(80, self._poll_computation)
+
+    def _check_current_padding(self):
+        if self._active_snapshot is not None:
+            messagebox.showinfo("Busy", "A computation is already running. Please wait.", parent=self)
+            return
+        base = self._session.last_result
+        if base is None:
+            messagebox.showinfo("No current result", "Run a computation with the current inputs first.", parent=self)
+            return
+        try:
+            params = self._ctrl.get_params()
+            options = padding_check_options(params)
+            if options is None:
+                return
+            shape, memory = estimate_calculation_memory(self._session.dens["rho"].shape,
+                                                        options["comparison_factor"])
+            memory += sum(base[key].nbytes for key in ("pcs_field", "source_term", "rho_used"))
+            if memory > 2 * 1024 ** 3 and not messagebox.askokcancel(
+                "Large padding comparison",
+                f"Comparison grid: {shape}. Estimated working arrays and retained base result: "
+                f"{memory / 1024 ** 3:.2f} GiB.\nFFT planning can require additional memory. Continue?",
+                parent=self):
+                return
+            snapshot = self._session.snapshot(base["calculation_params"], base["temperature"],
+                                               base["chi_raw"], base["chi_converted"])
+        except (ValueError, TypeError, tk.TclError) as exc:
+            messagebox.showerror("Padding check settings", str(exc), parent=self)
+            return
+        self._active_snapshot = snapshot
+        self._padding_check_base = base
+        self._ctrl.set_computing(True)
+        self._status.start_busy(f"Checking padding {base['fft_pad_factor']} -> {options['comparison_factor']}…")
+        completions = self._completion_queue
+
+        def _worker():
+            try:
+                check = compute_padding_check(snapshot, base, options, compute_pcs_pde_result)
+            except Exception as exc:
+                check = padding_check_failure(base["fft_pad_factor"], options, exc)
+            completions.put((snapshot, check, "", ""))
+
+        self._compute_thread = threading.Thread(target=_worker, daemon=True)
+        self._compute_thread.start()
+        self._poll_job = self.after(80, self._poll_computation)
+
+    def _poll_computation(self):
+        self._poll_job = None
+        if self._closed:
+            return
+        try:
+            snapshot, result, error, details = self._completion_queue.get_nowait()
+        except queue.Empty:
+            self._poll_job = self.after(80, self._poll_computation)
+            return
+        check_base = self._padding_check_base
+        self._padding_check_base = None
+        self._active_snapshot = None
+        self._ctrl.set_computing(False)
+        if snapshot.revision != self._session.revision:
+            self._status.stop_busy("Inputs changed. Previous computation discarded; run again.")
+            self._update_info()
+            return
+        if check_base is not None:
+            if self._session.last_result is check_base:
+                check_base["padding_convergence"] = result
+                self._update_info()
+                self._info.master.select(self._info)
+                self._info._text.see("end")
+                self._status.stop_busy("Padding check: " + result["status"] + ". Base result retained.")
+            else:
+                self._status.stop_busy("Base result changed. Padding comparison discarded.")
+            return
+        if error:
+            self._session.status = "Computation failed"
+            self._session.last_error = error
+            self._session.last_traceback = details
+        else:
+            self._session.accept_result(snapshot, result)
+        self._on_compute_done(not error, error, snapshot.params)
 
     def _on_compute_done(self, success: bool, error: str = "", params: Optional[dict] = None):
         self._update_info()
         if success:
+            if "padding_convergence" in self._session.last_result:
+                self._info.master.select(self._info)
+                self._info._text.see("end")
             pcs = self._session.last_result["pcs_field"]
             self._status.stop_busy(
                 f"Done. PCS ∈ [{np.nanmin(pcs):.3f}, {np.nanmax(pcs):.3f}] ppm"
+                + (" Padding check: " + self._session.last_result["padding_convergence"]["status"] + "."
+                   if "padding_convergence" in self._session.last_result else "")
             )
 
             if self._session.viewer_plotter is not None:
@@ -1586,7 +1821,7 @@ class AppWindow(tk.Toplevel):
                     self._vtk_update_suspended = False
         else:
             self._status.stop_busy("Computation failed.")
-            messagebox.showerror("Computation error", f"PCS computation failed:\n{error}")
+            messagebox.showerror("Computation error", f"PCS computation failed:\n{error}", parent=self)
 
     def _refresh_viewer(self, params: Optional[dict] = None):
         if params is None:
@@ -1656,36 +1891,14 @@ class AppWindow(tk.Toplevel):
             self._vtk_update_suspended = False
 
     def _export_npy(self, params: Optional[dict] = None):
+        self._open_volume_export(initial_format=".npz")
+
+    def _open_volume_export(self, initial_format=".cube"):
         if self._session.last_result is None:
-            messagebox.showinfo("Nothing to export", "Run a computation first.")
+            messagebox.showinfo("No current result", "Run a computation with the current inputs first.", parent=self)
             return
-
-        path = filedialog.asksaveasfilename(
-            title="Save PCS field",
-            defaultextension=".npz",
-            filetypes=[("NumPy archive", "*.npz"), ("All files", "*.*")],
-        )
-        if not path:
-            return
-
-        try:
-            np.savez_compressed(
-                path,
-                pcs_field=self._session.last_result["pcs_field"],
-                source_term=self._session.last_result["source_term"],
-                origin=self._session.last_result["origin"],
-                spacing=np.array(self._session.last_result["spacing"]),
-                temperature=self._session.last_result.get("temperature"),
-                chi_raw=self._session.last_result.get("chi_raw"),
-                chi_converted=self._session.last_result.get("chi_converted"),
-                chi_rank2=self._session.last_result.get("chi_rank2"),
-                fft_pad_factor=self._session.last_result.get("fft_pad_factor"),
-                normalize_density=self._session.last_result.get("normalize_density"),
-                normalization_target=self._session.last_result.get("normalization_target"),
-            )
-            self._status.set(f"Exported: {path}")
-        except Exception as exc:
-            messagebox.showerror("Export error", str(exc))
+        from ui.pcs_workbench_export import VolumeExportDialog
+        VolumeExportDialog(self, self._session.last_result, initial_format=initial_format)
 
     def _export_atom_pcs_csv(self):
         if self._session.last_result is None:
@@ -1826,7 +2039,8 @@ class AppWindow(tk.Toplevel):
         ax.set_xlabel("Point-dipole PCS / ppm")
         ax.set_ylabel("PDE PCS / ppm")
         ax.set_title(
-            "PDE vs Point PCS\n"
+            f"PDE vs Point PCS | {self._session.last_result['temperature']:g} K | "
+            f"{Path(self._session.last_result.get('input_files', {}).get('orca') or 'ORCA').name}\n"
             f"N = {len(rows)}   RMSD = {rmsd:.4f} ppm   "
             f"MAE = {mae:.4f} ppm   mean Δ = {mean_signed:.4f} ppm   "
             f"max|Δ| = {max_abs:.4f} ppm"
@@ -1931,7 +2145,8 @@ class AppWindow(tk.Toplevel):
         ax.set_xlabel("Point-dipole PCS / ppm")
         ax.set_ylabel("PDE - Point / ppm")
         ax.set_title(
-            "Residual plot\n"
+            f"Residual plot | {self._session.last_result['temperature']:g} K | "
+            f"{Path(self._session.last_result.get('input_files', {}).get('orca') or 'ORCA').name}\n"
             f"N = {len(rows)}   RMSD = {rmsd:.4f} ppm   "
             f"MAE = {mae:.4f} ppm   mean Δ = {mean_signed:.4f} ppm   "
             f"max|Δ| = {max_abs:.4f} ppm"
@@ -1955,7 +2170,6 @@ class AppWindow(tk.Toplevel):
 
         win = tk.Toplevel(self)
         win.title("PCS plot options")
-        win.geometry("360x460")
         win.resizable(True, True)
         win.transient(self)
         self._pcs_plot_ctrl_win = win
@@ -1973,8 +2187,11 @@ class AppWindow(tk.Toplevel):
             font=ui_font_name(win, "ui_bold"),
         ).pack(anchor="w", padx=12, pady=(12, 8))
 
-        body = ttk.Frame(win, padding=(12, 4, 12, 12))
-        body.pack(fill="both", expand=True)
+        form = DialogForm(win, padding=(12, 4, 12, 6))
+        footer = dialog_actions(win)
+        footer.pack(side="bottom", fill="x")
+        form.pack(fill="both", expand=True)
+        body = form.content
         body.columnconfigure(1, weight=1)
 
         vars_ = {
@@ -2088,8 +2305,7 @@ class AppWindow(tk.Toplevel):
                 self._pcs_plot_settings_compare = dict(opts)
                 self._plot_pde_vs_point(plot_opts=opts)
 
-        btns = ttk.Frame(body)
-        btns.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        btns = footer
         btns.columnconfigure(0, weight=1)
         btns.columnconfigure(1, weight=1)
         btns.columnconfigure(2, weight=1)
@@ -2099,7 +2315,7 @@ class AppWindow(tk.Toplevel):
                                                                                                        sticky="ew",
                                                                                                        padx=4)
         ttk.Button(btns, text="Close", command=win.destroy).grid(row=0, column=2, sticky="ew", padx=(4, 0))
-        _fit_toplevel_to_content(win, min_width=420, min_height=520)
+        fit_dialog(win, form=form)
 
     def _reset_pcs_plot_options(self, kind, vars_):
         defaults = _default_pcs_plot_settings(kind)
@@ -2135,7 +2351,6 @@ class AppWindow(tk.Toplevel):
 
         win = tk.Toplevel(self)
         win.title("Tensor spheroid controls")
-        win.geometry("380x760")
         win.resizable(True, True)
         win.transient(self)
         self._tensor_view_ctrl = win
@@ -2170,43 +2385,18 @@ class AppWindow(tk.Toplevel):
             "absolute_target_fraction": tk.DoubleVar(value=float(opts.get("absolute_target_fraction", 0.35))),
         }
 
-        # scrollable container
-        canvas = tk.Canvas(win, borderwidth=0, highlightthickness=0)
-        vscroll = ttk.Scrollbar(win, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=vscroll.set)
-
-        vscroll.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        frm = ttk.Frame(canvas, padding=12)
-        frm.columnconfigure(1, weight=1)
-
-        frm_id = canvas.create_window((0, 0), window=frm, anchor="nw")
-
-        def _on_frame_configure(_event=None):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        def _on_canvas_configure(event):
-            canvas.itemconfigure(frm_id, width=event.width)
-
-        frm.bind("<Configure>", _on_frame_configure)
-        canvas.bind("<Configure>", _on_canvas_configure)
-
-        def _on_mousewheel(event):
-            try:
-                if event.num == 4:
-                    canvas.yview_scroll(-1, "units")
-                elif event.num == 5:
-                    canvas.yview_scroll(1, "units")
-                else:
-                    canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            except Exception:
-                pass
-
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        canvas.bind_all("<Button-4>", _on_mousewheel)
-        canvas.bind_all("<Button-5>", _on_mousewheel)
-
+        form = DialogForm(win)
+        footer = dialog_actions(win)
+        footer.pack(side="bottom", fill="x")
+        form.pack(fill="both", expand=True)
+        form.content.columnconfigure((0, 1), weight=1, uniform="tensor_settings")
+        left = ttk.Frame(form.content, padding=(0, 0, 8, 0))
+        right = ttk.Frame(form.content, padding=(8, 0, 0, 0))
+        left.grid(row=0, column=0, sticky="new")
+        right.grid(row=0, column=1, sticky="new")
+        for column in (left, right):
+            column.columnconfigure(1, weight=1)
+        frm = left
         row = 0
 
         ttk.Label(frm, text="Display", font=ui_font_name(frm, "ui_bold")).grid(
@@ -2221,6 +2411,12 @@ class AppWindow(tk.Toplevel):
         ttk.Checkbutton(frm, text="Show labels", variable=vars_["show_labels"]).grid(row=row, column=0, columnspan=2, sticky="w")
         row += 1
         ttk.Checkbutton(frm, text="Show grid", variable=vars_["show_grid"]).grid(row=row, column=0, columnspan=2, sticky="w")
+        row += 1
+
+        frm = right
+        row = 0
+        ttk.Label(frm, text="Scaling", font=ui_font_name(frm, "ui_bold")).grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(0, 6))
         row += 1
 
         ttk.Label(frm, text="Scaling mode").grid(row=row, column=0, sticky="w", pady=2)
@@ -2282,6 +2478,16 @@ class AppWindow(tk.Toplevel):
             justify="left",
             wraplength=320,
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        row += 1
+
+        right_row = row
+        frm = left
+        row = 5
+        ttk.Separator(frm, orient="horizontal").grid(
+            row=row, column=0, columnspan=2, sticky="ew", pady=(10, 8))
+        row += 1
+        ttk.Label(frm, text="Appearance", font=ui_font_name(frm, "ui_bold")).grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(0, 6))
         row += 1
 
         ttk.Label(frm, text="Surface style").grid(row=row, column=0, sticky="w", pady=(8, 2))
@@ -2358,6 +2564,9 @@ class AppWindow(tk.Toplevel):
             state="readonly",
         ).grid(row=row, column=1, sticky="ew", pady=2)
         row += 1
+
+        frm = right
+        row = right_row
 
         ttk.Separator(frm, orient="horizontal").grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 8))
         row += 1
@@ -2604,16 +2813,16 @@ class AppWindow(tk.Toplevel):
             except Exception as exc:
                 messagebox.showerror("GIF export error", str(exc))
 
-        btnf = ttk.Frame(frm)
-        btnf.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(14, 0))
+        btnf = ttk.Frame(footer, padding=0)
+        btnf.pack(fill="x")
         btnf.columnconfigure((0, 1, 2), weight=1)
 
         ttk.Button(btnf, text="Apply", command=_apply).grid(row=0, column=0, sticky="ew", padx=(0, 4))
         ttk.Button(btnf, text="Open / Refresh Viewer", command=_open_refresh).grid(row=0, column=1, sticky="ew", padx=4)
         ttk.Button(btnf, text="Close Viewer", command=_close_viewer).grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
-        btnf2 = ttk.Frame(frm)
-        btnf2.grid(row=row + 1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        btnf2 = ttk.Frame(footer, padding=0)
+        btnf2.pack(fill="x", pady=(8, 0))
         btnf2.columnconfigure((0, 1), weight=1)
 
         ttk.Button(btnf2, text="Save PNG", command=_save_png).grid(row=0, column=0, sticky="ew", padx=(0, 4))
@@ -2621,18 +2830,17 @@ class AppWindow(tk.Toplevel):
 
         def _on_close():
             try:
-                canvas.unbind_all("<MouseWheel>")
-                canvas.unbind_all("<Button-4>")
-                canvas.unbind_all("<Button-5>")
-            except Exception:
-                pass
-
-            try:
                 win.destroy()
             finally:
                 self._tensor_view_ctrl = None
 
         win.protocol("WM_DELETE_WINDOW", _on_close)
+        # Keep each half usable at larger fonts without reserving wide labels.
+        for column in (left, right):
+            for widget in column.winfo_children():
+                if isinstance(widget, ttk.Label) and int(widget.grid_info().get("columnspan", 1)) == 1:
+                    widget.configure(wraplength=220, justify="left")
+        fit_dialog(win, form=form, max_height_fraction=0.78)
 
     def _plot_tensor_spheroid_pyvista(self, refresh_only: bool = False):
         if pv is None:
@@ -2841,6 +3049,14 @@ class AppWindow(tk.Toplevel):
             return False
 
     def _on_quit(self):
+        self._closed = True
+        if self._viewer_pump_job is not None:
+            self.after_cancel(self._viewer_pump_job)
+            self._viewer_pump_job = None
+        self._session.invalidate("Closed")
+        if self._poll_job is not None:
+            self.after_cancel(self._poll_job)
+            self._poll_job = None
         try:
             close_pcs_pde_view(self._session.viewer_plotter)
         except Exception:
@@ -2979,12 +3195,14 @@ class AppWindow(tk.Toplevel):
 
         win = tk.Toplevel(self)
         win.title("Open Oblique PCS Slice")
-        win.geometry("480x320")
         win.resizable(True, True)
         win.transient(self)
 
-        outer = ttk.Frame(win, padding=12)
-        outer.pack(fill="both", expand=True)
+        form = DialogForm(win)
+        footer = dialog_actions(win)
+        footer.pack(side="bottom", fill="x")
+        form.pack(fill="both", expand=True)
+        outer = form.content
         outer.columnconfigure(1, weight=1)
 
         atom_choices = self._build_atom_choice_labels()
@@ -3016,6 +3234,7 @@ class AppWindow(tk.Toplevel):
             outer,
             textvariable=atom_choice_var,
             values=atom_choices,
+            width=max(24, min(48, max(map(len, atom_choices), default=24))),
             state="readonly",
         ).grid(row=row, column=1, sticky="ew", pady=4)
         row += 1
@@ -3060,13 +3279,13 @@ class AppWindow(tk.Toplevel):
         ttk.Label(
             outer,
             text=info,
+            wraplength=480,
             style=ui_label_style(outer, "muted"),
             justify="left",
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 10))
         row += 1
 
-        btns = ttk.Frame(outer)
-        btns.grid(row=row, column=0, columnspan=2, sticky="ew")
+        btns = footer
         btns.columnconfigure((0, 1, 2), weight=1)
 
         def _parse_inputs():
@@ -3151,7 +3370,7 @@ class AppWindow(tk.Toplevel):
         ttk.Button(btns, text="Close", command=win.destroy).grid(
             row=0, column=2, sticky="ew", padx=(4, 0)
         )
-        _fit_toplevel_to_content(win, min_width=520, min_height=360)
+        fit_dialog(win, form=form)
 
 
 def main():

@@ -140,7 +140,8 @@ def zero_pad_density(
 
     ext_pad is:
         [xmin, xmax, ymin, ymax, zmin, zmax]
-    using the same convention as the reference workflow.
+    preserving the input grid spacing and the physical coordinates
+    of the original samples.
     """
     rho = np.asarray(rho, dtype=float)
     origin = np.asarray(origin, dtype=float)
@@ -170,18 +171,14 @@ def zero_pad_density(
         constant_values=0.0,
     )
 
-    # Expand ext by original box lengths on each side
-    xlen = abs(ext[1] - ext[0])
-    ylen = abs(ext[3] - ext[2])
-    zlen = abs(ext[5] - ext[4])
-
+    # Each added sample contributes one spacing.
     ext_pad = np.array([
-        ext[0] - xlen * p, ext[1] + xlen * p,
-        ext[2] - ylen * p, ext[3] + ylen * p,
-        ext[4] - zlen * p, ext[5] + zlen * p,
+        ext[0] - px * dx, ext[1] + px * dx,
+        ext[2] - py * dy, ext[3] + py * dy,
+        ext[4] - pz * dz, ext[5] + pz * dz,
     ], dtype=float)
 
-    # Keep origin only as metadata for display if needed
+    # The same origin/spacing describes interpolation, display and export.
     origin_pad = np.array([ext_pad[0], ext_pad[2], ext_pad[4]], dtype=float)
 
     print(f"[fft-pad] pad_factor={p}")
@@ -202,13 +199,36 @@ def _fft_k_axis(n: int, d: float) -> np.ndarray:
 
 # fast calc
 def _rfft_k_axis(n: int, d: float) -> np.ndarray:
-    """rfft용 (nz//2+1 길이)"""
+    """Half-spectrum derivative axis, using the full FFT's Nyquist sign."""
     if n <= 0:
         raise ValueError("Grid size n must be positive.")
     if d <= 0:
         raise ValueError("Grid spacing d must be positive.")
     freq = np.fft.rfftfreq(n, d=d)
+    if n % 2 == 0:
+        freq[-1] *= -1.0
     return 1j * 2.0 * np.pi * freq
+
+
+def _real_mixed_k_product(
+    ka: np.ndarray, kb: np.ndarray, na: int, nb: int,
+) -> np.ndarray:
+    """Mixed derivative multiplier for the real part of a full inverse FFT.
+
+    A Nyquist index maps to itself under conjugate reflection. A product
+    with exactly one Nyquist index is therefore odd under reflection and
+    contributes only to the imaginary part of the full inverse transform.
+    Products with two Nyquist indices must be retained.
+    """
+    product = ka[:, None] * kb[None, :]
+    if na % 2 == 0:
+        product[na // 2, :] = 0.0
+    if nb % 2 == 0:
+        product[:, nb // 2] = 0.0
+    if na % 2 == 0 and nb % 2 == 0:
+        product[na // 2, nb // 2] = ka[na // 2] * kb[nb // 2]
+    return product
+
 
 def compute_pcs_field_from_density(
     rho: np.ndarray,
@@ -219,6 +239,7 @@ def compute_pcs_field_from_density(
     fft_pad_factor: int = 2,
     normalize_density: bool = True,
     normalization_target: float = 1.0,
+    normalization_stage: str = "before_padding",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple[float, float, float], dict]:
     rho = np.asarray(rho, dtype=float)
     origin = np.asarray(origin, dtype=float)
@@ -226,6 +247,26 @@ def compute_pcs_field_from_density(
 
     if rho.ndim != 3:
         raise ValueError("rho must be a 3D array.")
+    if min(rho.shape) < 2 or not np.all(np.isfinite(rho)):
+        raise ValueError("Density must have at least two finite samples along each axis.")
+    if origin.shape != (3,) or not np.all(np.isfinite(origin)):
+        raise ValueError("Origin must contain three finite coordinates.")
+    if len(spacing) != 3 or not np.all(np.isfinite(spacing)) or min(spacing) <= 0:
+        raise ValueError("Spacing must contain three positive finite values.")
+    if chi_tensor.shape != (3, 3) or not np.all(np.isfinite(chi_tensor)):
+        raise ValueError("Susceptibility tensor must be a finite 3x3 matrix.")
+    if int(fft_pad_factor) != fft_pad_factor or fft_pad_factor < 0:
+        raise ValueError("Padding factor must be a non-negative integer.")
+    if normalization_stage not in ("before_padding", "after_padding"):
+        raise ValueError("Normalization stage must be before_padding or after_padding.")
+    if not np.isfinite(normalization_target) or normalization_target <= 0:
+        raise ValueError("Normalization target must be positive and finite.")
+
+    norm_info = None
+    density_before = None
+    if normalize_density and normalization_stage == "before_padding":
+        density_before = summarize_density(rho, spacing, label="source_before_norm")
+        rho, norm_info = normalize_density_to_integral(rho, spacing, normalization_target)
 
     rho_work, origin_work, spacing_work, ext_work = zero_pad_density(
         rho=rho,
@@ -249,36 +290,36 @@ def compute_pcs_field_from_density(
     print(f"[fft] effective spacing = ({dx_fft:.6f}, {dy_fft:.6f}, {dz_fft:.6f})")
     print(f"[fft] ext              = {ext_work}")
 
-    density_before = summarize_density(rho_work, spacing_work, label="rho_work_before_norm")
+    if density_before is None:
+        density_before = summarize_density(rho_work, spacing_work, label="rho_work_before_norm")
 
-    norm_info = None
-    if normalize_density:
+    if normalize_density and normalization_stage == "after_padding":
         rho_work, norm_info = normalize_density_to_integral(
             rho_work,
             spacing_work,
             target_integral=normalization_target,
         )
-        density_after = summarize_density(rho_work, spacing_work, label="rho_work_after_norm")
-    else:
-        density_after = density_before
+    density_after = summarize_density(rho_work, spacing_work, label="rho_work_used")
 
-    # ── fast calc 교체 후 ────────────────────────────────────────────
-    kx = _fft_k_axis(nx, dx_fft)[:, None, None]
-    ky = _fft_k_axis(ny, dy_fft)[None, :, None]
-    kz = _rfft_k_axis(nz, dz_fft)[None, None, :]  # ← rfftfreq, 길이 nz//2+1
+    kx_axis = _fft_k_axis(nx, dx_fft)
+    ky_axis = _fft_k_axis(ny, dy_fft)
+    kz_axis = _rfft_k_axis(nz, dz_fft)
+    kx = kx_axis[:, None, None]
+    ky = ky_axis[None, :, None]
+    kz = kz_axis[None, None, :]
 
-    # meshgrid 없이 브로드캐스팅으로 직접 계산
+    # Retain the half-spectrum memory saving while matching real(ifftn(...)).
     chi = chi_r2
     K = -(1.0 / 3.0) * (
             chi[0, 0] * kx * kx
-            + chi[0, 1] * kx * ky
-            + chi[0, 2] * kx * kz
-            + chi[1, 0] * ky * kx
             + chi[1, 1] * ky * ky
-            + chi[1, 2] * ky * kz
-            + chi[2, 0] * kz * kx
-            + chi[2, 1] * kz * ky
             + chi[2, 2] * kz * kz
+            + (chi[0, 1] + chi[1, 0])
+            * _real_mixed_k_product(kx_axis, ky_axis, nx, ny)[:, :, None]
+            + (chi[0, 2] + chi[2, 0])
+            * _real_mixed_k_product(kx_axis, kz_axis, nx, nz)[:, None, :]
+            + (chi[1, 2] + chi[2, 1])
+            * _real_mixed_k_product(ky_axis, kz_axis, ny, nz)[None, :, :]
     )
 
     L = kx * kx + ky * ky + kz * kz
@@ -289,10 +330,12 @@ def compute_pcs_field_from_density(
     rho_f *= K  # in-place, 임시 배열 없음
     rho_f /= L  # in-place
 
-    pcs_field = 1e6 * _fft.irfftn(rho_f, s=rho_work.shape)
+    pcs_field = 1e6 * _fft.irfftn(rho_f, s=rho_work.shape, axes=(0, 1, 2))
     pcs_field = np.asarray(pcs_field, dtype=float)
 
-    source_like = 1e6 * np.real(_fft.irfftn(source_like_f, s=rho_work.shape))
+    source_like = 1e6 * np.real(
+        _fft.irfftn(source_like_f, s=rho_work.shape, axes=(0, 1, 2))
+    )
 
     print(f"[fft] σ_PCS: min={float(np.nanmin(pcs_field)):.4f}  max={float(np.nanmax(pcs_field)):.4f} ppm")
 
@@ -300,6 +343,7 @@ def compute_pcs_field_from_density(
         "fft_pad_factor": int(fft_pad_factor),
         "normalize_density": bool(normalize_density),
         "normalization_target": float(normalization_target),
+        "normalization_stage": normalization_stage,
         "density_before": density_before,
         "density_after": density_after,
         "normalization_info": norm_info,

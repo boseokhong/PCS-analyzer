@@ -7,7 +7,7 @@ from logic.pcs_tensor_state import ApplicationPCSTensor
 
 
 RESET_KEYS = tuple(dict.fromkeys(REPLACEMENT_KEYS + FIT_KEYS + (
-    "pcs_prediction_model", "fit_history", "active_fit_result_id", "latest_fit_result_id",
+    "pcs_prediction_model", "pcs_tensor_source", "fit_history", "active_fit_result_id", "latest_fit_result_id",
     "last_fit_result", "_last_fit_result_restored", "_last_fit_result_restore_error",
     "_last_fit_result_load_processed",
 )))
