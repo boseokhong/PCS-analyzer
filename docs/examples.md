@@ -71,7 +71,9 @@ annotations, not established molecular assignments. Its processing exercise does
 not validate a PCS model or connect the Yb spectrum to the Nd structure. Available
 acquisition conditions and processing parameters are recorded [below](#yb-measured-fid).
 
-PCS Workbench needs a matching ORCA tensor/geometry output and spin-density grid.
+PCS Workbench PDE calculations need a matching ORCA tensor/geometry output and spin-density grid.
+Tensor inspection needs only ORCA; [tensor transfer](pcs-workbench/tensor-transfer.md)
+also needs a matching Analyzer document.
 That pair is not included in these examples; see its
 [input requirements](pcs-workbench/overview.md).
 

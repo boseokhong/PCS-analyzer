@@ -112,7 +112,7 @@ PCS+RDC, PRE, Multi-Lanthanide, Conformer Search and NMR exercises.
 
     **PCS Workbench**
 
-    Separate ORCA and spin-density workflow for comparing point-dipole and distributed PCS fields, with molecular and field visualization.
+    ORCA and spin-density workflow for comparing point-dipole and distributed PCS fields, with optional padding checks, 3D data export and tensor transfer to PCS Analyzer.
 
     [Learn more](pcs-workbench/overview.md)
 

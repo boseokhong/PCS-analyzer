@@ -73,11 +73,18 @@ Conformer Search's ZYZ calculator. Current **Sync Main** preserves the rotation
 matrix through conversion; rerun nonzero-orientation searches made with older
 versions. See [Conformer Search](../conformer-search/overview.md).
 
-PCS Workbench treats `.3d` origin/spacing as Å and loads absolute density values.
+PCS Workbench treats `.3d` origin/spacing as Å and uses absolute density values
+for calculation; original signed samples are retained separately for export.
 It chooses a metal automatically, falling back to the first atom when needed.
 Check these assumptions against the source calculation. Grid extent, resolution
 and FFT padding can require substantial memory. See
 [Workbench interpretation limits](../pcs-workbench/overview.md#interpretation-limits).
+
+The [padding convergence check](../pcs-workbench/calculation.md#padding-convergence-check)
+measures numerical padding sensitivity, not experimental accuracy. [Tensor transfer](../pcs-workbench/tensor-transfer.md)
+requires the same ordered structure and assigned centre; automatic atom matching
+and different conformations are not supported. Exported surfaces are individual
+levels, not complete viewer scenes, and external-reader support varies.
 
 ## Viewers and data import
 
@@ -107,9 +114,9 @@ See [Module Manager](../plugins-docs/overview.md),
 Source checks and worked examples do not certify every platform, packaged build,
 external module or experimental dataset. Platform/runtime dependencies, large
 volumetric calculations and Windows file locks need environment-specific checks.
-The PCS Workbench images retain an older capture because its original ORCA and
-spin-density capture inputs were unavailable; they illustrate that workflow
-without claiming the latest presentation.
+Current PCS Workbench UI captures use illustrative data. Earlier field, slice,
+comparison and spheroid images remain scientific illustrations of their recorded
+workflow; they are not newly recalculated 0.1.1 validation results.
 
 Historical development findings are kept in the repository's development records;
 this page is a current user guide, not a complete bug tracker or release guarantee.

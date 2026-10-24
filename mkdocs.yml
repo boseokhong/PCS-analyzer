@@ -88,6 +88,9 @@ nav:
 
   - PCS Workbench:
       - Overview: pcs-workbench/overview.md
+      - Calculation and Convergence: pcs-workbench/calculation.md
+      - 3D Data Export: pcs-workbench/exports.md
+      - Tensor Transfer: pcs-workbench/tensor-transfer.md
 
   - NMR Workbench:
       - Overview: nmr/spectrum-viewer.md

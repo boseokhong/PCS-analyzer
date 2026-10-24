@@ -1,10 +1,26 @@
 # Changelog
 
 The application version recorded by this repository is **PCS Analyzer 1.4.0**.
-NMR Workbench and PCS Workbench each have a separate module version: **0.1.0**.
+The separate module versions are **PCS Workbench 0.1.1** and **NMR Workbench 0.1.0**.
 
 For published packages and release assets, use the
 [PCS Analyzer releases page](https://github.com/boseokhong/PCS-analyzer/releases).
+
+## PCS Workbench 0.1.1 — unreleased
+
+- Added optional padding convergence checks and clearer recorded result conditions.
+- Added ORCA tensor transfer to the active Analyzer document, with review,
+  Undo/Redo and saved source information.
+- Expanded volume and surface export formats, including CUBE and NumPy, through
+  one **Export 3D data…** dialog with optional advanced settings.
+- Made before-padding normalization the default while retaining after-padding
+  and compatibility with older presets.
+- Corrected padded-grid coordinates and FFT handling. Recalculating older PDE
+  results can change numerical values; the point-dipole model is unchanged.
+- Improved input/result consistency, background work and dialog layouts.
+
+See [PCS Workbench](../pcs-workbench/overview.md) for the updated workflow.
+These notes describe the current source; published assets are listed separately.
 
 ## 1.4.0
 

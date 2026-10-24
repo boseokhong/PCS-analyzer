@@ -290,3 +290,10 @@ See [PCS Theory](theory.md) for the corresponding PCS equations.
 
 For scientific background and the distinction between general methods and the
 implemented workflows, see [Method References](../reference/method-references.md).
+
+## ORCA tensors from PCS Workbench
+
+Use the reviewed [Tensor Transfer](../pcs-workbench/tensor-transfer.md) workflow
+to apply an ORCA-derived anisotropic tensor in the active structure frame. It
+selects Full tensor and retains source information; it does not replace the
+experimental molar susceptibility.

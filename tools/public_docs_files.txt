@@ -60,10 +60,16 @@ docs/images/nmr-vt-stacked.png
 docs/images/nmr-vt-tracking.png
 docs/images/nmr-workbench.png
 docs/images/pcs-preparation.png
+docs/images/pcs-workbench-convergence.jpg
+docs/images/pcs-workbench-export-surface.jpg
+docs/images/pcs-workbench-export.jpg
 docs/images/pcs-workbench-pcs-isosurface.png
 docs/images/pcs-workbench-pde-pd.png
 docs/images/pcs-workbench-slice.png
 docs/images/pcs-workbench-spindens-isosurface.png
+docs/images/pcs-workbench-tensor-controls.jpg
+docs/images/pcs-workbench-tensor-transfer.jpg
+docs/images/pcs-workbench-window-011.jpg
 docs/images/pcs-workbench-window.png
 docs/images/pcs_banner.png
 docs/images/pre-boundary.png
@@ -94,7 +100,10 @@ docs/nmr/tutorial-vt.md
 docs/nmr/vt-analysis.md
 docs/nmr/vt-pcs-preparation.md
 docs/nmr/vt-series.md
+docs/pcs-workbench/calculation.md
+docs/pcs-workbench/exports.md
 docs/pcs-workbench/overview.md
+docs/pcs-workbench/tensor-transfer.md
 docs/pcs/axial-rhombic.md
 docs/pcs/contour-plots.md
 docs/pcs/tensor-conventions.md

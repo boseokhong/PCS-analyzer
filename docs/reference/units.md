@@ -63,3 +63,12 @@ definitions and the cgs-to-SI warning. See
 [PCS Theory](../pcs/theory.md) for the PCS prefactor used with the geometry
 factors. PCS Workbench's separate ORCA conversion and grid assumptions are
 documented under [PCS Workbench Inputs](../pcs-workbench/overview.md#inputs).
+
+## PCS Workbench exports
+
+PCS values remain in ppm. CUBE/CUB uses Bohr for atom coordinates, grid origin
+and spacing; the other implemented volume/mesh exports use Å. Normalized solver
+density uses Å⁻³ internally and Bohr⁻³ in CUBE. Original signed density retains
+its source values, marked `source_units`; the loader does not establish their
+physical unit. The JSON sidecar records the units of each export. See
+[3D Data Export](../pcs-workbench/exports.md).

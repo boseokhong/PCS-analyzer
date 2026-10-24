@@ -22,7 +22,9 @@ accepted by another.
 | `.pdf`, `.svg` | No | Selected views only | Vector/document figure export |
 | `.json` | Yes | Yes | Fit-run import/export; molecular visualization settings and other workflow-specific viewer presets; plugin manifests |
 | `.3d` | PCS Workbench | No | ORCA simple-grid spin-density input |
-| `.npz` | No | PCS Workbench | Compressed distributed-PCS field data |
+| `.npy`, `.npz` | No | PCS Workbench | Selected volume array; NPZ also includes associated data |
+| `.cube`, `.cub`, `.vti`, `.vtk`, `.dx`, `.mrc`, `.ccp4`, `.map`, `.nrrd` | No | PCS Workbench | PCS or density volumes |
+| `.vtp`, `.ply`, `.stl`, `.obj` | No | PCS Workbench | A selected isosurface |
 | `.gif` | No | PCS Workbench | Temperature-dependent tensor-spheroid animation |
 | `.txt` | No | Selected workflows | Regression companion summary and conformer-search report |
 | plugin `.py`, folder, `.zip` | Module Manager | No | Local external-plugin installation |
@@ -52,7 +54,8 @@ and the declared number of coordinate rows.
 PCS Workbench accepts ORCA `.out`/`.log` and ORCA simple-grid spin-density
 `.3d` files. In this context, the ORCA loader also looks for susceptibility
 tensors associated with `TEMPERATURE/K` and `Tensor in molecular frame`
-records. This tensor parsing is additional to the main structure loader's
+records. When multiple susceptibility sections are found, the Workbench asks which to use.
+This tensor parsing is additional to the main structure loader's
 geometry-only use.
 
 The `.3d` reader expects a title, grid dimensions, origin, grid spacing, and
@@ -82,6 +85,10 @@ and candidate coordinates. Current manual graph edits are separate from the
 immutable run graph. Undefined R²/Q metrics use JSON null and remain
 undefined on restoration. Search inputs do not depend on temporary file paths.
 Older scalar-only summaries contain insufficient data to reconstruct candidates.
+
+An applied Workbench tensor can also retain its ORCA source information in the
+Analyzer project. This does not embed the Workbench density or result session.
+See [Tensor Transfer](../pcs-workbench/tensor-transfer.md).
 
 ### Workspace references
 
@@ -238,17 +245,18 @@ Viewer-specific details are documented under
 
 ## PCS Workbench outputs
 
-PCS Workbench has its own export paths:
+Use **File → Export 3D data…** for PCS or density volumes and selected isosurfaces.
+Choose the full grid, input region or custom bounds. Every data export writes a
+JSON sidecar with units, grid information and calculation conditions; keep the
+pair together. NPY stores the array alone; NPZ includes associated data, with
+additional solver/tensor arrays for a full unsmoothed PCS export. Cropped,
+smoothed and density exports have different contents.
 
-- PNG render of the distributed PCS field;
-- compressed NPZ containing the PCS field, source term, origin, spacing,
-  temperature, tensor arrays, and calculation options;
-- UTF-8-with-BOM CSV comparing per-atom PDE and point-tensor PCS;
-- tensor-spheroid PNG;
-- temperature-sweep tensor-spheroid GIF; and
-- oblique PCS slice plot as PNG, PDF, or SVG.
+Other outputs include atom-comparison CSV (UTF-8 with BOM), PCS-viewer PNG,
+tensor PNG/GIF, and slice PNG/PDF/SVG. They are workflow-specific, rather than
+formats supported by every Analyzer viewer. See [3D Data Export](../pcs-workbench/exports.md)
+for available formats, precision and options.
 
-These are PCS Workbench outputs, not exports from every PCS Analyzer viewer.
 
 ## Fit-run exports
 

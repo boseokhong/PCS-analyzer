@@ -163,7 +163,7 @@ or drag the collapsed boundary to restore it.
 
 | Section | Controls and interpretation |
 |---|---|
-| **Tensor** | **Δχ_ax** in **×10⁻³² m³**, tensor status, **Details…** (opens Rhombicity Table), and **Prediction model**. |
+| **Tensor** | **Δχ_ax** in **×10⁻³² m³**, tensor status, **Details…** (Rhombicity Table, or ORCA source details after [tensor transfer](pcs-workbench/tensor-transfer.md)), and **Prediction model**. |
 | **Orientation** | **Structure** X/Y controls (Z is in Rhombicity Table) or **Tensor Euler (ZYZ)** angles: two representations of the molecular-to-tensor orientation. |
 | **Plot & display** | **PCS range** and **Interval** in ppm, **Half / Quarter (0–90°)**, atom radii/scale, visual bonds, **Update**, and **Reset**. |
 | **Symmetry averaging** | Current averaging status and **Options...** for local and rotational averaging. |

@@ -21,6 +21,18 @@ ones being saved by Save or Save As.
 Saving is explicit. Save projects before saving their workspace, and keep
 original structure and experimental source files for independent reproducibility.
 
+## Tensors from PCS Workbench
+
+[Send tensor to PCS Analyzer](pcs-workbench/tensor-transfer.md) applies the
+selected ORCA tensor to the active document as one Undo/Redo action. Save the
+`.pcsp` project to retain that tensor and its source information. Ordinary
+physical edits can show **Modified from ORCA** in Tensor state; Details retains
+the original import information.
+
+The Workbench session itself is separate: loaded files, density, calculated field
+and camera are not saved in the Analyzer project. Keep the source files and
+Workbench presets/exports needed to reproduce that calculation.
+
 ## Undo and Redo
 
 Use **Ctrl+N** for a new document, **Ctrl+O** to open a project, **Ctrl+S**
