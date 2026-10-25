@@ -9,7 +9,7 @@
 ## Pseudocontact Chemical Shift (PCS) Analyzer
 [![Latest Release](https://img.shields.io/github/v/release/boseokhong/PCS-analyzer?label=latest%20release&color=C44536)](https://github.com/boseokhong/PCS-analyzer/releases/latest)
 ![python](https://img.shields.io/badge/Python-3.12-D97706?logo=python&logoColor=white)
-![Tested Platforms](https://img.shields.io/badge/tested-Windows%2010%2F11%20%7C%20macOS-5F6B73)
+![Portable Release](https://img.shields.io/badge/portable-Windows-5F6B73)
 ![license](https://img.shields.io/badge/license-BSD%203--Clause-668B6A)
 [![Documentation](https://img.shields.io/badge/docs-online-C44536?logo=githubpages&logoColor=white)](https://boseokhong.github.io/PCS-analyzer/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18752129.svg)](https://doi.org/10.5281/zenodo.18752129)
@@ -55,21 +55,21 @@
 The software integrates molecular structure import, 2D and 3D PCS visualization, tensor utilities, regression-based diagnostics, rhombicity analysis, fitting workflows, NMR-oriented data inspection, and conformer-based refinement in a unified graphical interface.
 
 > [!NOTE]
-> Install the source dependencies with `python -m pip install -r requirements.txt`.
-> See [Installation](https://boseokhong.github.io/PCS-analyzer/installation/)
-> for package requirements and optional features.
+> The Windows portable release includes Python and its dependencies.
+> To run from source, install the dependencies with `python -m pip install -r requirements.txt`.
+> See [Installation](#installation) below for both options.
 
 ---
 
 ## Documentation
 
-The documentation is available online:
+See the [PCS Analyzer Documentation](https://boseokhong.github.io/PCS-analyzer/)
+for the user guide, including [Installation](docs/installation.md) and
+[Quick Start](docs/quick-start.md).
 
-[PCS Analyzer Documentation](https://boseokhong.github.io/PCS-analyzer/)
-
-> The core structure of the manual is now in place. Further revisions
-> and step-by-step tutorials are in progress. Some topics remain incomplete;
-> review the limitations documented for each workflow.
+Use the online manual's version selector to match your application release.
+The documentation in this repository describes the current source; review the
+limitations documented for each workflow.
 
 ---
 ## Overview
@@ -98,6 +98,10 @@ reliability diagnostics, Joint PCS+RDC, PRE and Multi-Lanthanide/Reilley workflo
 See the [worked examples](docs/examples.md) and the
 [source changelog](docs/reference/changelog.md#140) for inputs, limitations
 and changes that may not yet be in a published binary.
+
+PCS Workbench **0.1.1** adds optional padding convergence checks, expanded 3D
+data export, and reviewed ORCA tensor transfer to PCS Analyzer. See the
+[Workbench guide](docs/pcs-workbench/overview.md) for the updated workflow.
 
 ### Version 1.4.0 overview
 
@@ -186,6 +190,7 @@ output formats.
 - oblique PCS slice plotting for user-defined planes through the metal centre
 - tensor spheroid visualization with temperature-dependent `GIF` export
 - export of PDE fields, atom-wise comparison tables
+- optional padding convergence checks and reviewed ORCA tensor transfer to the active Analyzer document
 
 The PDE implementation follows the distributed PCS / Kuprov-equation framework (*PCCP*, 2014, DOI: `10.1039/C4CP03106G`).
 
@@ -196,36 +201,36 @@ The PDE implementation follows the distributed PCS / Kuprov-equation framework (
 
 ### 9. Projects and sessions
 - work with multiple PCS projects in separate tabs
+- save and reopen individual projects as `.pcsp` files
 - save project collections as `.pcsw` workspaces
 - save committed NMR work as `.nmrsession` sessions
 
 ---
 ## Installation
 
-Clone the repository:
+### Windows portable version
+
+No separate Python installation is required.
+
+1. Download the Windows package from the [releases page](https://github.com/boseokhong/PCS-analyzer/releases).
+2. Extract the complete archive to a writable folder.
+3. Run the PCS Analyzer executable from the extracted folder, keeping `lib` and the other bundled folders together.
+
+### Running from source
+
+Python with Tkinter is required. A separate virtual environment is recommended.
+The prebuilt package is Windows-only; source execution on other platforms depends
+on the local Python, Tk, Qt, and VTK environment.
+
 ```bash
 git clone https://github.com/boseokhong/PCS-analyzer.git
 cd PCS-analyzer
-```
-
-Install all required dependencies using `requirements.txt`:
-```bash
-pip install -r requirements.txt
-```
-
-Alternatively, the core dependencies can be installed manually:
-```bash
-pip install numpy scipy matplotlib pandas openpyxl
-```
-Install the additional packages for enhanced GUI styling, 3D visualization, FFT acceleration, drag-and-drop support, and GIF export:
-```bash
-pip install ttkbootstrap pyvista pyvistaqt vtk qtpy PySide6 pyfftw tkinterdnd2 imageio
-```
-
-Run the program with:
-```bash
+python -m pip install -r requirements.txt
 python main.py
 ```
+
+See the [Installation guide](docs/installation.md) for dependency roles,
+optional features, and instructions for updating an existing installation.
 ---
 ## Suggested workflow
 
@@ -277,11 +282,12 @@ for application, persistence and interpretation limits.
 ## Export
 
 PCS Analyzer supports export of:
-- PCS tables / current visible structure (`.xyz`)
+- current visible molecular structure (`.xyz`)
 - cartesian and PCS plots
 - fitting summaries
-- CSV / Excel tables
+- PCS and other analysis tables (`CSV` / `Excel`, depending on the module)
 - graphical outputs (`PNG`, `PDF`, `SVG`, depending on the module)
+- PCS Workbench volumes (`CUBE`, `VTI`, `NumPy`, and other formats) and selected isosurfaces; see [3D Data Export](docs/pcs-workbench/exports.md)
 ---
 ## Version history
 
@@ -438,6 +444,4 @@ The PCS analyzer name and logo are not licensed under the BSD 3-Clause License. 
 
 ## Acknowledgements
 
-This project includes code or implementation ideas derived in part from the work of **Sebastian Dechert** for aspects of the 3D molecular scatter-plot functionality, distributed under the BSD 3-Clause License. The original project is available at:
-
-- https://github.com/radi0sus/xyz2tab
+In versions up to **v1.3.4**, aspects of the 3D molecular scatter-plot functionality used code or implementation ideas from **Sebastian Dechert**'s [xyz2tab](https://github.com/radi0sus/xyz2tab), distributed under the BSD 3-Clause License. The 3D visualization was rebuilt for **v1.4.0**.

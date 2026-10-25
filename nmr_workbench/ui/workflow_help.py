@@ -1,110 +1,85 @@
 """Shared user-facing workflow and file-purpose help; no scientific state."""
 import tkinter as tk
-from tkinter import ttk
+import webbrowser
+from tkinter import ttk, messagebox
+
+from ui.dialog_layout import fit_dialog
+from ui.documentation_help import DOCUMENTATION_URL
 from ui.style import get_app_fonts
 
 
-WORKFLOW = """Prepared-data route (no spectrum required)
-Open Inspector → NMR Data. Add observations, paste a table, or Import observed
-shifts CSV/TSV. Assignment and Shift columns can be mapped before Preview/Apply.
-Legacy δ_obs + δ_dia columns represent absolute paramagnetic/diamagnetic shifts;
-δ_para is calculated downstream, not imported as an absolute shift or called PCS.
-Open Shift Analysis, choose Observed / Para and Reference / Dia experiments,
-then Compare. Role changes require confirmation. Continue with PCS Preparation
-→ Review & Apply when the derivation and structural mapping are justified.
-Use controls single-pair shift comparison/PCS preparation; VT keeps its own
-member inclusion and fit masks. NMR Data also shows unassigned picked peaks:
-double-click Assignment or press Enter to assign; Tab moves to the next row.
-Picked shifts/intensities stay owned by the source peak, not editable copies.
-Use Experiment and Show to filter, and More for details, removal and Chemical Map.
-Shift Analysis Display expands the existing plot-layer options; PCS selected-row
-details can be collapsed without changing their values.
-Rows and Chemical Map share semantic selection; More previews grouped sites
-and explicitly links reviewed mappings without automatically transferring PCS.
-The Import menu also exposes the original PCS-project observed/diamagnetic
-Excel/CSV/paste review. These project projections remain read-only and outside
-NMR session ownership. Copy values creates independent session-owned data;
-explicitly select the actual nucleus when copying legacy unspecified nuclei.
+WORKFLOW = """## Prepared shifts — no spectrum required
+1. Open Inspector → NMR Data and add, paste or import observed shifts.
+2. In Shift Analysis, choose Observed / Para and Reference / Dia, then Compare.
+3. In PCS Preparation, review the derivation and atom/group mapping.
+4. Use Review & Apply to transfer the reviewed values to PCS Analyzer.
 
-1. Load experiments and create a VT series
-Use VT Series → New, then Import FIDs / Import folder group or Add loaded.
-Check each temperature in Kelvin (25 °C = 298.15 K), labels and Include.
+Use absolute observed shifts as input. δ_para is derived from the paired data;
+it is not automatically a pure PCS. Read-only PCS-project data can be copied
+into independent NMR data when needed.
 
-2. Correct spectra and pick peaks
-Batch Processing starts from the current committed spectrum; untouched FIDs get
-the default FT. Usually: phase → baseline → reference → peak picking.
-Check experiments in the table to set batch targets; row selection browses spectra.
-Included members are checked initially. Checking an excluded member permits this
-batch only, without changing series inclusion. The All header selects/clears targets.
-Preset loads saved processing settings; Save/Delete manage presets in the series.
-For selected-experiment batches, Save stores a Workbench common preset without
-member IDs/overrides. Save session preserves these presets; loading one keeps the
-current checked targets and clears individual overrides. Series presets retain
-their saved targets and overrides.
-Current spectrum keeps existing processing. Original FID restarts from raw and
-enables the visible FT step; review operation order before applying.
-Preview changes nothing. Inspect Before / After / Overlay, then Apply explicitly.
-Phase pivot is the origin of the phase ramp; it is not a chemical-shift reference.
-Reference searches each member independently. Missing/multiple candidates need review.
+## Single spectrum
+1. Load the experiment and inspect its spectrum.
+2. Preview phase, baseline and reference corrections; Apply after checking.
+3. Pick peaks and review assignments in Inspector → NMR Data.
+4. Save an NMR session to resume the committed work.
 
-3. Compare and track resonances
-VT stacked shows included members; normalization/spacing affect display only.
-In Tracks, link an existing peak in each member. Suggest proposes candidates;
-Accept establishes the link. Missing = no observation; ambiguous = uncertain identity;
-stale = source changed and needs review. Reprocessing/referencing/re-picking may stale links.
+A phase pivot changes the phase ramp; Reference sets the chemical-shift scale.
+Processing previews are not saved until applied.
 
-4. Assign when justified
-Assignment names an interpreted resonance. A track only asserts correspondence:
-it does not assign atoms. Edit the peak Assignment column or use Assignment review.
-Propagation suggestions require confirmation; existing conflicts are not overwritten.
+## Variable-temperature series
+1. Open VT Series → New and add experiments. Check temperatures in Kelvin.
+2. Use Batch Processing to preview and apply corrections, then pick peaks.
+3. Inspect the stacked spectra and review peak links in Tracks.
+4. Review assignments, then inspect fits and residuals in VT Analysis.
 
-5. Analyze and save
-VT Analysis fits confirmed, valid, included points. δ is observed shift in ppm,
-T is Kelvin, 1/T is K⁻¹ and δT is ppm·K. Analysis fit exclusions affect only the fit.
-Inspect residuals (measured minus fitted), R² and diagnostics before interpreting.
-Save the NMR session to resume work, and export tables/plots/results to share."""
+Suggest proposes peak links; Accept confirms them. Tracking a resonance does
+not assign it to an atom. Reprocessing can make existing links stale.
+Batch checkboxes choose processing targets; series Include and analysis fit
+exclusions remain separate controls.
 
-FILES = """Observed-shift table (.csv) — NMR Data → Export / Import
-All dataset-owned observations, including independent input values and excluded
-rows. Includes observed quantity, experiment/observation/peak IDs, conditions,
-source revisions and provenance. Import previews first; exact loaded-ID updates
-must be enabled explicitly. Missing/stale spectrum links require the original
-session or an explicitly detached copy retaining original source evidence.
-This table is distinct from the existing assignment-review CSV below.
+## Save your work
+Open VT Series → Manage VT Series… → Files → Save NMR session…
+This also works for a single experiment or prepared shifts without a series.
+Save the corresponding PCS project separately as .pcsp after a handoff."""
 
-NMR session (.nmrsession) — Save session / Open session
-Resume committed spectra, processing history, peaks, assignments, series, tracks
-and saved analysis evidence with stable IDs. Previews are not saved.
+FILES = """## Resume work — NMR session (.nmrsession)
+VT Series → Manage VT Series… → Files → Save NMR session… / Open NMR session…
+Preserves committed spectra, processing history, peaks, assignments, series,
+tracks and retained analysis evidence. Pending previews are not saved.
+Reopen the session rather than reimporting FIDs to preserve data identities.
 
-Series definitions (.nmrseries) — Save / Load definitions
-Membership and series/track definitions only. Load against existing datasets;
-this is not a substitute for saving the NMR session.
+## Exchange shifts — observed-shift CSV
+Inspector → NMR Data → Export / Import
+Exchanges observed values and their conditions. Import previews changes first.
+Linked spectrum values need their matching session or an explicitly detached copy.
+This is a different format from the assignment-review CSV.
 
-Assignment table (.csv) — Export / Review import
-Peak-linked observables with dataset/peak/observable IDs, shift, revision, nucleus,
-assignment and existing uncertainty. Edit assignment/uncertainty, keep identity
-columns. Reopen the original session first; reimporting vendor FIDs creates new IDs.
-Import reviews conflicts and blocked rows before Apply. Blank names do not delete.
-No nearest-ppm matching, track propagation or structural assignment is performed.
+## Review assignments — assignment CSV
+Export / Review import in the data-exchange window.
+Edit assignment names and uncertainties; keep identity columns unchanged.
+Reopen the original session before import, then review conflicts before Apply.
+Blank assignment names do not delete existing names.
 
-Analysis table (.csv) — Export table
-Measured/transformed coordinates, fit inclusion, predictions, residuals and IDs.
-A reporting table; it cannot reconstruct spectra or tracking identities.
+## Reuse series definitions (.nmrseries)
+VT Series manager → Files → Export / Import series definitions…
+Contains membership and track definitions for already loaded datasets.
+It does not contain spectra and does not replace an NMR session.
 
-Analysis results (.json) — Export / Import results
-Historical source snapshots, model/configuration, fit results and diagnostics.
-Import inspects the saved result without recalculating or changing live fits.
-Retain it in the matching series, then Save session. Changed sources are reported.
+## Share analysis — CSV, JSON and plots
+CSV reports coordinates, fit inclusion, predictions and residuals.
+JSON reopens historical results without recalculating or changing live fits.
+Choose Keep in session before saving to retain imported analysis evidence.
+PNG / PDF / SVG shares the figure. None of these replaces an NMR session."""
 
-Plot (.png / .pdf / .svg) — Export plot
-The current analysis figure for sharing; not a recoverable scientific session."""
-
-TERMS = """Dataset / experiment: one loaded spectrum and its own processing history, peaks and observables.
+TERMS = """## Experiments and series
+Dataset / experiment: one loaded spectrum and its own processing history, peaks and observables.
 Series / member: an ordered collection of dataset references / one entry in that collection.
 Include: use this member in the series workflow; excluded members remain loaded.
 Acquisition order: original series order. Temperature order changes the view, not identity.
 Temperature override: explicit effective temperature; original acquisition metadata is preserved.
 
+## Spectrum processing
 Apodization: multiply the FID by a window before FT. Exponential line broadening (LB)
 is in Hz; larger LB reduces noise but broadens peaks. Gaussian width (GB) is in Hz.
 Zero fill: pad the FID to more points for finer displayed sampling; adds no measured information.
@@ -123,6 +98,7 @@ Set for selected: store this operation's settings for the selected experiment on
 Clear selected overrides: clear all operation overrides for that experiment, using common settings.
 Processing preset: saved ordered operations/settings; Apply writes each dataset's own history.
 
+## Peaks, assignments and fits
 Peak: measured spectral feature. Track: reviewed correspondence between member peaks.
 Observable: interpreted NMR quantity linked to an assignment; separate from the peak/track.
 Structural target: atom/group mapping; not inferred merely from tracking a resonance.
@@ -132,23 +108,50 @@ R²: variance explained by the fit; not proof of a physical model.
 Uncertainty: measured/provided shift uncertainty; missing uncertainty is not invented."""
 
 
+def _open_manual(window, page):
+    url = DOCUMENTATION_URL + page
+    try:
+        if not webbrowser.open_new_tab(url):
+            raise RuntimeError("No browser accepted the request.")
+    except Exception as exc:
+        messagebox.showerror("NMR documentation",
+                             f"Could not open documentation.\n{url}\n\n{exc}",
+                             parent=window)
+
+
 def show_workflow_help(parent):
     window = tk.Toplevel(parent)
     window.title("NMR workflow & file guide")
     window.transient(parent)
-    window.geometry("790x620")
+    fonts = get_app_fonts(parent._root())
     notebook = ttk.Notebook(window)
-    notebook.pack(fill="both", expand=True, padx=10, pady=10)
-    for label, content in (("Workflow", WORKFLOW), ("Terms & parameters", TERMS), ("Save / export / import", FILES)):
+    notebook.pack(fill="both", expand=True, padx=10, pady=(10, 0))
+    pages = (("Workflow", WORKFLOW, "nmr/spectrum-viewer/"),
+             ("Terms & parameters", TERMS, "nmr/raw-processing/"),
+             ("Save / export / import", FILES, "nmr/sessions/"))
+    for label, content, _page in pages:
         frame = ttk.Frame(notebook)
         notebook.add(frame, text=label)
-        text = tk.Text(frame, wrap="word", padx=12, pady=12, font=get_app_fonts(parent._root())["ui"])
+        text = tk.Text(frame, wrap="word", width=82, height=26,
+                       padx=14, pady=12, font=fonts["ui"], spacing1=2, spacing3=3)
+        text.tag_configure("heading", font=fonts["ui_bold"], spacing1=12, spacing3=6)
         scroll = ttk.Scrollbar(frame, command=text.yview)
         text.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         text.pack(fill="both", expand=True)
-        text.insert("1.0", content)
+        for line in content.splitlines():
+            if line.startswith("## "):
+                text.insert("end", line[3:] + "\n", "heading")
+            else:
+                text.insert("end", line + "\n")
         text.configure(state="disabled")
-    from .actions import polish
+    from .actions import action, polish
+    footer = ttk.Frame(window, padding=10)
+    footer.pack(fill="x")
+    action(footer, "Read full guide", "search",
+           lambda: _open_manual(window, pages[notebook.index("current")][2]),
+           description="Open the related online NMR documentation").pack(side="left")
+    action(footer, "Close", "close", window.destroy).pack(side="right")
     polish(window)
+    fit_dialog(window)
     return window
