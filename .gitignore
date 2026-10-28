@@ -94,6 +94,7 @@ desktop.ini
 !nmr_workbench/resources/reference_presets.json
 
 # Local AI / agent instructions
+/DISTRIBUTION_PRIVACY.md
 **/AGENTS.md
 **/CLAUDE.md
 **/GEMINI.md
