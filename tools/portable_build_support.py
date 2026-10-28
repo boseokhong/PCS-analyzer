@@ -223,6 +223,8 @@ def collect_notices(entries, project_root, output_dir):
                 continue
             lower = [p.casefold() for p in parts]
             basename = lower[-1]
+            if "__pycache__" in lower or basename.endswith((".pyc", ".pyo")):
+                continue
             if not ("licenses" in lower or any(basename.startswith(p) for p in
                     ("license", "licence", "copying", "copyright", "notice"))):
                 continue
@@ -290,3 +292,138 @@ def check_qt_output(directory):
                  if p.is_file() and p.name.casefold() in EXCLUDED_QT_FILES]
     if forbidden:
         raise RuntimeError("Excluded Qt components remain in release: " + ", ".join(forbidden))
+
+
+def check_release_privacy(directory, project_root=None):
+    """Inspect the actual release; report locations/categories, never secret values.
+
+    Public author/citation details and third-party attribution are intentional.
+    This gate complements explicit public-file manifests and example review; it
+    cannot identify every possible personal name inside arbitrary binary data.
+    """
+    import socket
+    import shlex
+    import zipfile
+    from types import CodeType
+    from PyInstaller.archive.readers import CArchiveReader
+
+    directory = Path(directory).resolve()
+    findings = set()
+    public_email = b"bshong66@gmail.com"
+    forbidden_parts = {"dev_docs", ".git", ".aws", ".ssh", ".agents", ".codex", "__pycache__"}
+    forbidden_names = {"app_settings.json", "plugins.json", ".env", "id_rsa", "id_ed25519",
+                       "credentials.json", "credentials", "AGENTS.md"}
+    profile_tokens = set()
+    for path in (Path.home(), Path(project_root).resolve() if project_root else directory):
+        parts = path.parts
+        for index, part in enumerate(parts[:-1]):
+            if part.casefold() == "users" and parts[index + 1].casefold() not in {"public", "default"}:
+                profile_tokens.add("/".join(parts[:index + 2]).replace("\\", "/").replace("//", "/").casefold().encode())
+    hostname = socket.gethostname().encode().lower()
+    profile_tokens |= {token.decode().encode(encoding) for token in list(profile_tokens)
+                       for encoding in ("utf-16-le", "utf-16-be")}
+    secrets = (
+        ("access_token", re.compile(rb"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-proj-[A-Za-z0-9_-]{40,})(?![A-Za-z0-9_])")),
+        ("aws_access_key", re.compile(rb"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
+        ("private_key", re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----\s+[A-Za-z0-9+/=\r\n]{64,}")),
+    )
+    home_path = re.compile(rb"(?i)(?:[a-z]:[\\/]+Users[\\/]+|/Users/|/home/)([^\\/\s<>\"']+)")
+    emails = re.compile(rb"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+    placeholders = {b"public", b"default", b"user", b"username", b"example", b"runner", b"buildbot"}
+
+    def scan(data, location, first_party=False):
+        normalized = data.lower().replace(b"\\\\", b"/").replace(b"\\", b"/")
+        if any(token in normalized for token in profile_tokens):
+            findings.add((location, "local_user_profile_path"))
+        if len(hostname) >= 6 and hostname in normalized:
+            findings.add((location, "local_computer_name"))
+        for category, pattern in secrets:
+            if pattern.search(data):
+                findings.add((location, category))
+        if first_party:
+            for match in home_path.finditer(data):
+                if match.group(1).lower() not in placeholders:
+                    findings.add((location, "personal_home_path"))
+            for match in emails.finditer(data):
+                value = match.group(0).lower()
+                if value != public_email and not value.endswith((b"@example.com", b"@example.org", b"@example.invalid")):
+                    findings.add((location, "unapproved_contact_email"))
+
+    files = sorted(path for path in directory.rglob("*") if path.is_file())
+    for path in files:
+        relative = path.relative_to(directory).as_posix()
+        parts = path.relative_to(directory).parts
+        if (any(part.casefold() in forbidden_parts for part in parts)
+                or path.name in forbidden_names or path.suffix.lower() in {".pfx", ".p12"}
+                or parts[0].casefold() == "plugins"):
+            findings.add((relative, "private_state_or_development_file"))
+        first_party = (parts[0] in {"docs", "examples", "img"}
+                       or relative in PUBLIC_RELEASE_FILES
+                       or relative.startswith(("lib/tools/", "lib/img/", "lib/nmr_workbench/")))
+        with path.open("rb") as stream:
+            overlap = b""
+            while chunk := stream.read(1024 * 1024):
+                scan(overlap + chunk, relative, first_party)
+                overlap = chunk[-4096:]
+        if path.suffix.lower() == ".zip":
+            with zipfile.ZipFile(path) as archive:
+                for member in archive.infolist():
+                    if not member.is_dir():
+                        with archive.open(member) as stream:
+                            overlap = b""
+                            while chunk := stream.read(1024 * 1024):
+                                scan(overlap + chunk, relative + "!" + member.filename)
+                                overlap = chunk[-4096:]
+        if path.name == "procpar" and parts[0] == "examples":
+            lines = path.read_text(encoding="utf-8").splitlines()
+            identity_fields = {"operator_", "operator", "sampleowner", "studyowner", "emailaddr", "username", "userid", "hostname", "owner"}
+            for index, line in enumerate(lines[:-1]):
+                header = line.split()
+                if len(header) > 3 and header[0].lower() in identity_fields and header[1].isdigit():
+                    values = shlex.split(lines[index + 1])[1:]
+                    if any(value.lower() not in {"", "demo", "synthetic", "example", "anonymous", "anonymized", "none"} for value in values):
+                        findings.add((relative + ":" + header[0], "non_anonymized_acquisition_identity"))
+        if first_party and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}:
+            from PIL import Image
+            with Image.open(path) as picture:
+                if picture.getexif().get(34853):
+                    findings.add((relative, "image_gps_metadata"))
+                scan(str(picture.info).encode("utf-8"), relative + ":image_metadata", True)
+
+    module_count = 0
+    executable = directory / "PCS Analyzer.exe"
+    if executable.exists():
+        archive = CArchiveReader(str(executable))
+        pyz = archive.open_embedded_archive(next(key for key, entry in archive.toc.items() if entry[-1] == "z"))
+        def scan_code(code, location, first_party):
+            if isinstance(code, CodeType):
+                scan(code.co_filename.encode("utf-8", errors="surrogatepass"), location, first_party)
+                for value in code.co_consts:
+                    scan_code(value, location, first_party)
+            elif isinstance(code, str):
+                scan(code.encode("utf-8", errors="surrogatepass"), location, first_party)
+            elif isinstance(code, bytes):
+                scan(code, location, first_party)
+            elif isinstance(code, (tuple, list, set, frozenset)):
+                for value in code:
+                    scan_code(value, location, first_party)
+            elif isinstance(code, dict):
+                for key, value in code.items():
+                    scan_code(key, location, first_party)
+                    scan_code(value, location, first_party)
+        for name in pyz.toc:
+            first_party = name.split(".")[0] in {"logic", "ui", "plugin_system", "nmr_workbench", "tools", "app_version", "main"}
+            scan_code(pyz.extract(name), "PYZ:" + name, first_party)
+            module_count += 1
+        import marshal
+        for name, entry in archive.toc.items():
+            if entry[-1] == "s":
+                scan_code(marshal.loads(archive.extract(name)), "EXE:" + name, name == "main")
+    report = {"passed": not findings, "files_scanned": len(files), "modules_scanned": module_count,
+              "findings": [{"location": location, "category": category} for location, category in sorted(findings)],
+              "public_author_citation_and_license_attribution_preserved": True}
+    if findings:
+        error = RuntimeError("Release privacy gate failed: " + "; ".join(location + " [" + category + "]" for location, category in sorted(findings)))
+        error.report = report
+        raise error
+    return report
