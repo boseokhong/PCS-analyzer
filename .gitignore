@@ -95,6 +95,7 @@ desktop.ini
 
 # Local AI / agent instructions
 /DISTRIBUTION_PRIVACY.md
+/.github/DOCUMENTATION.md
 **/AGENTS.md
 **/CLAUDE.md
 **/GEMINI.md
