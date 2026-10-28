@@ -1,0 +1,3898 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Analysis and visualization of pseudocontact shifts in paramagnetic molecular systems">
+      
+      
+        <meta name="author" content="Boseok Hong">
+      
+      
+        <link rel="canonical" href="https://boseokhong.github.io/PCS-analyzer/1.4.0/fitting/overview/">
+      
+      
+        <link rel="prev" href="../../experimental-data/import-export/">
+      
+      
+        <link rel="next" href="../standard-fitting-tutorial/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Overview - PCS Analyzer Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#fitting-overview" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden="">
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="PCS Analyzer Documentation" class="md-header__button md-logo" aria-label="PCS Analyzer Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PCS Analyzer Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom" aria-hidden="true" type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required="">
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix="">
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="PCS Analyzer Documentation" class="md-nav__button md-logo" aria-label="PCS Analyzer Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    PCS Analyzer Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix="">
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2">
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples and Practice Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interface Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../projects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projects and Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3">
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Structures
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Structures
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../structures/loading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Loading Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../structures/coordinate-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coordinate System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../structures/symmetry-averaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symmetry and Torsional Ensemble Averaging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4">
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    PCS Analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/tensor-conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tensor Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/axial-rhombic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Axial and Rhombic PCS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/contour-plots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Contour Plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5">
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Experimental Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experimental-data/delta-exp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental PCS Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experimental-data/delta-obs-dia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed and Diamagnetic Shifts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experimental-data/import-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import and Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked="">
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Fitting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#inputs-shared-by-the-standard-fitting-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inputs shared by the standard fitting modes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#standard-fitting-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Standard fitting modes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fitted-and-fixed-tensor-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitted and fixed tensor components
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#initialization-bounds-and-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initialization, bounds, and optimization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#weighting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weighting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-and-applying-a-fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running and applying a fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-advanced-fitting-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current advanced fitting workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current advanced fitting workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multi-conformer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Conformer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joint-pcsrdc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joint PCS+RDC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PRE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-lanthanide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Lanthanide
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../standard-fitting-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Standard Fitting and Rhombicity Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../orientation-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orientation Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../full-tensor-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Full Tensor Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-conformer-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Conformer Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../joint-pcs-rdc-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Joint PCS+RDC Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pre-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PRE Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-lanthanide-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Lanthanide and Reilley Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quality-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7">
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagnostics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagnostics/residual-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Residual Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagnostics/rhombicity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rhombicity Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8">
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Visualization
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/averaging-demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Averaging and Visualization Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/chemical-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chemical Map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/polar-plot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2D Polar PCS Plot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/projection-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projection Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/3d-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D Structure Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/3d-pcs-isosurface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D PCS Plot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9">
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Workbench
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    PCS Workbench
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/calculation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calculation and Convergence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/exports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D Data Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/tensor-transfer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tensor Transfer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10">
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NMR Workbench
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    NMR Workbench
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/spectrum-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/raw-processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Raw Data and Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/nmr-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NMR Data and Observed-Shift Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/peak-assignment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peaks and Assignments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/non-pcs-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shift Analysis and PCS Preparation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10_6">
+        
+          
+          <label class="md-nav__link" for="__nav_10_6" id="__nav_10_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VT Workflow
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_10_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    VT Workflow
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/vt-series/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Series and Stacked Spectra
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/batch-processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batch Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/peak-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peak Tracking and Assignment Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/vt-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed-Shift Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/vt-pcs-preparation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Pairing and Reviewed Transfer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions and Data Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/tutorial-fid-csv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: FID or CSV to Shift Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/tutorial-vt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: VT Series
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/tutorial-pcs-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Observed Shifts to PCS Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11">
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformer Search
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Conformer Search
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    One-Bond Search Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12">
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules and Plugins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modules and Plugins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/distribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and Distribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12_4">
+        
+          
+          <label class="md-nav__link" for="__nav_12_4" id="__nav_12_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Author Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_12_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plugin Author Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/creating-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/manifest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Manifest
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/plugin-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PluginApp
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugin_distribution_guide_v0_1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distribution Design Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_13">
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/limitations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Current Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/mathematical-conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/method-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method References and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/file-formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Formats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#inputs-shared-by-the-standard-fitting-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inputs shared by the standard fitting modes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#standard-fitting-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Standard fitting modes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fitted-and-fixed-tensor-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitted and fixed tensor components
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#initialization-bounds-and-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initialization, bounds, and optimization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#weighting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weighting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-and-applying-a-fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running and applying a fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-advanced-fitting-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current advanced fitting workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current advanced fitting workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multi-conformer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Conformer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joint-pcsrdc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joint PCS+RDC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PRE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-lanthanide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Lanthanide
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation">
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="./" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Fitting
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="fitting-overview">Fitting Overview</h1>
+<p>The <strong>🔍 Fitting</strong> tab optimizes PCS predictions against selected δ_Exp
+assignments. It provides three orientation/centre models and a common result
+report. The separate <strong>🔍 Advanced Fitting</strong> tab contains several fixed-
+geometry workflows described at the end of this page.</p>
+<p>Standard Mode B/C <strong>Apply to Tensor</strong> is recorded in the active document's
+<a href="../../projects/#undo-and-redo">Undo/Redo history</a>. Undo restores the previous
+tensor and any geometry preview removed by Apply; recorded Fit History remains
+available. Redo restores the applied values without rerunning fitting. Mode A's
+geometry-preview workflow is unchanged.</p>
+<h2 id="inputs-shared-by-the-standard-fitting-modes">Inputs shared by the standard fitting modes</h2>
+<p>Before fitting, provide:</p>
+<ol>
+<li>a loaded structure with a valid metal-centre assignment;</li>
+<li>experimental PCS values as δ_Exp or structured observations;</li>
+<li>a current Δχ_ax value and, when used, Δχ_rh; and</li>
+<li>enough independent selected PCS observations to constrain the parameters.</li>
+</ol>
+<p>Selecting <strong>Fitting</strong> exposes its contextual Ribbon: <strong>Run Fit</strong>, initialization
+options, <strong>Refresh</strong> (the <strong>Refresh Inputs</strong> command), <strong>Apply Tensor</strong>
+(<strong>Apply to Tensor</strong>), <strong>Preview</strong> (<strong>Preview Geometry</strong>), <strong>Clear Preview</strong>, <strong>Fit History</strong>, and
+<strong>Export Plot</strong> (<strong>Export Fit Plot</strong>). Model and observation choices remain in
+the analysis area. These commands act on the active document.</p>
+<p>Choose <strong>Refresh</strong> after changing the structure, filter, or assignments.
+<strong>PCS observations</strong> lists structured assignments when available; otherwise it
+lists visible proton Ref IDs with legacy δ_Exp data. Select at least three
+valid observations and substantially more when fitting several parameters.
+A grouped target contributes one residual, regardless of its atom count; see
+<a href="../../experimental-data/delta-exp/#structured-observations-and-grouped-targets">Structured observations</a>.</p>
+<p>Mode C rejects a run with fewer than three matched PCS observations. Modes A and
+B currently enforce only that the selections are nonempty; they can therefore
+start an underdetermined fit with fewer than three matched points. Avoid using
+that permissive behavior as evidence that the data are sufficient.</p>
+<p>Mode A also requires one or more non-hydrogen Ref IDs from its donor list.</p>
+<h2 id="standard-fitting-modes">Standard fitting modes</h2>
+<table>
+<thead>
+<tr>
+<th>UI mode</th>
+<th>Always fitted</th>
+<th>Optionally fitted</th>
+<th>Fixed in this mode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Mode A · Ligand-donor</strong></td>
+<td>donor-axis θ and axial twist α</td>
+<td>Δχ_ax, Δχ_rh</td>
+<td>metal position</td>
+</tr>
+<tr>
+<td><strong>Mode B · Euler</strong></td>
+<td>global <code>ax</code>, <code>ay</code>, <code>az</code> orientation</td>
+<td>Δχ_ax, Δχ_rh</td>
+<td>metal position</td>
+</tr>
+<tr>
+<td><strong>Mode C · Full tensor + metal</strong></td>
+<td>three Euler angles and metal x, y, z</td>
+<td>Δχ_ax, Δχ_rh</td>
+<td>unchecked tensor components</td>
+</tr>
+</tbody>
+</table>
+<p>Mode C has six, seven, or eight variable parameters depending on the <strong>Fit Δχ_ax</strong>
+and <strong>Fit Δχ_rh</strong> checkboxes. See
+<a href="../full-tensor-fitting/">Full Tensor Fitting</a>.</p>
+<h2 id="fitted-and-fixed-tensor-components">Fitted and fixed tensor components</h2>
+<p><strong>Fit Δχ_ax</strong> and <strong>Fit Δχ_rh</strong> determine whether each component is included
+in the parameter vector. An unchecked component is read from the current
+main-window value and held fixed. Tensor inputs and results use units of
+<span class="arithmatex">\(10^{-32}\,\mathrm{m^3}\)</span> per molecule.</p>
+<p>Rhombic fits require a defined in-plane frame because the rhombic term depends
+on azimuth. See <a href="../orientation-fitting/">Orientation Fitting</a> and
+<a href="../../pcs/tensor-conventions/">Tensor Conventions</a>.</p>
+<h2 id="initialization-bounds-and-optimization">Initialization, bounds, and optimization</h2>
+<p>By default, orientation angles start at 0° and tensor parameters start from
+the current Δχ values. <strong>Use current tensor as initial guess</strong> initializes
+Mode B/C from the current tensor orientation and components; it is unavailable
+for Mode A. Mode C still starts at the assigned metal position.</p>
+<p>Orientation angles are restricted to −180° to +180°. Mode C restricts each
+metal coordinate to ±1 Å around the assigned starting centre. Tensor components
+are not bounded in the final refinement.</p>
+<p><strong>Global search (DE)</strong> searches for an initial solution before local refinement;
+it can help with starting-point sensitivity but does not establish uniqueness.
+Its preliminary search restricts tensor components to the current value ±50
+in the application's Δχ units. Compare runs from different initial assumptions.</p>
+<h2 id="weighting">Weighting</h2>
+<p><strong>Weighting: Unweighted</strong> minimizes the sum of squared residuals in ppm.
+<strong>Experimental uncertainty</strong> divides each residual by that observation's
+uncertainty σ in ppm before optimization. Every selected observation must have
+a finite, strictly positive σ; missing, zero, negative, or non-finite values
+reject the run. Uncertainty belongs to the experimental observation, including
+when its target contains several atoms. See <a href="../quality-metrics/">Quality Metrics</a>.</p>
+<h2 id="running-and-applying-a-fit">Running and applying a fit</h2>
+<ol>
+<li>Select a mode and the required observations/donors.</li>
+<li>Choose fitted tensor components, initialization, and weighting.</li>
+<li>Select <strong>Run Fit</strong> and inspect the parameters, metrics and per-observation residuals.</li>
+<li>Choose <strong>Apply to Tensor</strong> to change the current tensor, or <strong>Preview Geometry</strong>
+   to inspect the fitted geometry using a temporary override.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Apply to Tensor</th>
+<th>Preview Geometry</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A</strong></td>
+<td>Unavailable: the donor-dependent orientation is not applied to the current tensor</td>
+<td>Previews donor-axis orientation; does not copy fitted Δχ inputs</td>
+</tr>
+<tr>
+<td><strong>B</strong></td>
+<td>Applies fitted Δχ_ax and orientation; retains the current Δχ_rh and its enablement</td>
+<td>Previews XYZ orientation; does not copy fitted Δχ inputs</td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td>Applies Δχ_ax, Δχ_rh and orientation; retains rhombic enablement and the assigned metal position</td>
+<td>Previews orientation and refined metal position; also fills the Δχ input fields</td>
+</tr>
+</tbody>
+</table>
+<p>Tensor application clears an existing geometry override and refreshes the
+views. It does not change <strong>Prediction model</strong> or enable rhombicity automatically.
+Check both controls when comparing the main prediction with a fit that used a
+rhombic term. Mode B application retains the existing rhombic value even if
+that component was fitted.</p>
+<p><strong>Preview Geometry</strong> uses the existing visualization override and redraws
+immediately. Mode C also uses its fitted Δχ input values in that redraw; it
+does not apply fitted orientation to the canonical tensor. <strong>Clear Preview</strong>
+removes the geometry override while retaining current tensor settings.
+Both actions support <a href="../../projects/#undo-and-redo">document Undo/Redo</a>.
+Undoing Preview restores the previous geometry and tensor values; Undoing Clear
+restores the removed preview. The refined metal position is temporary and
+is not adopted as the project's assigned centre. Consequently, Mode C's
+post-application main predictions can differ from its fit report, which used
+the refined centre.</p>
+<p><strong><a href="../fit-history/">Fit History</a></strong> retains runs for inspection and comparison. Results marked <strong>Stale</strong> cannot
+be applied or previewed because fit inputs changed. <strong>Unknown</strong> means validity
+could not be established, not that the result is current; review its inputs.
+Restoring or inspecting a run does not automatically apply it. <strong>Export Fit Plot</strong>
+saves the standard figure as PNG or PDF.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A completed optimization is not evidence that the model is unique or
+scientifically appropriate. Compare parameter count with the number and
+spatial distribution of observations, inspect residuals, and test
+sensitivity to initialization and fixed assumptions.</p>
+</div>
+<p>The result header shows the mode, observation count, RMSD, R² and validity.
+The report distinguishes fitted and fixed values and lists residuals; the figure
+shows predicted versus experimental PCS and signed residual bars. RMSD remains
+in ppm even for weighted fits; χ²/N is uncertainty-normalized chi-square per
+datum, not reduced chi-square. See <a href="../quality-metrics/">Quality Metrics</a>.</p>
+<p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../images/fitting-result.png" data-desc-position="bottom"><img alt="Mode B fitting result with correlation and residual plots" src="../../images/fitting-result.png"></a></p>
+<p>Mode B fitting result for Nd(<em>i</em>Pr₂BA)₃.</p>
+<p>This example fits Δχ_ax to the phenyl assignments with unweighted residuals;
+the <em>i</em>Pr assignments are excluded. Its 15 selected Ref assignments span
+symmetry-related ligands and do not represent 15 independent experimental
+resonances.</p>
+<h2 id="current-advanced-fitting-workflows">Current advanced fitting workflows</h2>
+<p>The following workflows are implemented under <strong>🔍 Advanced Fitting</strong>. They
+do not replace the standard orientation and metal-position fit. Multi-Conformer
+uses its own structure collection and observation selection; the other workflows
+use the current selected atom set and geometry.</p>
+<h3 id="multi-conformer">Multi-Conformer</h3>
+<p>For a worked example with current screenshots, see the
+<a href="../multi-conformer-tutorial/">Multi-Conformer fitting and reliability tutorial</a>.</p>
+<p>Use at least two included conformers and three matched PCS observations. The
+model averages structure-specific PCS, assuming fast exchange and a shared
+tensor with fixed orientation. It does not predict PCS from averaged coordinates.</p>
+<p>Use the contextual Ribbon <strong>Use Current</strong> or <strong>Load XYZ</strong> commands (XYZ, OUT and
+LOG are supported). The current structure is copied in full; main visibility
+filters do not determine its atom mapping. Imported files require <strong>Map / frame</strong>
+or a row double-click/Enter to confirm chemical Ref correspondence, the file's own
+metal origin and its frame. Equal atom counts or element sequences do not confirm
+identity. Different file row orders are supported through explicit Ref mappings.</p>
+<p>In <strong>Fit settings</strong>, choose a confirmed common frame or metal-centered core
+alignment with at least three noncollinear corresponding anchors. Core alignment
+uses proper rotations without shifting the metal origin; inspect the recorded
+alignment RMSD. For exported coordinates already in the tensor axes, explicitly
+choose <strong>Already tensor-oriented</strong> in the row editor to prevent a second rotation;
+do not combine those inputs with core alignment. An active main geometry override is unsupported by this fixed-frame
+workflow and must be cleared before fitting.</p>
+<p>Use <strong>Select PCS</strong> for observation selection, independently of main atom selection.
+Structured observations take precedence over legacy δ_Exp inputs. Member/site and
+pseudo/torsion reductions occur within each conformer before population averaging.</p>
+<p><strong>Fit settings</strong> offers <code>tensor</code>, <code>populations</code> or <code>both</code>. Edit inclusion, initial
+population and <strong>Fixed population</strong> in each Analysis row. Fixed populations retain
+their values; only the remaining mass is fitted, with nonnegative populations
+summing to one. Fixed totals greater than one are rejected. <strong>Fit Δχ_ax</strong> and
+<strong>Fit Δχ_rh</strong> enable scalar variables; clearing either holds its specified local
+value fixed, including a nonzero fixed rhombic value. <code>populations</code> holds both
+specified scalars fixed. Unweighted fitting is the default; uncertainty weighting
+requires a positive supplied uncertainty for every selected observation.</p>
+<p>For <code>both</code>, seeded multi-start combines user/uniform and random feasible starts
+(default eight, maximum twenty). Results retain starts, failures, fixed/fitted
+conditions, raw PCS RMSD, objective, predictions and predicted-minus-experimental
+residuals. Rank deficiencies and similar-quality population alternatives warn about
+ambiguity; convergence does not establish unique populations or a global optimum.
+After a successful current fit, <strong>Reliability</strong> in the Ribbon Results group opens
+bootstrap and grouped cross-validation settings. Parametric bootstrap requires
+independent PCS observations with known positive uncertainties; <code>cases</code> resamples
+independent observation groups with replacement. Every replicate refits the selected
+free tensor/population variables. Fixed values, orientation and geometry are retained.
+Overlapping physical members/shared source observables stay together in cases
+resampling and CV; parametric evaluation rejects them without a covariance model.</p>
+<p>The report records refit counts/failures, approximate marginal percentile intervals,
+training-only out-of-sample PCS RMSD and similar-PCS conformer groups. Insufficient
+successful refits or ambiguous/rank-deficient individual estimates withhold intervals.
+Fixed parameters have no estimated interval. Failed CV folds remain visible and a
+partial pooled score is labelled accordingly. Similarity groups are suggestions at
+the fitted tensor, not automatic merges or guarantees of structural equivalence;
+their aggregate ranges are descriptive. Population boundaries, unmodelled errors
+and correlated measurements limit interpretation. Multi-start variation is not a
+confidence interval. Evaluation runs in the background and neither Applies the tensor
+nor changes the original fit. JSON exports/projects retain its assumptions and runs.
+Evaluation uses recorded uncertainties; after editing σ, refit before evaluating
+again, including when an unweighted fit's objective still remains Current.</p>
+<p>The <a href="../multi-conformer-tutorial/">Multi-Conformer tutorial</a> provides ready-to-open
+informative and ambiguous-conformer projects. Their coordinates are synthetic labelled probes,
+not a chemically optimized molecule or experimental validation.</p>
+<p>The report uses recorded conditions even after live inputs change. <strong>Apply</strong> is
+enabled only for a current successful result with fitted scalar fields, and applies
+only those fields. It preserves main orientation, metal, rhombic enablement and
+prediction policy. It neither applies local fixed overrides nor installs ensemble
+predictions in the main table. Results are separate from standard Fit History.
+<strong>Export result</strong> saves recorded inputs, runs and conformer contributions as JSON;
+the dedicated <code>.pcsp</code> section retains source coordinates without requiring the
+original files on reopen. Use the whole-tab scrollbar and report/plot splitters
+for shorter windows.</p>
+<h3 id="joint-pcsrdc">Joint PCS+RDC</h3>
+<p>This workflow fits Δχ_ax and Δχ_rh with the main metal position and tensor
+orientation fixed. Select <strong>Joint PCS+RDC</strong> within <strong>Advanced Fitting</strong>.
+The contextual Ribbon provides <strong>Run Fit</strong>, <strong>Fit settings</strong>, <strong>Select PCS</strong>,
+<strong>Load RDC CSV</strong>, <strong>Validate inputs</strong>, <strong>Apply</strong>, <strong>Export result</strong> and
+<strong>Export Template</strong>. Controls are separate from the Analysis data/results area.</p>
+<p>RDC CSVs accept explicit raw-atom <code>ref1</code>/<code>ref2</code> columns (recommended), or
+unambiguous <code>atom1</code>/<code>atom2</code> labels matching the structure. Required <code>rdc_exp</code>
+values are in Hz. <code>rdc_err</code> defaults to 0.5 Hz when omitted; <code>nuc1</code>/<code>nuc2</code>
+default to H/N. Explicit nuclear types H/1H, N/15N and C/13C are supported.
+Unknown labels/Refs are listed as skipped rows. Duplicate matched bonds,
+unsupported nuclei and invalid measured values/errors are rejected.</p>
+<p><strong>Fit settings</strong> provides field <span class="arithmatex">\(B_0\)</span>, temperature, an RDC residual
+multiplier and optional PCS uncertainty weighting. RDC residuals are divided
+by <code>max(rdc_err, 0.1 Hz)</code> and multiplied by the RDC multiplier, so its square
+scales their contribution to the objective. Without PCS uncertainty weighting,
+PCS residuals retain the legacy unit-ppm scale. With it enabled, every selected
+PCS observation must have a positive supplied uncertainty. Structured PCS
+target reductions use the existing PCS model. This joint model requires
+magnetic self-alignment; RDCs from external alignment media must not be treated
+as susceptibility-coupled data. Torsional averaging is not supported by its
+fixed-bond RDC model.</p>
+<p>Input data can be collapsed; vertical splitters resize the data, selectable
+report and two-plot region. A whole-tab scrollbar provides access in short
+windows. <strong>Correlation</strong> and <strong>Residuals</strong> show separate PCS/RDC diagnostics
+with ppm/Hz units; residuals are predicted minus experimental.
+The report records execution conditions, PCS/RDC RMSDs, per-observation values,
+matching diagnostics, rank and condition number. Input changes mark the
+recorded result <strong>Stale</strong>. <strong>Apply</strong> requires a Current successful result and
+copies only the two fitted scalar fields, preserving orientation, metal and
+main prediction settings. <strong>Export result</strong> writes the recorded inputs and
+diagnostics as JSON, including stale results; it does not export live controls.</p>
+<p>The fixed-frame solver uses linear least squares and rejects data that cannot
+independently determine both tensor components. Unknown nuclear types and
+nonpositive RDC uncertainties are rejected rather than silently substituted.
+RDC prediction uses molecular susceptibility in E-32 m³ with
+<span class="arithmatex">\(A=B_0^2\Delta\chi/(15\mu_0 k_B T)\)</span>, without a molar Avogadro conversion.
+This corrects an earlier RDC scale error; previously obtained joint-fit results
+should be recomputed. The existing signed RDC convention is retained.
+The numerical example in the <a href="../joint-pcs-rdc-tutorial/">Joint PCS+RDC tutorial</a> checks known
+parameter recovery against independent Cartesian equations. Its coordinates
+are synthetic probes, not an experimentally validated molecular model.</p>
+<p>The optional <code>[joint_pcs_rdc]</code> project section retains inputs, settings and the
+last verified result. Older projects receive defaults; reopening does not fit
+or apply automatically. No confidence intervals are estimated by this fit.
+See the <a href="../joint-pcs-rdc-tutorial/">Joint PCS+RDC tutorial</a> for prepared
+noiseless/noisy/rank-deficient projects and illustrated workflows.</p>
+<h3 id="pre">PRE</h3>
+<p>The PRE tab fits one effective correlation time from proton increments
+Γ₂=R₂,para−R₂,dia at fixed raw geometry, metal position, field and moment.
+<strong>Fit conditions</strong> sits above the Input data table and collapses with it.
+The Ribbon provides <strong>Run Fit</strong>, <strong>Load PRE CSV</strong>, <strong>Validate inputs</strong>,
+<strong>Export result</strong> and <strong>Export Template</strong>. There is no PRE Fit settings popup.</p>
+<p>Select supplied-error weighting or the legacy assumed-error rule; set positive
+τ_c bounds (default 0.001–1000 ns). The report records execution conditions,
+matching, time, boundary status, RMSD and weighted residual sum of squares.
+Distance profile, correlation, standardized residuals and a recorded-data
+τ_c objective scan support inspection. Confidence intervals are not estimated.
+The fixed-field amplitude fit uses a bounded monotonic inverse. This simplified
+proton Γ₂ model does not include full SBM/Curie relaxation, R₁ fitting or
+ensemble-distance averaging. A preset fills μ_eff; it does not validate the
+relaxation model for that ion.</p>
+<p>PRE inputs, options and a verified result round-trip in projects without
+refitting or changing the main tensor. See the <a href="../pre-tutorial/">PRE tutorial</a>
+for canonical/paired-rate CSVs, legacy alias warnings, synthetic examples and
+actual screenshots.</p>
+<h3 id="multi-lanthanide">Multi-Lanthanide</h3>
+<p>The contextual Ribbon <strong>Analysis</strong> selector retains independent <strong>Tensor fitting</strong>
+and adds <strong>Reilley separation</strong>, <strong>Ln scaling</strong>, <strong>Nuclei diagnostics</strong>,
+<strong>Geometry / CFP</strong> and <strong>Parameter table</strong>. Input conditions and tables collapse
+together; Result and selected-target diagnostic plots share adjustable sashes.</p>
+<p>Tensor fitting uses PCS and explicit main Ref mapping, with the main metal/frame
+fixed and independent axial/rhombic scalars per dataset. Reilley uses total
+paramagnetic shifts, δ_para (ppm) = δ_obs−δ_dia, for matching nuclei across Ln. Direct and two
+normalized objectives (<strong>Normalization: No normalization / Normalize by S(T) /
+Normalize by C_D</strong>) support supplied errors with corresponding error scaling,
+rank/conditioning checks, two-point diagnostics and explicit exclusions.</p>
+<p>The compact Coefficients table inside Fit conditions displays included Ln values,
+C_D and S(T), with short Bleaney/Pinkerton references. Temperature and coefficient
+identity are recorded; new inputs default to 300 K and saved temperatures are
+preserved. Sm/Eu retain fixed 300 K values. This is a single-temperature
+separation model. Ln scaling/nucleus/geometry checks are
+conditional diagnostics, not proof of a shared structure or independent absolute
+PCS separation. CFP comparisons are relative, not absolute energy-unit estimates.</p>
+<p>Review PCS transfer creates local typed datasets from a Current Reilley result;
+it does not overwrite main PCS or Apply a tensor. Separated values share coefficient
+uncertainty. Projects retain typed inputs/conditions and verified results per analysis;
+JSON export retains recorded inputs and diagnostics. See the
+<a href="../multi-lanthanide-tutorial/">Multi-Lanthanide and Reilley tutorial</a> for formats,
+assumptions, synthetic examples and actual screenshots.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden="">
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer">
+        
+          
+          <a href="../../experimental-data/import-export/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Import and Export">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Import and Export
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../standard-fitting-tutorial/" class="md-footer__link md-footer__link--next" aria-label="Next: Standard Fitting and Rhombicity Tutorial">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Standard Fitting and Rhombicity Tutorial
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"></path></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "toc.follow", "content.code.copy", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>

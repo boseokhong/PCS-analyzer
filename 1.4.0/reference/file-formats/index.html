@@ -1,0 +1,4211 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Analysis and visualization of pseudocontact shifts in paramagnetic molecular systems">
+      
+      
+        <meta name="author" content="Boseok Hong">
+      
+      
+        <link rel="canonical" href="https://boseokhong.github.io/PCS-analyzer/1.4.0/reference/file-formats/">
+      
+      
+        <link rel="prev" href="../method-references/">
+      
+      
+        <link rel="next" href="../changelog/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>File Formats - PCS Analyzer Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#file-formats" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden="">
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="PCS Analyzer Documentation" class="md-header__button md-logo" aria-label="PCS Analyzer Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PCS Analyzer Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              File Formats
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom" aria-hidden="true" type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required="">
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix="">
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="PCS Analyzer Documentation" class="md-nav__button md-logo" aria-label="PCS Analyzer Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    PCS Analyzer Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix="">
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2">
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples and Practice Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interface Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../projects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projects and Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3">
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Structures
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Structures
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../structures/loading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Loading Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../structures/coordinate-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coordinate System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../structures/symmetry-averaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symmetry and Torsional Ensemble Averaging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4">
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    PCS Analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/tensor-conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tensor Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/axial-rhombic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Axial and Rhombic PCS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs/contour-plots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Contour Plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5">
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Experimental Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experimental-data/delta-exp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental PCS Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experimental-data/delta-obs-dia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed and Diamagnetic Shifts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experimental-data/import-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import and Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6">
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Fitting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/standard-fitting-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Standard Fitting and Rhombicity Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/orientation-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orientation Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/full-tensor-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Full Tensor Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/multi-conformer-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Conformer Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/joint-pcs-rdc-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Joint PCS+RDC Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/pre-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PRE Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/multi-lanthanide-tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Lanthanide and Reilley Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/quality-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting/fit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7">
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagnostics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagnostics/residual-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Residual Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagnostics/rhombicity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rhombicity Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8">
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Visualization
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/averaging-demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Averaging and Visualization Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/chemical-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chemical Map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/polar-plot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2D Polar PCS Plot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/projection-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projection Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/3d-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D Structure Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/3d-pcs-isosurface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D PCS Plot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9">
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Workbench
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    PCS Workbench
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/calculation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calculation and Convergence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/exports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D Data Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pcs-workbench/tensor-transfer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tensor Transfer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10">
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NMR Workbench
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    NMR Workbench
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/spectrum-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/raw-processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Raw Data and Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/nmr-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NMR Data and Observed-Shift Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/peak-assignment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peaks and Assignments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/non-pcs-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shift Analysis and PCS Preparation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10_6">
+        
+          
+          <label class="md-nav__link" for="__nav_10_6" id="__nav_10_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VT Workflow
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_10_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    VT Workflow
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/vt-series/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Series and Stacked Spectra
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/batch-processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batch Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/peak-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peak Tracking and Assignment Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/vt-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observed-Shift Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/vt-pcs-preparation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PCS Pairing and Reviewed Transfer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions and Data Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/tutorial-fid-csv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: FID or CSV to Shift Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/tutorial-vt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: VT Series
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nmr/tutorial-pcs-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Observed Shifts to PCS Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11">
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformer Search
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Conformer Search
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    One-Bond Search Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformer-search/optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12">
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules and Plugins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modules and Plugins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/distribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and Distribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12_4">
+        
+          
+          <label class="md-nav__link" for="__nav_12_4" id="__nav_12_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Author Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_12_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plugin Author Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/creating-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/manifest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Manifest
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins-docs/plugin-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PluginApp
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugin_distribution_guide_v0_1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distribution Design Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked="">
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../limitations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Current Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mathematical-conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../method-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method References and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Formats
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Formats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#format-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Format summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#structure-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structure inputs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Structure inputs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#main-structure-loader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main structure loader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pcs-workbench-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS Workbench inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pcs-analyzer-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS Analyzer projects
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PCS Analyzer projects">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workspace-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspace references
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experimental-data-spreadsheets-and-pasted-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental-data spreadsheets and pasted text
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#specialized-csv-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Specialized CSV inputs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#main-window-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main-window exports
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Main-window exports">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pcs-plot-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS plot data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#main-and-rhombicity-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main and rhombicity tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#experimental-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental template
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visible-xyz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visible XYZ
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plot-and-viewer-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot and viewer exports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pcs-workbench-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS Workbench outputs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fit-run-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit-run exports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducing-an-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing an analysis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#json-viewer-presets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON viewer presets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#format-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Format summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#structure-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structure inputs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Structure inputs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#main-structure-loader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main structure loader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pcs-workbench-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS Workbench inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pcs-analyzer-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS Analyzer projects
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PCS Analyzer projects">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workspace-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspace references
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experimental-data-spreadsheets-and-pasted-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental-data spreadsheets and pasted text
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#specialized-csv-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Specialized CSV inputs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#main-window-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main-window exports
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Main-window exports">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pcs-plot-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS plot data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#main-and-rhombicity-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main and rhombicity tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#experimental-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental template
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visible-xyz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visible XYZ
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plot-and-viewer-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot and viewer exports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pcs-workbench-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCS Workbench outputs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fit-run-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit-run exports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducing-an-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing an analysis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#json-viewer-presets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON viewer presets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation">
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../glossary/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="file-formats">File Formats</h1>
+<p>PCS Analyzer uses different formats for structures, experimental values,
+projects, numerical exports, figures, and viewer presets. Support is
+workflow-specific: an extension accepted by one tool is not necessarily
+accepted by another.</p>
+<h2 id="format-summary">Format summary</h2>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Read</th>
+<th>Write</th>
+<th>Principal use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.xyz</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Main structures, conformers, and optimized structures</td>
+</tr>
+<tr>
+<td>ORCA <code>.out</code>, <code>.log</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>Main geometry input; PCS Workbench geometry and susceptibility-tensor input</td>
+</tr>
+<tr>
+<td><code>.csv</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Experimental values, advanced fitting inputs/templates, tables, and numerical results</td>
+</tr>
+<tr>
+<td><code>.xlsx</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Experimental shifts, templates, PCS plot data, and table exports</td>
+</tr>
+<tr>
+<td>legacy <code>.xls</code></td>
+<td>Offered for experimental-shift input</td>
+<td>No</td>
+<td>Older spreadsheet input when a compatible pandas engine is installed</td>
+</tr>
+<tr>
+<td><code>.pcsp</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>PCS Analyzer project persistence, including structured observations and standard fit history</td>
+</tr>
+<tr>
+<td><code>.pcsw</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Ordered references to saved <code>.pcsp</code> projects; no embedded project data</td>
+</tr>
+<tr>
+<td><code>.nmrsession</code></td>
+<td>NMR Workbench</td>
+<td>NMR Workbench</td>
+<td>Recoverable committed NMR spectra, observations and series/tracking state</td>
+</tr>
+<tr>
+<td><code>.nmrseries</code></td>
+<td>NMR Workbench</td>
+<td>NMR Workbench</td>
+<td>Series/track definitions referencing loaded datasets; no embedded spectra</td>
+</tr>
+<tr>
+<td><code>.png</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>Raster figure and viewer export</td>
+</tr>
+<tr>
+<td><code>.pdf</code>, <code>.svg</code></td>
+<td>No</td>
+<td>Selected views only</td>
+<td>Vector/document figure export</td>
+</tr>
+<tr>
+<td><code>.json</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Fit-run import/export; molecular visualization settings and other workflow-specific viewer presets; plugin manifests</td>
+</tr>
+<tr>
+<td><code>.3d</code></td>
+<td>PCS Workbench</td>
+<td>No</td>
+<td>ORCA simple-grid spin-density input</td>
+</tr>
+<tr>
+<td><code>.npy</code>, <code>.npz</code></td>
+<td>No</td>
+<td>PCS Workbench</td>
+<td>Selected volume array; NPZ also includes associated data</td>
+</tr>
+<tr>
+<td><code>.cube</code>, <code>.cub</code>, <code>.vti</code>, <code>.vtk</code>, <code>.dx</code>, <code>.mrc</code>, <code>.ccp4</code>, <code>.map</code>, <code>.nrrd</code></td>
+<td>No</td>
+<td>PCS Workbench</td>
+<td>PCS or density volumes</td>
+</tr>
+<tr>
+<td><code>.vtp</code>, <code>.ply</code>, <code>.stl</code>, <code>.obj</code></td>
+<td>No</td>
+<td>PCS Workbench</td>
+<td>A selected isosurface</td>
+</tr>
+<tr>
+<td><code>.gif</code></td>
+<td>No</td>
+<td>PCS Workbench</td>
+<td>Temperature-dependent tensor-spheroid animation</td>
+</tr>
+<tr>
+<td><code>.txt</code></td>
+<td>No</td>
+<td>Selected workflows</td>
+<td>Regression companion summary and conformer-search report</td>
+</tr>
+<tr>
+<td>plugin <code>.py</code>, folder, <code>.zip</code></td>
+<td>Module Manager</td>
+<td>No</td>
+<td>Local external-plugin installation</td>
+</tr>
+</tbody>
+</table>
+<h2 id="structure-inputs">Structure inputs</h2>
+<h3 id="main-structure-loader">Main structure loader</h3>
+<p><strong>File → Load XYZ...</strong> accepts <code>.xyz</code>, <code>.out</code>, and <code>.log</code>. The extension
+selects the parser.</p>
+<ul>
+<li>XYZ may use the standard atom-count/comment header or supported headerless
+  coordinate rows.</li>
+<li>ORCA input uses the last recognized Cartesian-coordinate block.</li>
+<li>ORCA coordinates in Bohr are converted to Å.</li>
+</ul>
+<p>See <a href="../../structures/loading/">Structure Files and Parsing</a> for accepted XYZ
+row layouts and ORCA block detection.</p>
+<p>The Multi-Conformer fitting loader accepts the same three extensions through
+the common structure loader. The standalone Conformer Search file chooser is
+stricter: it accepts conventional XYZ with an atom-count line, comment line,
+and the declared number of coordinate rows.</p>
+<h3 id="pcs-workbench-inputs">PCS Workbench inputs</h3>
+<p>PCS Workbench accepts ORCA <code>.out</code>/<code>.log</code> and ORCA simple-grid spin-density
+<code>.3d</code> files. In this context, the ORCA loader also looks for susceptibility
+tensors associated with <code>TEMPERATURE/K</code> and <code>Tensor in molecular frame</code>
+records. When multiple susceptibility sections are found, the Workbench asks which to use.
+This tensor parsing is additional to the main structure loader's
+geometry-only use.</p>
+<p>The <code>.3d</code> reader expects a title, grid dimensions, origin, grid spacing, and
+exactly the declared number of scalar values. Its parser rejects non-positive
+dimensions or spacing and a mismatched data count.</p>
+<h2 id="pcs-analyzer-projects">PCS Analyzer projects</h2>
+<p><code>.pcsp</code> embeds the structure, principal analysis inputs and complete standard
+Fit History. It is intended for reopening analyses, and is not interchangeable
+with XYZ or a spreadsheet.</p>
+<p>See <a href="../../projects/">Projects and Persistence</a> for save/load behavior,
+compatibility handling, recalculated state, fit-history restoration and the
+Mode C preview persistence.</p>
+<p>The existing <code>[visibility]</code> fields <code>residual_thr_ok</code>, <code>residual_thr_warn</code>,
+and <code>residual_color_enabled</code> retain the shared main/Rhombicity Table display
+classification. Cutoffs must be finite with 0 ≤ green &lt; orange; invalid or
+missing pairs use 0.10/0.30 ppm. Missing Color defaults to off.
+Ribbon module order is an application preference and is not embedded here.</p>
+<p>Current files also embed the latest Conformer Search candidate set in a versioned
+JSON record within <code>[conformer_search]</code>. It includes the original search geometry
+(Å), PCS observations (ppm), fixed/bond selections, recorded conditions, reports
+and candidate coordinates. Current manual graph edits are separate from the
+immutable run graph. Undefined R²/Q metrics use JSON null and remain
+undefined on restoration. Search inputs do not depend on temporary file paths.
+Older scalar-only summaries contain insufficient data to reconstruct candidates.</p>
+<p>An applied Workbench tensor can also retain its ORCA source information in the
+Analyzer project. This does not embed the Workbench density or result session.
+See <a href="../../pcs-workbench/tensor-transfer/">Tensor Transfer</a>.</p>
+<h3 id="workspace-references">Workspace references</h3>
+<p><code>.pcsw</code> is a workspace containing paths to saved <code>.pcsp</code> projects, their
+order and the active project reference. It does not store unsaved project
+changes or embed the projects. Save the project documents separately and keep
+referenced files available when moving or sharing a workspace. See
+<a href="../../projects/#workspaces-are-project-references">Workspaces</a>.</p>
+<h2 id="experimental-data-spreadsheets-and-pasted-text">Experimental-data spreadsheets and pasted text</h2>
+<p>The main δ_Exp and PCS-project δ_obs/δ_dia importers accept CSV, XLSX,
+and—when a compatible engine is available—legacy XLS. Clipboard dialogs
+accept comma-, tab-, semicolon-, or whitespace-separated text.</p>
+<p>The separate <strong>NMR Data → Observed shifts CSV / TSV…</strong> importer accepts UTF-8
+CSV/TSV/text and mapped absolute observed shifts, with its own identity rules.
+Its paste input supports comma, tab and semicolon delimiters. XLSX and the
+structural Ref-matching rules below belong to the PCS-project importers, not
+this general NMR input route. See <a href="../../nmr/nmr-data/">NMR Data</a>.</p>
+<p>The preferred structure is:</p>
+<div class="highlight"><pre><span></span><code>Ref,δ_Exp
+12,0.084
+18,-0.137
+</code></pre></div>
+<p><code>Ref</code> is the recommended identifier and must contain integer Ref IDs matching
+the current structure. An atom/element column can be used instead, but exact
+label matching and repeated-label ordering make it less reliable. A third
+<code>Atom</code> column is optional when Ref IDs are present.</p>
+<p>The value heading depends on the data layer. Common forms include <code>δ_Exp</code> or
+<code>delta_exp</code>, <code>δ_obs</code> or <code>delta_obs</code>, and <code>δ_dia</code> or <code>delta_dia</code>. The importer
+also supports documented aliases and a preview with selective set, clear, and
+skip actions.</p>
+<p>See <a href="../../experimental-data/import-export/">Import and Export</a> for the full
+recognized-heading table, fallback behavior, preview semantics, encodings,
+and mismatch troubleshooting. Those rules are the authoritative reference
+for the main experimental-data importers.</p>
+<h2 id="specialized-csv-inputs">Specialized CSV inputs</h2>
+<p>These files belong to specific workflows and do not use the general
+experimental-shift preview.</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Required identifiers and values</th>
+<th>Optional/defaulted fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Conformer Search PCS</td>
+<td>First column: one-based <code>Ref</code>/ID; second value column, or third column when an element column is present</td>
+<td>Header row may be present; comma, tab, semicolon, or whitespace dialect is detected</td>
+</tr>
+<tr>
+<td>Joint PCS+RDC</td>
+<td><code>ref1</code>, <code>ref2</code>, <code>rdc_exp</code>, or unambiguous <code>atom1</code>, <code>atom2</code>, <code>rdc_exp</code></td>
+<td>Explicit raw Ref pairs recommended. <code>rdc_err</code> defaults to 0.5 Hz; <code>nuc1</code>/<code>nuc2</code> default to H/N. <code>d</code> is accepted for <code>rdc_exp</code>; <code>h</code>/<code>n</code> are not label-column aliases.</td>
+</tr>
+<tr>
+<td>PRE</td>
+<td>Integer <code>ref_id</code>, <code>ref</code> or <code>id</code>; <code>gamma2</code>/<code>g2</code>, or paired <code>r2_para,r2_dia</code></td>
+<td>Proton Γ₂ increments in s⁻¹. <code>gamma2_err</code>/<code>sigma</code> optional; paired rate errors combine by RSS. Single <code>r2_para</code>/<code>r2</code> are legacy increment aliases with a warning. Optional <code>nucleus</code> supports H/1H only.</td>
+</tr>
+<tr>
+<td>Multi-Lanthanide</td>
+<td>Wide <code>Nucleus,Ln...</code> matrix for total paramagnetic shifts, or single-dataset <code>ref_id</code>/<code>ref</code>/<code>id</code> with <code>pcs_exp</code> (Tensor fitting) or <code>delta_para</code> (series tools)</td>
+<td><code>Ln_err</code>/<code>error</code> uncertainties, <code>G_common</code>/<code>Ln_G_i</code> geometry, nucleus/Ref mapping. Legacy <code>delta_exp</code>/<code>d_exp</code>/<code>ppm</code> aliases use the selected input type. Missing cells remain missing; invalid numbers and duplicate labels are rejected.</td>
+</tr>
+</tbody>
+</table>
+<p>The Advanced Fitting tab can export UTF-8-with-BOM CSV templates for RDC and PRE.
+The optional versioned <code>[joint_pcs_rdc]</code> project section retains RDC inputs,
+selected PCS observation IDs, conditions and the last recorded joint result.
+The main structure/PCS observations remain in their normal sections. Loading
+checks recorded predictions against recorded inputs without refitting or
+applying the tensor. Corrupt joint sections reject project loading; older files
+without the section use empty joint inputs and defaults.</p>
+<p>PRE rejects malformed/duplicate observations; it does not silently skip them.
+Its optional versioned <code>[pre_fitting]</code> section retains observations, fit conditions
+and a verified recorded result without rerunning. See the <a href="../../fitting/pre-tutorial/">PRE tutorial</a>.
+Multi-Lanthanide adds an optional versioned <code>[multi_lanthanide]</code> JSON section for typed
+datasets, conditions and verified results per analysis. See its
+<a href="../../fitting/multi-lanthanide-tutorial/">tutorial</a> for coefficient and transfer limits.
+See <a href="../../fitting/overview/#current-advanced-fitting-workflows">Fitting Overview</a>
+for current workflow limitations.</p>
+<h2 id="main-window-exports">Main-window exports</h2>
+<h3 id="pcs-plot-data">PCS plot data</h3>
+<p><strong>File → Save plot data...</strong> behaves according to the chosen extension:</p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XLSX</td>
+<td>One workbook with <strong>PCS Data</strong> and <strong>Atom Coordinates</strong> sheets</td>
+</tr>
+<tr>
+<td>CSV</td>
+<td>Two UTF-8-with-BOM files: <code>&lt;base&gt;_pcs.csv</code> and <code>&lt;base&gt;_atoms.csv</code></td>
+</tr>
+<tr>
+<td>PNG</td>
+<td>The currently open 2D PCS polar plot at the configured export DPI</td>
+</tr>
+</tbody>
+</table>
+<p>The PCS-data output contains θ samples plus PCS level, radius, and Cartesian
+plot coordinates for each contour. The atom-coordinate output contains the
+visible atom labels, radius, θ, and geometrical factor. The exported <code>Theta</code>
+values in these data files are radians. PNG export requires the 2D PCS Plot
+window to be open. An absent or unrecognized extension falls back to XLSX.</p>
+<h3 id="main-and-rhombicity-tables">Main and rhombicity tables</h3>
+<p><strong>File → Save table...</strong> exports the rows currently displayed in the main
+table.</p>
+<ul>
+<li>XLSX creates a <strong>Table</strong> sheet and, when populated, a <strong>Rhombicity</strong> sheet.</li>
+<li>CSV creates <code>&lt;base&gt;_table.csv</code> and, when populated,
+  <code>&lt;base&gt;_rhombicity.csv</code>.</li>
+</ul>
+<p>The main table columns are <code>Ref</code>, <code>Atom</code>, <code>X</code>, <code>Y</code>, <code>Z</code>, <code>G_i</code>, <code>δ_PCS</code>, and
+<code>δ_Exp</code>. The rhombicity export includes its displayed angular, <code>Gi_ax</code>,
+<code>Gi_rh</code>, axial/rhombic PCS, and residual columns.</p>
+<p>The main-table <code>δ_PCS</code> column follows the active Axial/Full tensor prediction
+model; the rhombic term contributes only when enabled. Axial-plus-rhombic
+predictions, when enabled, remain separate columns in the rhombicity export.</p>
+<h3 id="experimental-template">Experimental template</h3>
+<p><strong>Export δ_Exp Template</strong> writes visible main-table rows as <code>Ref</code>, <code>Atom</code>, and
+<code>δ_Exp</code> in CSV or XLSX. It preserves existing δ_Exp cells so the file can be
+edited and re-imported. See
+<a href="../../experimental-data/import-export/">Experimental-data Import and Export</a>.</p>
+<h3 id="visible-xyz">Visible XYZ</h3>
+<p><strong>File → Save current XYZ...</strong> writes a standard XYZ atom-count line, a PCS
+Analyzer comment line, and coordinate rows. It exports only currently visible
+elements from the effective structure. Coordinates include an applied fit
+orientation/centre override when supported, are centred on the active metal,
+and include the current X/Y/Z rotations. This is therefore a transformed
+analysis view, not necessarily the untouched input coordinates.</p>
+<h2 id="plot-and-viewer-exports">Plot and viewer exports</h2>
+<p>Export capabilities differ by view.</p>
+<table>
+<thead>
+<tr>
+<th>View</th>
+<th>Explicit file export</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>G_ax vs PCS</strong></td>
+<td>PNG, SVG, or PDF figure, plus <code>&lt;base&gt;_summary.txt</code> and <code>&lt;base&gt;_points.csv</code> companion files</td>
+</tr>
+<tr>
+<td>Standard <strong>Fitting</strong></td>
+<td>PNG or PDF correlation/residual figure</td>
+</tr>
+<tr>
+<td><strong>Projection</strong></td>
+<td>PNG, PDF, or SVG figure</td>
+</tr>
+<tr>
+<td><strong>3D Structure → Figure output</strong></td>
+<td>PNG, or PDF/SVG containing an embedded image</td>
+</tr>
+<tr>
+<td><strong>3D Structure → Viewport capture</strong></td>
+<td>PNG; experimental PDF/SVG that may contain raster content</td>
+</tr>
+<tr>
+<td>Retained <strong>Matplotlib structure viewer</strong></td>
+<td>PNG/PDF/SVG from its own camera</td>
+</tr>
+<tr>
+<td>Main <strong>3D PCS Plot</strong></td>
+<td>PNG only; either live-view resolution or an off-screen DPI/width render</td>
+</tr>
+<tr>
+<td><strong>Conformer Search</strong></td>
+<td>PNG/PDF/SVG structure plot, multi-model XYZ for selected candidates, and TXT report</td>
+</tr>
+<tr>
+<td>NMR Workbench</td>
+<td>Spectrum figures through the Matplotlib toolbar; NMR Data observed-shift CSV; assignment CSV and analysis tables/JSON/figures through their respective windows. Save <code>.nmrsession</code> for recovery.</td>
+</tr>
+</tbody>
+</table>
+<p>Figure PDF/SVG from the molecular viewer do not contain editable vector atoms,
+bonds or labels. See the <a href="../../visualization/3d-viewer/#figure-and-export">3D Structure Viewer</a>
+for output choices.</p>
+<p>The Gᵢ companion CSV contains <code>Ref</code>, <code>Atom</code>, <code>G_i</code>, <code>δ_Exp</code>, <code>δ_PCS</code>, and
+<code>Residual</code>. The standard Fitting export saves the plot only; the textual fit
+report and numeric result are not written by that button. Use Fit History
+JSON/CSV export to retain numerical results.</p>
+<p>Viewer-specific details are documented under
+<a href="../../visualization/polar-plot/">Visualization</a> and in the
+<a href="../../nmr/spectrum-viewer/">NMR Workbench</a>. See
+<a href="../../nmr/raw-processing/">Raw Data and Processing</a> for vendor dataset inputs.</p>
+<h2 id="pcs-workbench-outputs">PCS Workbench outputs</h2>
+<p>Use <strong>File → Export 3D data…</strong> for PCS or density volumes and selected isosurfaces.
+Choose the full grid, input region or custom bounds. Every data export writes a
+JSON sidecar with units, grid information and calculation conditions; keep the
+pair together. NPY stores the array alone; NPZ includes associated data, with
+additional solver/tensor arrays for a full unsmoothed PCS export. Cropped,
+smoothed and density exports have different contents.</p>
+<p>Other outputs include atom-comparison CSV (UTF-8 with BOM), PCS-viewer PNG,
+tensor PNG/GIF, and slice PNG/PDF/SVG. They are workflow-specific, rather than
+formats supported by every Analyzer viewer. See <a href="../../pcs-workbench/exports/">3D Data Export</a>
+for available formats, precision and options.</p>
+<h2 id="fit-run-exports">Fit-run exports</h2>
+<p>In <strong>Fit History → More ▾</strong>, <strong>Export selected as JSON…</strong> saves complete standard
+runs for <strong>Import Fit Run(s)…</strong>. <strong>Export selected as CSV…</strong> writes
+<code>&lt;base&gt;_summary.csv</code>; for one selected run it also writes
+<code>&lt;base&gt;_observables.csv</code>. Multiple selected runs produce only the summary CSV.
+CSV and figure files cannot be imported as complete fit runs. Importing a JSON
+run does not restore the source project or apply its tensor.
+See <a href="../../fitting/fit-history/">Fit History</a>.</p>
+<h2 id="reproducing-an-analysis">Reproducing an analysis</h2>
+<p>Keep the following together:</p>
+<ol>
+<li>The <strong>.pcsp project</strong> containing the structure, centre, prediction policy,
+   tensor/orientation, experimental targets/uncertainties and averaging settings.</li>
+<li>Original structures and experimental source data, with assignments and
+   processing/referencing notes; retain raw FIDs for NMR-derived shifts.</li>
+<li>Complete <strong>fit-run JSON</strong> and, when useful, observation/residual CSVs.
+   Label runs by subset, fitted/fixed parameters and model assumptions; record
+   excluded observations and reasons. A plot or screenshot alone is insufficient.</li>
+<li>Application version and analysis notes, including initialization, weighting,
+   averaging ranges/sample counts, and any temporary geometry preview.</li>
+<li>Optional <strong>.pcsw</strong> plus all referenced projects when reproducing a multi-document
+   session. Keep their folder layout; the workspace does not embed data.</li>
+</ol>
+<p>After reopening, check inputs and fit status, then verify live predictions.
+Stored fit predictions describe the original run. In particular, a temporary
+Mode C preview is retained separately from the assigned metal centre in current
+files. Older files without its complete preview values require recreating it
+from the recorded run. Retain that run and its reported coordinates.
+A visible XYZ export may contain transformed/averaged geometry and filtered
+atoms, so preserve the original structure separately.</p>
+<h2 id="json-viewer-presets">JSON viewer presets</h2>
+<p>The <strong>3D Structure</strong> viewer saves appearance, background, PCS colors, axes and
+Figure options through <strong>File → Visualization settings → Save… / Load…</strong>.
+These files use format <code>pcs-analyzer-visualization</code>, version <code>1</code>. They exclude
+coordinates, calculated PCS/tensors, camera, selection and shared main-application
+controls; keep the <code>.pcsp</code> project separately. See
+<a href="../../visualization/3d-viewer/#save-and-reuse-visualization-settings">Save and reuse visualization settings</a>.</p>
+<p>The main <strong>3D PCS Plot</strong> can save and load a JSON preset containing its level
+styles, grid/surface/atom display controls, colors, camera preset/projection,
+and PNG export options. PCS Workbench also saves and loads JSON parameter
+presets for its own control panel.</p>
+<p>Preset files store controls, not structures, experimental data, or calculated
+fields. These workflows use separate presets; keep them with their corresponding
+project or source data.</p>
+<h2 id="plugin-files">Plugin files</h2>
+<p>At a high level, the Module Manager accepts a single Python file (<code>.py</code>), a
+selected plugin folder, or a ZIP package (<code>.zip</code>). Folder and ZIP packages use
+<code>manifest.json</code> and a Python entry file; a <code>.py</code> installation generates that
+installed layout. JSON viewer presets and plugin manifests serve unrelated
+purposes even though both use <code>.json</code>.</p>
+<p>See <a href="../../plugins-docs/distribution/">Distribution and Installation</a> for the
+accepted layouts and current security limitations, and
+<a href="../../plugins-docs/manifest/">Plugin Manifest</a> for fields that are operational,
+descriptive, or not enforced.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden="">
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer">
+        
+          
+          <a href="../method-references/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Method References and Reporting">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Method References and Reporting
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../changelog/" class="md-footer__link md-footer__link--next" aria-label="Next: Changelog">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Changelog
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"></path></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "toc.follow", "content.code.copy", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>
