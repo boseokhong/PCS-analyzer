@@ -85,27 +85,7 @@ Core use cases include:
 
 ## Recent Changes
 
-### Current source additions
-
-The current checkout also includes document Undo/Redo with cumulative history,
-Help Documentation and a keyboard-shortcut reference, Tools Ribbon module
-launchers with a separate ordering dialog, and shared editable residual-colour
-cutoffs saved with each project. Standard fit previews and the latest Conformer
-Search candidates can be restored from current project files.
-
-Advanced Fitting includes structure-based Multi-Conformer fitting with conditional
-reliability diagnostics, Joint PCS+RDC, PRE and Multi-Lanthanide/Reilley workflows.
-See the [worked examples](docs/examples.md) and the
-[source changelog](docs/reference/changelog.md#140) for inputs, limitations
-and changes that may not yet be in a published binary.
-
-PCS Workbench **0.1.1** adds optional padding convergence checks, expanded 3D
-data export, and reviewed ORCA tensor transfer to PCS Analyzer. See the
-[Workbench guide](docs/pcs-workbench/overview.md) for the updated workflow.
-
 ### Version 1.4.0 overview
-
-Release **v1.4.0**
 
 This is a **BIG** one. The interface, NMR workflows, and analysis tools
 have all received substantial updates.
@@ -119,14 +99,25 @@ familiar interface, [v1.3.4](https://github.com/boseokhong/PCS-analyzer/releases
 remains available with the previous core features.
 
 - Added multiple project tabs and a more flexible Control Panel.
+- Added document Undo/Redo with cumulative history.
 - Added Chemical Map for molecular diagrams and atom/site inspection.
-- Expanded `NMR Shift Viewer` into `NMR Workbench`, with spectrum
-  processing, peak assignments, and PCS preparation.
+- Expanded `NMR Shift Viewer` into **NMR Workbench 0.1.0**, with spectrum
+  processing, peak assignments, observed-shift comparison, and PCS preparation.
 - Added variable-temperature NMR workflows, including batch processing,
   stacked spectra, peak tracking, and shift analysis.
 - Improved fitting with uncertainty weighting and Fit History.
+- Expanded Advanced Fitting with structure-based Multi-Conformer fitting and
+  conditional reliability diagnostics, Joint PCS+RDC, PRE, and
+  Multi-Lanthanide/Reilley workflows.
+- Added restoration of standard fit previews and the latest Conformer Search
+  candidates from saved project files.
 - Expanded Module Manager with online browsing, installation, and updates.
+- Added Tools Ribbon module launchers and a separate module-ordering dialog.
+- Added shared, editable residual-colour cutoffs saved with each project.
 - Added workspace and NMR session saving.
+- Added Help-menu documentation access and a keyboard-shortcut reference.
+- Updated PCS Workbench to **0.1.1**, adding optional padding convergence checks,
+  expanded 3D data export, and reviewed ORCA tensor transfer to PCS Analyzer.
 - Expanded the documentation with updated screenshots and tutorials.
 
 ---
