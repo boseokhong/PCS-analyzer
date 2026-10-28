@@ -51,6 +51,7 @@ jobs:
   publish:
     needs: build
     if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'release' && !github.event.release.prerelease)
     runs-on: ubuntu-latest
@@ -95,7 +96,7 @@ jobs:
           git fetch ./.docs-publication HEAD:refs/heads/gh-pages
           git fetch origin gh-pages
 
-      - name: Choose release or preview version
+      - name: Choose documentation version
         id: version
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -105,17 +106,20 @@ jobs:
           python - <<'PY'
           import ast, os, re
           from pathlib import Path
-          if os.environ["EVENT_NAME"] == "release":
-              match = re.fullmatch(r"v?(\d+\.\d+\.\d+)", os.environ["RELEASE_TAG"])
-              if not match:
-                  raise SystemExit("Release tag must be vMAJOR.MINOR.PATCH")
-              version = match.group(1)
+          if os.environ["EVENT_NAME"] in ("push", "release"):
               tree = ast.parse(Path("app_version.py").read_text())
               app_version = next(ast.literal_eval(n.value) for n in tree.body
                                  if isinstance(n, ast.Assign) and any(
                                      isinstance(t, ast.Name) and t.id == "APP_VERSION" for t in n.targets))
-              if version != app_version:
-                  raise SystemExit("Release tag and application version disagree")
+              if not re.fullmatch(r"\d+\.\d+\.\d+", app_version):
+                  raise SystemExit("Application version must be MAJOR.MINOR.PATCH")
+              version = app_version
+              if os.environ["EVENT_NAME"] == "release":
+                  match = re.fullmatch(r"v?(\d+\.\d+\.\d+)", os.environ["RELEASE_TAG"])
+                  if not match:
+                      raise SystemExit("Release tag must be vMAJOR.MINOR.PATCH")
+                  if match.group(1) != app_version:
+                      raise SystemExit("Release tag and application version disagree")
               if version == "1.3.4":
                   raise SystemExit("The historical archive must not be rebuilt")
               stable = "true"
@@ -126,7 +130,8 @@ jobs:
               stream.write(f"version={version}\nstable={stable}\n")
           PY
 
-      - name: Publish a release build locally
+      # Publish the versioned manual independently of application releases.
+      - name: Publish the current versioned manual locally
         if: steps.version.outputs.stable == 'true'
         env:
           DOC_VERSION: ${{ steps.version.outputs.version }}
