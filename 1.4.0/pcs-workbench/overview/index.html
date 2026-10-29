@@ -3555,18 +3555,15 @@
 <li><strong>Show PCS isosurfaces</strong> draws both <code>+level</code> and <code>−level</code> surfaces for every positive ppm row in <strong>PCS Isosurface Levels</strong>. Each row has positive/negative colors, style, and opacity.</li>
 </ul>
 <p><strong>Smooth PCS display (Gaussian)</strong> filters a copy of the PCS grid for isosurface rendering only. Its sigma is in voxels. It does not recalculate the stored PCS field or the atom comparison. Export smoothing is a separate, optional setting in <a href="../exports/">Export 3D data</a>. Atom and bond display, bond tolerance, labels, grid, outline, colors, opacity, camera, and projection are also visualization controls rather than PCS inputs.</p>
-<p>The following field image illustrates an earlier calculation.</p>
 <p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../images/pcs-workbench-pcs-isosurface.png" data-desc-position="bottom"><img alt="Positive and negative PCS isosurfaces in the PCS-PDE Viewer" src="../../images/pcs-workbench-pcs-isosurface.png"></a></p>
 <p>The surface is an interpolated representation of a finite numerical grid. Its apparent smoothness and the chosen isovalue do not increase the precision of the input density or prove a physical boundary.</p>
 <h2 id="atom-level-comparison">Atom-level comparison</h2>
 <p><strong>PDE PCS vs Point-dipole PCS…</strong> plots point-dipole PCS on the x-axis and interpolated PDE PCS on the y-axis. <strong>PDE − Point residuals…</strong> plots their signed difference. The plot options can restrict the atom set, minimum absolute PCS or difference, and the largest differences; they can also change color, marker size, labels, and a visual tolerance band.</p>
 <p>The displayed RMSD, MAE, mean Δ, and maximum |Δ| summarize the filtered atom rows. They compare two calculations, not calculated values against experimental data.</p>
-<p>The following comparison image illustrates an earlier calculation; it is not a new 0.1.1 validation.</p>
 <p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../images/pcs-workbench-pde-pd.png" data-desc-position="bottom"><img alt="PDE PCS versus point-dipole PCS comparison" src="../../images/pcs-workbench-pde-pd.png"></a></p>
 <h2 id="oblique-slices">Oblique slices</h2>
 <p><strong>Open Oblique PCS Slice…</strong> defines a plane through the selected metal using either <code>cartesian_z</code> or the tensor principal z direction and the vector from the metal to a chosen <strong>Direction atom</strong>. <strong>Atom plane tolerance (Å)</strong> controls which atom markers are included near the plane; it does not alter the field slice. Contours may use automatic symmetric levels or explicit signed ppm levels.</p>
 <p>Slice plots can show Ref/element labels and can be saved as PNG, PDF, or SVG.</p>
-<p>The following slice image illustrates an earlier calculation.</p>
 <p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../images/pcs-workbench-slice.png" data-desc-position="bottom"><img alt="Oblique PCS slice through the metal centre" src="../../images/pcs-workbench-slice.png"></a></p>
 <h2 id="tensor-spheroid">Tensor spheroid</h2>
 <p><strong>Tensor spheroid…</strong> diagonalizes the traceless rank-2 tensor, draws its principal directions through the selected metal, and scales an ellipsoidal visual aid from the eigenvalue magnitudes. The controls use two columns, with a scrollable settings area and fixed action buttons. The scaling modes are:</p>
@@ -3577,7 +3574,7 @@
 </ul>
 <p>Only <code>global</code> or a consistently chosen <code>absolute</code> factor supports visual size comparison across temperatures. The spheroid is a tensor visualization, not a spin-density surface or molecular orbital. It can be saved as PNG. <strong>Save GIF</strong> sweeps the selected ORCA temperature range with a fixed camera and requires the tensor viewer to be open.</p>
 <p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../images/pcs-workbench-tensor-controls.jpg" data-desc-position="bottom"><img alt="Tensor spheroid controls in two columns" src="../../images/pcs-workbench-tensor-controls.jpg"></a></p>
-<p>Current controls, shown with illustrative data. The animation below is an earlier example.</p>
+<p>Current controls, shown with illustrative data.</p>
 <p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../images/spheroid_gif.gif" data-desc-position="bottom"><img alt="Temperature-dependent tensor spheroid animation" src="../../images/spheroid_gif.gif"></a></p>
 <h2 id="exports-and-presets">Exports and presets</h2>
 <table>
