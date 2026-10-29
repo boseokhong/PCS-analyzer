@@ -96,8 +96,6 @@ The **Surfaces** tab controls two independent displays:
 
 **Smooth PCS display (Gaussian)** filters a copy of the PCS grid for isosurface rendering only. Its sigma is in voxels. It does not recalculate the stored PCS field or the atom comparison. Export smoothing is a separate, optional setting in [Export 3D data](exports.md). Atom and bond display, bond tolerance, labels, grid, outline, colors, opacity, camera, and projection are also visualization controls rather than PCS inputs.
 
-The following field image illustrates an earlier calculation.
-
 ![Positive and negative PCS isosurfaces in the PCS-PDE Viewer](../images/pcs-workbench-pcs-isosurface.png)
 
 The surface is an interpolated representation of a finite numerical grid. Its apparent smoothness and the chosen isovalue do not increase the precision of the input density or prove a physical boundary.
@@ -108,8 +106,6 @@ The surface is an interpolated representation of a finite numerical grid. Its ap
 
 The displayed RMSD, MAE, mean Δ, and maximum |Δ| summarize the filtered atom rows. They compare two calculations, not calculated values against experimental data.
 
-The following comparison image illustrates an earlier calculation; it is not a new 0.1.1 validation.
-
 ![PDE PCS versus point-dipole PCS comparison](../images/pcs-workbench-pde-pd.png)
 
 ## Oblique slices
@@ -117,8 +113,6 @@ The following comparison image illustrates an earlier calculation; it is not a n
 **Open Oblique PCS Slice…** defines a plane through the selected metal using either `cartesian_z` or the tensor principal z direction and the vector from the metal to a chosen **Direction atom**. **Atom plane tolerance (Å)** controls which atom markers are included near the plane; it does not alter the field slice. Contours may use automatic symmetric levels or explicit signed ppm levels.
 
 Slice plots can show Ref/element labels and can be saved as PNG, PDF, or SVG.
-
-The following slice image illustrates an earlier calculation.
 
 ![Oblique PCS slice through the metal centre](../images/pcs-workbench-slice.png)
 
@@ -134,7 +128,7 @@ Only `global` or a consistently chosen `absolute` factor supports visual size co
 
 ![Tensor spheroid controls in two columns](../images/pcs-workbench-tensor-controls.jpg)
 
-Current controls, shown with illustrative data. The animation below is an earlier example.
+Current controls, shown with illustrative data.
 
 ![Temperature-dependent tensor spheroid animation](../images/spheroid_gif.gif)
 

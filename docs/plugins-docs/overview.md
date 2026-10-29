@@ -18,12 +18,6 @@ successfully. Up to three launchers appear directly; additional commands are
 under **More**. A module may contribute multiple commands. The original
 **Modules** menu remains available.
 
-Direct launcher buttons are limited to 240 logical pixels including their icons.
-Long names are shortened with an ellipsis using the current font and display
-scale. Hover for the full name; the ordering dialog also retains full labels.
-The three launchers share one column width. Shortening changes only presentation,
-not the module identity, saved order or command that is launched.
-
 ![Tools Ribbon module launchers](../images/tools-ribbon-modules.png)
 
 Choose **Arrange modules…** to open **Arrange ribbon modules**. Drag a row,
